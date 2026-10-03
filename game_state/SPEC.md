@@ -1,13 +1,13 @@
 # Game State Specification
 
-**Status:** draft v0.1, for discussion. **Scope:** Phase 1 (Cruiser Clash, one Lunar vs one Murder, hot-seat), with room to grow.
+**Status:** draft v0.2, for discussion. **Scope:** Phase 1 (Cruiser Clash, one Lunar vs one Murder, hot-seat), with room to grow.
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
 | Piece | Signature | Spec |
 |---|---|---|
 | **Game state** | plain data | this document |
-| **Transform** | plain data: one proposed change, e.g. "Agrippa advances 6 cm" | to do |
+| **Transform** | plain data: one proposed change, e.g. "Agrippa moves along this path" | to do |
 | **Validator** | `validate(state, transform) → { ok: true } \| { ok: false, reason }` | to do |
 | **Reducer** | `reduce(state, transform) → state` (transform already validated) | to do |
 
@@ -22,7 +22,7 @@ Rule references like `(p. 66)` are rulebook pages; `rules/05-damage.md` etc. are
 3. **Store facts, derive the rest.** The state records what happened (damage taken, criticals suffered, where Blast Markers sit) and never what can be computed from it (crippled, current speed, effective shields, score). Derived values are defined once, in §11, so the validator, reducer and UI can't drift apart. The exceptions are things that depend on history that's otherwise gone, e.g. how far a ship moved in its last Movement Phase.
 4. **Deterministic.** `reduce(s, t)` is a pure function. Same state + same transform → byte-identical result. All dice come from the in-state PRNG.
 5. **At rest between transforms.** After every reduce, the state sits at a decision point, and exactly one player is being asked for input (§12). There's no hidden "the reducer is halfway through something" outside of the explicit `activation` and `pending` fields.
-6. **Small transforms.** A ship's move is a sequence of transforms (advance, turn, advance, end move), not one big path. That keeps each validation simple and gives natural pause points when a move triggers something mid-way (a ram, a torpedo contact).
+6. **One transform per decision.** A ship's whole move is one transform carrying the complete path. Breaking it into drag-and-rotate steps is the interface layer's job. The only split is where the rules force one: a special order is declared (and its dice rolled) *before* the move is plotted, because the player needs to know whether the Command check passed and how far All Ahead Full goes (§9.1).
 7. **Count-only choices are made up front.** When a player's choice depends only on *how many* successes a roll produces (which criticals to repair, which Blast Markers to remove), the transform carries an ordered preference list and the reducer applies the first N. That avoids an extra round-trip and gives the same outcome as choosing afterwards. Choices that must come *before* an opponent's roll (Brace For Impact!) go through `pending` (§9).
 
 Types below use TypeScript-ish notation as documentation, not as an implementation commitment.
@@ -92,7 +92,7 @@ type GameState = {
   blastMarkers: BlastMarker[]
   ordnance: Ordnance[]
   turnState: TurnState        // scratch data for the current player turn
-  activation: Activation | null  // a ship part-way through its move
+  activation: Activation | null  // a ship that has declared an order or is suspended mid-move
   pending: PendingDecision[]  // interrupt stack; top = last element
   rng: RngState
   nextId: number
@@ -195,7 +195,7 @@ type Step =
   | "active_ordnance" | "inactive_ordnance"
   // end (p. 88: in this order)
   | "boarding"           // skipped unless meta.options.boarding
-  | "damage_control"     // both players
+  | "damage_control"     // both players repair; then the active player's fires burn
   | "blast_marker_removal"
 ```
 
@@ -205,6 +205,7 @@ Phase and step transitions happen through explicit "done" transforms (e.g. "fini
 |---|---|
 | Start of a player turn | `turnState` reset (§8). |
 | Start of the owner's Movement Phase | Remove that player's special orders whose `expires.at = "movement_start"` and `expires.playerTurn ≤ now` (p. 51). |
+| End of `damage_control` | Each of the **active player's** ships takes 1 damage per `fire` critical still burning. Fires burn once per round, in their owner's End Phase, after both players have had their repair rolls. |
 | End of a player turn | Remove orders whose `expires.at = "turn_end"` for this player turn (Brace For Impact!). |
 | End of round `maxRounds`, or a fleet has no `active` ships left (see Q6) | `stage = "ended"`, `result` filled in. |
 
@@ -295,7 +296,7 @@ type CriticalKind =
   | "port_armament"       // 4
   | "prow_armament"       // 5
   | "engine_room"         // 6: no turns
-  | "fire"                // 7: 1 damage per End Phase until repaired
+  | "fire"                // 7: 1 damage in its owner's End Phase until repaired
   | "thrusters"           // 8: −10 cm speed
   | "bridge_smashed"      // 9: −3 Ld, unrepairable
   | "shields_collapse"    // 10: shields 0, unrepairable
@@ -368,33 +369,44 @@ type AttackSource =
 
 ## 9. Activation and pending decisions
 
-### 9.1 Activation: a ship part-way through its move
+### 9.1 Activation: a ship's move
 
-Only Movement needs a multi-transform activation. Each shot is a single transform, so shooting doesn't.
+A ship moves with two transforms at most:
+
+1. **Declare order** (optional): pick a special order. The reducer rolls the Command check and, for All Ahead Full, the ram target's Leadership test and the 4D6 extra distance. It opens an `activation` holding the results. A failed check still opens one, with `order: null`.
+2. **Move**: the whole path in one go. With no order declared, this opens and closes the activation in one transform.
 
 ```ts
 type Activation = {
   kind: "move"
   shipId: string
-  order: OrderKind | null            // order taken for this move (snapshot; Brace may replace the ship's order mid-move)
-  start: { position: Point, heading: number, inContactWithBM: boolean }
+  stage: "ordered" | "suspended"     // ordered: order rolled, path not yet submitted
+                                     // suspended: path partly executed, waiting on `pending`
+  order: OrderKind | null            // order taken for this move (null if none, or the check failed)
   aafExtra: number | null            // 4D6 cm rolled for All Ahead Full
-  maxDistance: number                // at activation: speed (+ aafExtra) after crippled/thrusters
+  ram: { targetId: string, testPassed: boolean, resolved: boolean } | null
+  maxDistance: number                // speed (+ aafExtra) after crippled/thrusters; −5 once if slowed by BMs
   minDistance: number                // ½ speed, 0 for Burn Retros, = maxDistance for AAF
-  distanceMoved: number              // forward distance so far this activation
-  distanceSinceTurn: number          // for the 10 cm (cruiser) rule; not reduced by BM slowing (p. 201)
-  turnsMade: number
-  turnsAllowed: number               // 0 AAF/Lock On, 2 Come To New Heading, else 1; 0 if Engine Room damaged
+  start: { position: Point, heading: number }
+  distanceMoved: number              // forward distance executed so far
+  remainingPath: PathStep[]          // empty while stage = "ordered"
   slowedByBlastMarkers: boolean      // the −5 cm has been applied (once per move)
   zeroShieldBMTestDone: boolean      // 0-shield ship already rolled for moving through BMs
-  ram: { targetId: string, testPassed: boolean, resolved: boolean } | null
-  path: { position: Point, heading: number }[]   // waypoints, for UI replay and swept contact checks
+  disengage: boolean                 // the move asked for a disengage test at its end
 }
+
+type PathStep =
+  | { kind: "advance", distance: number }   // straight ahead, cm
+  | { kind: "turn", degrees: number }       // signed, + = port
 ```
 
-The ship's `position`/`heading` are updated as it goes. `activation` holds the bookkeeping. On "end move" the reducer checks minimum distance, writes `lastMove`, offers a disengage test if one was requested, sets `turnState.ships[id].moved`, and clears `activation`.
+The validator checks the whole path against everything it can know in advance: speed limits, the minimum move, distance before turning (10 cm for a cruiser; not reduced by BM slowing, p. 201), turn count and angle for the order, Engine Room damage, BMs the path crosses (−5 cm), an AAF ship having to stop on contact with a BM in its last 5 cm, and leaving the table.
 
-When an advance hits something (a ram target's base, an enemy torpedo marker, a Blast Marker on the last 5 cm of an AAF move), the reducer **stops the ship at the contact point**, resolves or suspends the interaction, and leaves the activation open. The player then submits the next advance. There is no automatic continuation.
+The reducer then executes the path step by step. Most moves finish inside one reduce: the reducer writes the ship's new `position`/`heading` and `lastMove`, rolls the disengage test if one was requested, sets `turnState.ships[id].moved`, and clears `activation`.
+
+A move pauses only when contact needs another player's answer: the ram target's base, or an enemy torpedo salvo, with the target allowed to brace. The reducer stops the ship at the contact point, keeps the rest of the path in `remainingPath`, sets `stage: "suspended"`, and pushes the decision onto `pending`. Once `pending` empties, the reducer **carries on with the rest of the path automatically**, with no new transform from the moving player.
+
+Dice can change things mid-path, e.g. an exploding ram target drops Blast Markers in the rammer's way, or a ram critical wrecks the engine room. The reducer runs the remaining steps for as long as they're still legal and **ends the move at the first one that isn't**. Truncating a move like this isn't penalised, even if the ship ends up short of its minimum distance.
 
 ### 9.2 Pending decisions: the interrupt stack
 
@@ -480,7 +492,7 @@ type RngState = {
 - A D6 is drawn by **rejection sampling**: take a uint32 `u`; if `u ≥ 4294967292` (the largest multiple of 6 ≤ 2³²) draw again; otherwise the result is `u mod 6 + 1`. No modulo bias.
 - D3 = `ceil(D6 / 2)`. nD6 = n separate draws, in order.
 - The order in which the reducer draws dice is part of the reducer spec, so replays reproduce.
-- **Phase 1 is hot-seat on the honour system.** Anyone holding the state can predict upcoming rolls. Networked play will need the RNG moved server-side, or a commit-reveal scheme. See Q1.
+- Seeded and in-state, deliberately. Anyone holding the state could predict the next rolls. That's fine for hot-seat on the honour system, and we're not designing beyond it.
 
 ### 10.4 Log
 
@@ -489,7 +501,7 @@ type LogEntry = {
   id: string
   playerTurn: number
   phase: Phase | null
-  kind: string                       // "command_check", "advance", "attack", "damage", "critical", …
+  kind: string                       // "command_check", "move", "attack", "damage", "critical", …
   actor: PlayerId | null
   data: object                       // kind-specific; always includes any dice as `rolls: number[]`
 }
@@ -538,7 +550,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 3. If `stage = "battle"`:
    - `step = "inactive_ordnance"` → the player who is **not** active.
    - `step = "damage_control"` → either player, for their own ships. Each ship repairs once (`turnState.ships[id].repaired`), and the active player closes the step.
-   - otherwise → `activePlayer(clock.playerTurn)`.
+   - otherwise → `activePlayer(clock.playerTurn)`. While an `activation` is at `stage: "ordered"`, that player's only legal move transform is for the activated ship.
 4. If `stage = "ended"` → nobody.
 
 Every transform will carry a `player` field, and the validator rejects it if that doesn't match `actor(state)`. That isn't security, it's the honour system made explicit: it catches UI bugs, not cheats.
@@ -553,7 +565,7 @@ Properties every valid state satisfies. These are good property-test fodder.
 2. `0 ≤ damage ≤ profile.hits`. `damage = profile.hits` ⇔ `status ∈ {drifting_hulk, blazing_hulk, destroyed}`.
 3. `position` and `heading` are non-null ⇔ `onTable(ship)`. On-table stems lie within the table rectangle.
 4. A ship has at most one `specialOrder`. Hulks, undeployed, destroyed and disengaged ships have none.
-5. `activation` is non-null only in `movement / move_ships`, and its ship is the active player's, on the table, with `turnState.ships[id].moved = false`.
+5. `activation` is non-null only in `movement / move_ships`, and its ship is the active player's, on the table, with `turnState.ships[id].moved = false`. `activation.stage = "suspended"` ⇔ `pending` is non-empty during Movement.
 6. `pending` is empty unless `stage = "battle"`.
 7. No `bridge_smashed` or `shields_collapse` critical appears twice on the same ship.
 8. Every `TorpedoSalvo.strength ≥ 1`.
@@ -699,7 +711,7 @@ Agrippa (p1, Imperial, zone B, Ld 8) vs Unclean (p2, Chaos, zone A, Ld 7). Uncle
 }
 ```
 
-(`lastMove: null` before a ship's first move counts as "not halted", so it isn't targeted as Defences. See Q8.)
+(`lastMove: null` before a ship's first move counts as "not halted", so it isn't targeted as Defences. See N7.)
 
 ### Mid-game fragment: a pending brace
 
@@ -747,6 +759,8 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N3 | The target-priority Ld test is taken once per ship per Shooting Phase. Passing it frees all that ship's weapons; failing it locks them onto the nearest target. | §8 |
 | N4 | A failed Brace Command check does **not** set `commandCheckFailed` (it isn't one of the Movement-Phase special-order checks the p. 48 lockout is about). | §8 |
 | N5 | Hulks count as **destroyed** for Cruiser Clash's +3. | §11 |
+| N6 | **Fire!** deals its damage once per round (game turn), in the **owner's** End Phase after damage control. Both players still roll repairs in every End Phase. | §6 |
+| N7 | A ship that hasn't moved yet (`lastMove: null`) is **not** targeted as Defences. | §11 |
 
 ---
 
@@ -761,20 +775,24 @@ The shapes above leave room for these without breaking changes. Each will add fi
 - **Boarding:** already sketched (`grapple`, `boardingDeclared`, `factionTraits.boardingModifier`); switched on by `meta.options.boarding`.
 - **Fleet commanders and re-rolls:** `players[].commander: { shipId, rerollsLeft }`.
 - **Other scenarios / victory points:** `scenario.scoring: "victory_points"` plus scenario-specific blocks.
-- **Hidden information / networked play:** see Q1.
 
 ---
 
-## 17. Open questions
+## 17. Decisions and open questions
 
-To settle before (or while) writing the transform spec.
+### Settled
 
-- **Q1. Where does randomness live?** This draft puts a seeded PRNG in the state. It's pure, replayable, and the client can't pick its own dice. The catch is that anyone holding the state can predict upcoming rolls, which is fine for hot-seat but not for networked play. The alternative is dice supplied in transforms by a trusted roller, which makes the state smaller but the validator unable to check them.
+| # | Question | Decision |
+|---|---|---|
+| D1 | Where does randomness live? | Seeded PRNG in the state (§10.3). No designing for networked play. |
+| D2 | Move granularity | Whole path in one transform; the interface handles step-by-step (§9.1). |
+| D3 | Log in the state? | Yes (§10.4). |
+| D4 | Fire! timing | Once per game turn, in the owner's End Phase (N6). |
+| D5 | Defences before the first move | Not Defences (N7). |
+
+### Still open
+
 - **Q2. Heading convention.** Maths-style (0 = +x, counter-clockwise) here, because `atan2` and `cos/sin` work directly. A compass style (0 = up, clockwise) reads more naturally for humans. It only matters at the edges (UI, test fixtures).
-- **Q3. Granularity of movement.** Step-wise (advance / turn / end) is proposed. A single "whole path" transform would mean fewer transforms but needs mid-path suspension for rams and torpedo contacts.
-- **Q4. Log in the state?** Included here for self-containment and UI. It could instead be returned by the reducer next to the new state (`reduce → { state, events }`), which keeps the state strictly "what the rules need".
-- **Q5. Fire! timing.** Does an unrepaired fire burn in **both** players' End Phases (both players do damage control every End Phase) or only its owner's? The text says "each End Phase", which reads as both.
 - **Q6. Game end on elimination.** Cruiser Clash ends "when one fleet has all its ships destroyed". Does a fleet whose only ship **disengaged** count as eliminated? Proposed: yes, the game ends once a side has no ship with `status = active`.
 - **Q7. Scoring edge cases.** Overkill damage doesn't score (damage is capped). A hulk scores +3 as destroyed. Damage a ship does to itself (its own torpedoes) still counts for the opponent.
-- **Q8. Defences column before the first move.** In player turn 1 the first player shoots at ships that haven't moved yet (`lastMove: null`). Proposed: `null` means **not** Defences, because ships are assumed to be under way at deployment. Otherwise going first gets a free Defences-column volley.
 - **Q9. Turrets vs torpedoes and Brace order.** Brace is offered before turrets fire (p. 66). Turret dice come from the defender, though, so the reducer rolls them. No player input is needed beyond the brace answer. Confirm that's fine.
