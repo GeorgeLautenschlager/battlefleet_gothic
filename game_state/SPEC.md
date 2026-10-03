@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.2, for discussion. **Scope:** Phase 1 (Cruiser Clash, one Lunar vs one Murder, hot-seat), with room to grow.
+**Status:** draft v0.3, for discussion. **Scope:** Phase 1 (Cruiser Clash, one Lunar vs one Murder, hot-seat), with room to grow.
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -38,19 +38,24 @@ Types below use TypeScript-ish notation as documentation, not as an implementati
 
 ### Coordinate system
 - Origin `(0, 0)` is the **bottom-left** corner of the table. `+x` runs along the bottom long edge to the right, `+y` up toward the top long edge.
-- **Heading** is the direction a ship's prow points: degrees counter-clockwise from `+x`, normalised to `[0, 360)`. Heading 0 = facing right, 90 = facing the top edge, 270 = facing the bottom edge. Direction vector is `(cos h, sin h)`.
-- **Turns** are signed: **positive = to port (left, counter-clockwise)**, negative = to starboard.
+- **All angles are aviation-style: degrees clockwise, normalised to `[0, 360)`.**
+- **Relative bearings** are measured from the ship's bow: **0° dead ahead, 90° starboard, 180° aft, 270° port**. Arcs, aspect, armour facing and torpedo launch directions are all relative bearings.
+- **Heading** (the one table-frame angle) uses the same clockwise convention, measured from the table's "up" (`+y`, toward the top long edge): 0 = facing the top edge, 90 = facing right (`+x`), 180 = facing the bottom edge, 270 = facing left. The direction vector is `(sin h, cos h)`.
+- **Relative ↔ absolute:** a point at relative bearing `b` from a ship lies on table bearing `(heading + b) mod 360`. Conversely, `b = (atan2deg(dx, dy) − heading) mod 360`. Note the argument order: `atan2(dx, dy)`, not `(dy, dx)`.
+- **Turns** are signed relative bearings: **positive = to starboard (clockwise)**, negative = to port. A 45° turn to port is `-45`.
 - A ship's position is its **stem** (centre of its base). All range and movement is measured stem to stem (p. 39).
 
 ### Arcs and facings
 A ship's surroundings divide into four 90° quadrants centred on its heading (p. 40):
 
-| Quadrant | Relative bearing from heading |
+| Quadrant | Relative bearing |
 |---|---|
-| `front` | −45° … +45° |
-| `left` | +45° … +135° |
-| `rear` | +135° … +225° |
-| `right` | +225° … +315° (i.e. −135° … −45°) |
+| `front` | 315° … 45° (through 0°) |
+| `right` (starboard) | 45° … 135° |
+| `rear` | 135° … 225° |
+| `left` (port) | 225° … 315° |
+
+Quadrant names follow the rulebook's fire arcs (Front / Left / Right / Rear).
 
 The same quadrants give **fire arcs** (compass on the firer) and **target aspect / armour facing** (compass on the target). When a bearing lies on a boundary (within `EPS`), the *shooter* picks which side; the transform must say so (p. 59, p. 201).
 
@@ -123,7 +128,7 @@ type Scenario = {
   maxRounds: 8
   scoring: "cruiser_clash"     // 1/damage, +1 crippled or +3 destroyed (p. 128)
   deploymentZones: { A: Rect, B: Rect }
-  deploymentFacing: { A: 270, B: 90 }   // "towards the opposite long table edge"
+  deploymentFacing: { A: 180, B: 0 }    // "towards the opposite long table edge"
 }
 
 type Rect = { x: number, y: number, width: number, height: number }  // x,y = bottom-left
@@ -207,7 +212,7 @@ Phase and step transitions happen through explicit "done" transforms (e.g. "fini
 | Start of the owner's Movement Phase | Remove that player's special orders whose `expires.at = "movement_start"` and `expires.playerTurn ≤ now` (p. 51). |
 | End of `damage_control` | Each of the **active player's** ships takes 1 damage per `fire` critical still burning. Fires burn once per round, in their owner's End Phase, after both players have had their repair rolls. |
 | End of a player turn | Remove orders whose `expires.at = "turn_end"` for this player turn (Brace For Impact!). |
-| End of round `maxRounds`, or a fleet has no `active` ships left (see Q6) | `stage = "ended"`, `result` filled in. |
+| End of round `maxRounds`, or a fleet has no `active` ships left (D6) | `stage = "ended"`, `result` filled in. |
 
 ---
 
@@ -242,7 +247,7 @@ type Point = { x: number, y: number }
 ```
 
 Notes:
-- `damage` is capped at `profile.hits`. Hits beyond that (on a hulk, say) are logged but don't increase `damage`. Cruiser Clash scoring reads `damage`, so overkill doesn't score (see open question Q7).
+- `damage` is capped at `profile.hits`. Hits beyond that (on a hulk, say) are logged but don't increase `damage`. Cruiser Clash scoring reads `damage`, so overkill doesn't score (D7).
 - `lastMove` is written when the ship ends a move. A ship that didn't move at all (e.g. Burn Retros to zero) still gets `distance: 0`. It drives the **Defences** gunnery column (§11).
 - `leadership` is the rolled value only. Bridge Smashed and any other modifiers are derived.
 
@@ -397,7 +402,7 @@ type Activation = {
 
 type PathStep =
   | { kind: "advance", distance: number }   // straight ahead, cm
-  | { kind: "turn", degrees: number }       // signed, + = port
+  | { kind: "turn", degrees: number }       // signed, + = starboard
 ```
 
 The validator checks the whole path against everything it can know in advance: speed limits, the minimum move, distance before turning (10 cm for a cruiser; not reduced by BM slowing, p. 201), turn count and angle for the order, Engine Room damage, BMs the path crosses (−5 cm), an AAF ship having to stop on contact with a BM in its last 5 cm, and leaving the table.
@@ -536,7 +541,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `commandCheckLd(s)` | `leadership(s) − (bmsInContact non-empty ? 1 : 0) + (any enemy ship has a live specialOrder ? 1 : 0)`, max 10; roll ≤ that, 11–12 always fail |
 | `gunneryColumn(target, aspect)` | defences → A; capital closing → B; capital moving away → C; capital abeam → D; ordnance → E |
 | `score(player)` | Σ over enemy ships: `damage` + (destroyedForScoring ? 3 : crippled ? 1 : 0) (p. 128) |
-| `destroyedForScoring(s)` | `status ∈ {destroyed, drifting_hulk, blazing_hulk}` (see Q7) |
+| `destroyedForScoring(s)` | `status ∈ {destroyed, drifting_hulk, blazing_hulk}` (D7) |
 | `actor(state)` | who must submit the next transform (§12) |
 
 ---
@@ -602,7 +607,7 @@ Agrippa (p1, Imperial, zone B, Ld 8) vs Unclean (p2, Chaos, zone A, Ld 7). Uncle
       "A": { "x": 45, "y": 90, "width": 90, "height": 30 },
       "B": { "x": 45, "y": 0, "width": 90, "height": 30 }
     },
-    "deploymentFacing": { "A": 270, "B": 90 }
+    "deploymentFacing": { "A": 180, "B": 0 }
   },
   "table": { "width": 180, "height": 120 },
   "players": {
@@ -646,7 +651,7 @@ Agrippa (p1, Imperial, zone B, Ld 8) vs Unclean (p2, Chaos, zone A, Ld 7). Uncle
       "leadership": 8,
       "status": "active",
       "position": { "x": 85, "y": 15 },
-      "heading": 90,
+      "heading": 0,
       "damage": 0,
       "criticals": [],
       "specialOrder": null,
@@ -677,7 +682,7 @@ Agrippa (p1, Imperial, zone B, Ld 8) vs Unclean (p2, Chaos, zone A, Ld 7). Uncle
       "leadership": 7,
       "status": "active",
       "position": { "x": 100, "y": 105 },
-      "heading": 270,
+      "heading": 180,
       "damage": 0,
       "criticals": [],
       "specialOrder": null,
@@ -778,9 +783,9 @@ The shapes above leave room for these without breaking changes. Each will add fi
 
 ---
 
-## 17. Decisions and open questions
+## 17. Decisions
 
-### Settled
+No open questions at v0.3.
 
 | # | Question | Decision |
 |---|---|---|
@@ -789,10 +794,7 @@ The shapes above leave room for these without breaking changes. Each will add fi
 | D3 | Log in the state? | Yes (§10.4). |
 | D4 | Fire! timing | Once per game turn, in the owner's End Phase (N6). |
 | D5 | Defences before the first move | Not Defences (N7). |
-
-### Still open
-
-- **Q2. Heading convention.** Maths-style (0 = +x, counter-clockwise) here, because `atan2` and `cos/sin` work directly. A compass style (0 = up, clockwise) reads more naturally for humans. It only matters at the edges (UI, test fixtures).
-- **Q6. Game end on elimination.** Cruiser Clash ends "when one fleet has all its ships destroyed". Does a fleet whose only ship **disengaged** count as eliminated? Proposed: yes, the game ends once a side has no ship with `status = active`.
-- **Q7. Scoring edge cases.** Overkill damage doesn't score (damage is capped). A hulk scores +3 as destroyed. Damage a ship does to itself (its own torpedoes) still counts for the opponent.
-- **Q9. Turrets vs torpedoes and Brace order.** Brace is offered before turrets fire (p. 66). Turret dice come from the defender, though, so the reducer rolls them. No player input is needed beyond the brace answer. Confirm that's fine.
+| D6 | Is a fleet whose ships all disengaged eliminated? | Yes. The game ends as soon as a side has no ship with `status = active` (§6). |
+| D7 | Scoring edge cases | Overkill damage doesn't score (`damage` is capped); a hulk counts as destroyed for the +3 (N5); damage from a ship's own torpedoes still scores for the opponent. |
+| D8 | Angle convention | Aviation-style, clockwise. Relative bearings from the bow (0° ahead, 90° starboard, 180° aft, 270° port); table heading 0° = toward the top edge (§2). |
+| D9 | Turrets vs torpedoes after a Brace decision | Automatic: the reducer rolls the defender's turrets, no extra input. |
