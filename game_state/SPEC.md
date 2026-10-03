@@ -1,13 +1,13 @@
 # Game State Specification
 
-**Status:** draft v0.3, for discussion. **Scope:** Phase 1 (Cruiser Clash, one Lunar vs one Murder, hot-seat), with room to grow.
+**Status:** draft v0.4, for discussion. **Scope:** Phase 1 (Cruiser Clash, one Lunar vs one Murder, hot-seat), with room to grow.
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
 | Piece | Signature | Spec |
 |---|---|---|
 | **Game state** | plain data | this document |
-| **Transform** | plain data: one proposed change, e.g. "Agrippa moves along this path" | to do |
+| **Transform** | plain data: one proposed change, e.g. "Agrippa moves along this path" | [transforms/SPEC.md](../transforms/SPEC.md) |
 | **Validator** | `validate(state, transform) → { ok: true } \| { ok: false, reason }` | to do |
 | **Reducer** | `reduce(state, transform) → state` (transform already validated) | to do |
 
@@ -204,13 +204,13 @@ type Step =
   | "blast_marker_removal"
 ```
 
-Phase and step transitions happen through explicit "done" transforms (e.g. "finish moving"). Bookkeeping that the rules attach to a boundary is done by the reducer when it crosses that boundary:
+Steps advance automatically once they're complete; steps with optional actions end with an `end_step` transform. The full table is in the [transform spec §2.3](../transforms/SPEC.md#23-automatic-advancement). Bookkeeping that the rules attach to a boundary is done by the reducer when it crosses that boundary:
 
 | Boundary | Reducer housekeeping |
 |---|---|
 | Start of a player turn | `turnState` reset (§8). |
 | Start of the owner's Movement Phase | Remove that player's special orders whose `expires.at = "movement_start"` and `expires.playerTurn ≤ now` (p. 51). |
-| End of `damage_control` | Each of the **active player's** ships takes 1 damage per `fire` critical still burning. Fires burn once per round, in their owner's End Phase, after both players have had their repair rolls. |
+| Entering `blast_marker_removal` | Each of the **active player's** ships takes 1 damage per `fire` critical still burning. Fires burn once per round, in their owner's End Phase, after both players have had their repair rolls. |
 | End of a player turn | Remove orders whose `expires.at = "turn_end"` for this player turn (Brace For Impact!). |
 | End of round `maxRounds`, or a fleet has no `active` ships left (D6) | `stage = "ended"`, `result` filled in. |
 
@@ -357,6 +357,7 @@ type TurnState = {
 
 type ShipTurnState = {
   moved: boolean                     // finished its activation this Movement Phase
+  drifted: boolean                   // hulks only: has drifted this Movement Phase
   priorityTest: "passed" | "failed" | null   // Ld test to ignore the nearest target (p. 60)
   weaponsFired: string[]             // weapon ids fired/launched this turn
   disengage: "passed" | "failed" | null      // failed → may not fire, launch or take orders (except Brace)
@@ -424,7 +425,7 @@ type PendingDecision = {
   player: PlayerId                   // who must answer
   shipId: string                     // ship that may brace
   source: AttackSource
-  resume: SuspendedResolution        // what to finish once answered
+  resume: SuspendedResolution[]      // what to finish once answered, run in order
 }
 
 type SuspendedResolution =
@@ -438,7 +439,7 @@ type SuspendedResolution =
 Rules:
 - While `pending` is non-empty, only the top entry's `player` may act, and only with a transform that answers it.
 - The reducer only pushes a `brace` decision when bracing is actually possible: the ship is on the table, not a hulk, not already braced, has no other live order that prevents it, and hasn't failed a brace against this `source` (`turnState.braceFailures`).
-- Answering a brace either attempts the Command check (2D6 ≤ Ld with the usual modifiers) or declines. Then the reducer pops the entry and runs `resume`, which may push further decisions (an explosion that hits two ships asks about each in turn).
+- Answering a brace either attempts the Command check (2D6 ≤ Ld with the usual modifiers) or declines. Then the reducer pops the entry and runs the `resume` list in order, which may push further decisions (an explosion that hits two ships asks about each in turn).
 - `resume` is plain data, so a game saved mid-interrupt reloads exactly.
 
 ---
@@ -554,7 +555,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 2. If `stage = "setup"` → by `setupStep`: `roll_*` steps accept the transform from either player (it's one machine; the reducer rolls for both). `deploy` → the next deployer (§5). `choose_first_turn` → `setup.firstTurnChooser`.
 3. If `stage = "battle"`:
    - `step = "inactive_ordnance"` → the player who is **not** active.
-   - `step = "damage_control"` → either player, for their own ships. Each ship repairs once (`turnState.ships[id].repaired`), and the active player closes the step.
+   - `step = "damage_control"` → either player, for their own ships. Each ship needing repair repairs once (`turnState.ships[id].repaired`); the step closes by itself when all have.
    - otherwise → `activePlayer(clock.playerTurn)`. While an `activation` is at `stage: "ordered"`, that player's only legal move transform is for the activated ship.
 4. If `stage = "ended"` → nobody.
 
@@ -697,8 +698,8 @@ Agrippa (p1, Imperial, zone B, Ld 8) vs Unclean (p2, Chaos, zone A, Ld 7). Uncle
     "playerTurn": 1,
     "commandCheckFailed": false,
     "ships": {
-      "ship-1": { "moved": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "repaired": false },
-      "ship-2": { "moved": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "repaired": false }
+      "ship-1": { "moved": false, "drifted": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "repaired": false },
+      "ship-2": { "moved": false, "drifted": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "repaired": false }
     },
     "ordnanceMoved": [],
     "braceFailures": [],
@@ -732,14 +733,16 @@ Round 2, Agrippa's turn (`playerTurn: 4`), Shooting Phase. Agrippa has declared 
       "player": "p2",
       "shipId": "ship-2",
       "source": { "kind": "ship", "id": "ship-1" },
-      "resume": {
-        "kind": "direct_fire",
-        "shooterId": "ship-1",
-        "weaponId": "starboard_lances",
-        "targetId": "ship-2",
-        "arc": "right",
-        "aspect": "left"
-      }
+      "resume": [
+        {
+          "kind": "direct_fire",
+          "shooterId": "ship-1",
+          "weaponId": "starboard_lances",
+          "targetId": "ship-2",
+          "arc": "right",
+          "aspect": "left"
+        }
+      ]
     }
   ]
 }
