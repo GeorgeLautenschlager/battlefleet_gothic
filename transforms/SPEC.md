@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.1, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.4](../game_state/SPEC.md).
+**Status:** draft v0.2, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.4](../game_state/SPEC.md).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -366,7 +366,11 @@ type GameConfig = {
 | T6 | A ship that moves into a torpedo salvo is attacked by it, whoever owns the salvo. This matches "torpedoes hit friends too". |
 | T7 | Head-on ram = the rammer's stem lies in the target's front quadrant. |
 
-## 7. Open questions
+## 7. Decisions
 
-- **Q1. Friendly torpedoes and moving ships (T6).** p. 75 talks about ships moving into **enemy** ordnance. Should a ship that sails into its *own* salvo be attacked, or only when the salvo moves into it?
-- **Q2. Ramming hulks.** Nothing forbids it, so `ramTargetId` accepts enemy hulks. Keep that, or restrict ramming to active ships?
+| # | Question | Decision |
+|---|---|---|
+| D1 | Is a ship that sails into its own torpedo salvo attacked? | Yes (T6). Overrun your own torpedoes and you have a bad time. |
+| D2 | Can hulks be rammed? | Yes. `ramTargetId` accepts any enemy ship on the table, hulks included. |
+
+No open questions at v0.2.
