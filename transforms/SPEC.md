@@ -142,7 +142,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 ```ts
 { type: "deploy_ship", player, shipId: string, position: Point }
 ```
-- **Legal when:** the ship belongs to `player` and is `undeployed`; `player` is the next deployer (state §5); `position` (the stem) lies inside the player's zone.
+- **Legal when:** the ship belongs to `player` and is `undeployed`; `player` is the next deployer (state §5); `position` (the stem) lies inside the player's zone; and its base doesn't overlap any already-deployed base (validator V5).
 - **Reducer:** `status = "active"`, `position` as given, `heading = scenario.deploymentFacing[zone]`. There's no heading in the payload: Cruiser Clash ships must face the opposite long edge.
 
 #### `roll_first_turn`

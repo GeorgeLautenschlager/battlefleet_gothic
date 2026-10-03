@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.1, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.4](../game_state/SPEC.md) and [Transforms v0.3](../transforms/SPEC.md).
+**Status:** draft v0.2, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.4](../game_state/SPEC.md) and [Transforms v0.3](../transforms/SPEC.md).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -213,6 +213,7 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 | 2 | `ship.owner = player` | `NOT_YOUR_SHIP` |
 | 3 | `ship.status = "undeployed"` | `ALREADY_DEPLOYED` |
 | 4 | `position` lies in the player's zone rectangle (inclusive, `EPS`) | `NOT_IN_ZONE` |
+| 5 | The new base doesn't overlap any deployed ship's base: `distance > r1 + r2 − EPS`. Touching is allowed. | `BASES_OVERLAP` |
 
 **`choose_first_turn`**: gates only.
 
@@ -407,6 +408,7 @@ Check 13 only demands a choice when it makes a difference. A target on the front
 | `SHIP_NOT_ACTIVE` | Ship is a hulk, undeployed, destroyed or disengaged |
 | `ALREADY_DEPLOYED` | Ship is already on the table |
 | `NOT_IN_ZONE` | Deployment position outside the player's zone |
+| `BASES_OVERLAP` | Deployment position overlaps another ship's base |
 | `NOT_A_HULK` / `ALREADY_DRIFTED` | `drift_hulk` on a non-hulk, or a second time |
 | `ALREADY_MOVED` | Ship has finished its move this turn |
 | `ACTIVATION_OPEN` | Another ship has declared an order and hasn't moved yet |
@@ -471,12 +473,13 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V2 | **Contact is inclusive**: touching within `EPS` counts, for bases, Blast Markers, torpedoes and lines of fire. |
 | V3 | **Burn Retros' maximum is half speed**, with no rounding. The turn-without-moving exemption only applies when `sinceLastTurn = 0`. |
 | V4 | **All Ahead Full meeting a BM within its last 5 cm** stops on contact, and the 5 cm slowdown is not applied on top. |
+| V5 | **No overlapping bases at deployment.** Bases may touch but not overlap. Overlap during play is still legal (p. 57). |
 
-## 8. Open questions
+## 8. Decisions
 
-- **Q1. V1 (per-weapon nearest).** This is the biggest judgement call here. The strict reading is "nearest enemy, full stop": any weapon that can't bear on that ship needs the priority test before it fires at anything else.
+| # | Question | Decision |
+|---|---|---|
+| D1 | Nearest target: per weapon or strict? | Per weapon (V1). |
+| D2 | Overlapping bases at deployment? | Forbidden (V5), so the presentation layer never has to resolve it. |
 
-  The two readings differ once a side has two or more ships, which Cruiser Clash allows (up to 4). Example: a Murder has the Agrippa 20 cm off its port beam and a second Imperial cruiser 30 cm off its starboard beam. Strictly, the starboard battery needs a Ld test to shoot the second cruiser, even though it can't possibly hit the Agrippa. With V1 it fires freely.
-
-  In 1v1 the readings only differ for hulks and torpedo salvoes.
-- **Q2. Deployment overlap.** Nothing stops two ships deploying with overlapping bases. Allow it (the rules permit overlap), or forbid it at deployment for sanity?
+No open questions at v0.2.
