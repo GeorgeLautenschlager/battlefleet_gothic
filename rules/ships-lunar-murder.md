@@ -1,6 +1,13 @@
 # Ship Profiles: Lunar & Murder (p. 43)
 
-These are the rulebook's own worked-example ships, used throughout the core rules' examples (the *Agrippa* and the *Unclean*). They're the only full ship profiles in this rulebook. All other fleets and ships, plus **points costs**, are in the separate *BFG Remastered Fleets* book, which is not included here.
+These are the rulebook's own worked-example ships, used throughout the core rules' examples (the *Agrippa* and the *Unclean*). They're the only full ship profiles in this rulebook. Their profiles match the Fleets book entries ([Lunar](fleets/imperial-navy/vessels.md#lunar-class-cruiser--180-pts--p-71), [Murder](fleets/chaos/vessels.md#murder-class-cruiser--170-pts--p-279)), which add **points costs** and **options**:
+
+| | Lunar (Fleets p. 71) | Murder (Fleets p. 279) |
+|---|---|---|
+| Points | **180 pts** | **170 pts** |
+| Option | Replace prow torpedoes with a **nova cannon** for +20 pts | Replace the FP 10 batteries with FP 4 batteries + Str 2 lance batteries (all 45 cm, port/starboard), no extra cost; max two per 750 pts |
+
+Both are under Cruiser Clash's 185-point cap, so the standard Lunar vs Murder is a legal Cruiser Clash pairing.
 
 ## Imperial Lunar class cruiser — "Agrippa"
 
