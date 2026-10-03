@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.4, for discussion. **Scope:** Phase 1 (Cruiser Clash, one Lunar vs one Murder, hot-seat), with room to grow.
+**Status:** draft v0.5, for discussion. **Scope:** Phase 1 (Cruiser Clash, one Lunar vs one Murder, hot-seat), with room to grow.
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -97,8 +97,9 @@ type GameState = {
   blastMarkers: BlastMarker[]
   ordnance: Ordnance[]
   turnState: TurnState        // scratch data for the current player turn
-  activation: Activation | null  // a ship that has declared an order or is suspended mid-move
+  activation: Activation | null  // a ship that has declared an order, or is part-way through its path
   pending: PendingDecision[]  // interrupt stack; top = last element
+  queue: WorkItem[]           // outstanding resolution work, front first (§9.3)
   rng: RngState
   nextId: number
   log: LogEntry[]
@@ -352,6 +353,7 @@ type TurnState = {
   ships: { [shipId: string]: ShipTurnState }   // entries for every ship, both sides
   ordnanceMoved: string[]            // ordnance ids moved in the current Ordnance step
   braceFailures: { shipId: string, source: AttackSource }[]   // can't re-try vs this source (p. 66)
+  hulkRolls: { hulkId: string, source: AttackSource }[]       // catastrophic re-rolls already made (reducer R3)
   blastMarkersRemoved: boolean
 }
 
@@ -386,8 +388,8 @@ A ship moves with two transforms at most:
 type Activation = {
   kind: "move"
   shipId: string
-  stage: "ordered" | "suspended"     // ordered: order rolled, path not yet submitted
-                                     // suspended: path partly executed, waiting on `pending`
+  stage: "ordered" | "moving"        // ordered: order rolled, path not yet submitted
+                                     // moving: path submitted and being executed (at rest only while `pending` waits)
   order: OrderKind | null            // order taken for this move (null if none, or the check failed)
   aafExtra: number | null            // 4D6 cm rolled for All Ahead Full
   ram: { targetId: string, testPassed: boolean, resolved: boolean } | null
@@ -395,6 +397,9 @@ type Activation = {
   minDistance: number                // ½ speed, 0 for Burn Retros, = maxDistance for AAF
   start: { position: Point, heading: number }
   distanceMoved: number              // forward distance executed so far
+  distanceSinceTurn: number          // forward distance since the start or the last turn
+  turnsMade: number
+  truncated: boolean                 // the move was cut short mid-path (see below)
   remainingPath: PathStep[]          // empty while stage = "ordered"
   slowedByBlastMarkers: boolean      // the −5 cm has been applied (once per move)
   zeroShieldBMTestDone: boolean      // 0-shield ship already rolled for moving through BMs
@@ -410,13 +415,13 @@ The validator checks the whole path against everything it can know in advance: s
 
 The reducer then executes the path step by step. Most moves finish inside one reduce: the reducer writes the ship's new `position`/`heading` and `lastMove`, rolls the disengage test if one was requested, sets `turnState.ships[id].moved`, and clears `activation`.
 
-A move pauses only when contact needs another player's answer: the ram target's base, or an enemy torpedo salvo, with the target allowed to brace. The reducer stops the ship at the contact point, keeps the rest of the path in `remainingPath`, sets `stage: "suspended"`, and pushes the decision onto `pending`. Once `pending` empties, the reducer **carries on with the rest of the path automatically**, with no new transform from the moving player.
+A move pauses only when contact needs another player's answer: the ram target's base, or a torpedo salvo, with the ship allowed to brace. The reducer stops the ship at the contact point and keeps the rest of the path in `remainingPath`. It queues the contact's resolution followed by a "continue move" work item (§9.3), and the brace offer pushes the decision onto `pending`. Once it's answered, the reducer **carries on with the rest of the path automatically**, with no new transform from the moving player.
 
 Dice can change things mid-path, e.g. an exploding ram target drops Blast Markers in the rammer's way, or a ram critical wrecks the engine room. The reducer runs the remaining steps for as long as they're still legal and **ends the move at the first one that isn't**. Truncating a move like this isn't penalised, even if the ship ends up short of its minimum distance.
 
-### 9.2 Pending decisions: the interrupt stack
+### 9.2 Pending decisions
 
-Some rules make the *non-acting* player decide before a roll is made. The canonical case is Brace For Impact!, which must be declared before the to-hit roll (p. 66), including before turrets against ordnance. The reducer handles these by suspending the resolution it was doing and pushing a decision onto `pending`:
+Some rules make the *non-acting* player decide before a roll is made. The canonical case is Brace For Impact!, which must be declared before the to-hit roll (p. 66), including before turrets against ordnance. When a brace is possible, the reducer pushes a decision onto `pending` and stops:
 
 ```ts
 type PendingDecision = {
@@ -425,24 +430,21 @@ type PendingDecision = {
   player: PlayerId                   // who must answer
   shipId: string                     // ship that may brace
   source: AttackSource
-  resume: SuspendedResolution[]      // what to finish once answered, run in order
 }
-
-type SuspendedResolution =
-  | { kind: "direct_fire", shooterId: string, weaponId: string, targetId: string,
-      arc: Quadrant, aspect: Quadrant }               // aspect = target quadrant facing the firer
-  | { kind: "torpedo_attack", ordnanceId: string, targetId: string, facing: Quadrant }
-  | { kind: "ram", rammerId: string, targetId: string, headOn: boolean, respondingTo: "rammer" | "target" }
-  | { kind: "explosion", shipId: string, targets: string[], remaining: string[], strength: number, radius: number }
 ```
 
 Rules:
 - While `pending` is non-empty, only the top entry's `player` may act, and only with a transform that answers it.
-- The reducer only pushes a `brace` decision when bracing is actually possible: the ship is on the table, not a hulk, not already braced, has no other live order that prevents it, and hasn't failed a brace against this `source` (`turnState.braceFailures`).
-- Answering a brace either attempts the Command check (2D6 ≤ Ld with the usual modifiers) or declines. Then the reducer pops the entry and runs the `resume` list in order, which may push further decisions (an explosion that hits two ships asks about each in turn).
-- `resume` is plain data, so a game saved mid-interrupt reloads exactly.
+- The reducer only pushes a `brace` decision when bracing is actually possible: the ship is on the table, not a hulk, not already braced, and hasn't failed a brace against this `source` (`turnState.braceFailures`).
+- Answering a brace either attempts the Command check (2D6 ≤ Ld with the usual modifiers) or declines. The reducer then pops the entry and carries on with the work queue.
 
----
+### 9.3 Work queue
+
+Everything the reducer still has to resolve lives in `queue`: an ordered list of plain-data **work items**, processed front first. The `WorkItem` union and what each item does are defined in the [reducer spec §11](../reducer/SPEC.md#11-work-items). Examples: "resolve this battery shot", "continue this ship's move", "this explosion hits that ship".
+
+- Follow-up work is **inserted at the front**, so chains resolve depth-first and in order.
+- **Offering a brace is a work item** placed right before the roll it protects. If the ship can brace, it pushes a `pending` decision, and the queue waits there.
+- **At rest, `queue` is empty unless `pending` is non-empty.** A state saved mid-interrupt holds the decision *and* the work behind it, so it reloads exactly.
 
 ## 10. Blast markers, ordnance, RNG, log
 
@@ -571,12 +573,13 @@ Properties every valid state satisfies. These are good property-test fodder.
 2. `0 ≤ damage ≤ profile.hits`. `damage = profile.hits` ⇔ `status ∈ {drifting_hulk, blazing_hulk, destroyed}`.
 3. `position` and `heading` are non-null ⇔ `onTable(ship)`. On-table stems lie within the table rectangle.
 4. A ship has at most one `specialOrder`. Hulks, undeployed, destroyed and disengaged ships have none.
-5. `activation` is non-null only in `movement / move_ships`, and its ship is the active player's, on the table, with `turnState.ships[id].moved = false`. `activation.stage = "suspended"` ⇔ `pending` is non-empty during Movement.
-6. `pending` is empty unless `stage = "battle"`.
-7. No `bridge_smashed` or `shields_collapse` critical appears twice on the same ship.
-8. Every `TorpedoSalvo.strength ≥ 1`.
-9. `turnState.playerTurn = clock.playerTurn`.
-10. `clock.stage = "ended"` ⇔ `result ≠ null`.
+5. `activation` is non-null only in `movement / move_ships`, and its ship is the active player's, with `turnState.ships[id].moved = false`. At rest, `activation.stage = "moving"` ⇒ `pending` is non-empty and `queue` contains a `continue_move` item.
+6. `queue` is non-empty ⇒ `pending` is non-empty.
+7. `pending` is empty unless `stage = "battle"`.
+8. No `bridge_smashed` or `shields_collapse` critical appears twice on the same ship.
+9. Every `TorpedoSalvo.strength ≥ 1`.
+10. `turnState.playerTurn = clock.playerTurn`.
+11. `clock.stage = "ended"` ⇔ `result ≠ null`.
 
 ```ts
 type GameResult = {
@@ -703,10 +706,12 @@ Agrippa (p1, Imperial, zone B, Ld 8) vs Unclean (p2, Chaos, zone A, Ld 7). Uncle
     },
     "ordnanceMoved": [],
     "braceFailures": [],
+    "hulkRolls": [],
     "blastMarkersRemoved": false
   },
   "activation": null,
   "pending": [],
+  "queue": [],
   "rng": { "algorithm": "mulberry32", "seed": 1337, "state": 2918350131, "draws": 11 },
   "nextId": 14,
   "log": [
@@ -721,7 +726,7 @@ Agrippa (p1, Imperial, zone B, Ld 8) vs Unclean (p2, Chaos, zone A, Ld 7). Uncle
 
 ### Mid-game fragment: a pending brace
 
-Round 2, Agrippa's turn (`playerTurn: 4`), Shooting Phase. Agrippa has declared its starboard lances at the Unclean. Unclean took a Thrusters critical in Agrippa's previous turn and has one Blast Marker touching its base from earlier lance hits. Before Agrippa rolls, the reducer asks p2 whether the Unclean braces:
+Round 2, Agrippa's turn (`playerTurn: 4`), Shooting Phase. Agrippa has declared its starboard lances at the Unclean. Unclean took a Thrusters critical in Agrippa's previous turn and has one Blast Marker touching its base from earlier lance hits. Before Agrippa rolls, the reducer asks p2 whether the Unclean braces. The shot itself waits in the queue:
 
 ```json
 {
@@ -732,17 +737,17 @@ Round 2, Agrippa's turn (`playerTurn: 4`), Shooting Phase. Agrippa has declared 
       "kind": "brace",
       "player": "p2",
       "shipId": "ship-2",
-      "source": { "kind": "ship", "id": "ship-1" },
-      "resume": [
-        {
-          "kind": "direct_fire",
-          "shooterId": "ship-1",
-          "weaponId": "starboard_lances",
-          "targetId": "ship-2",
-          "arc": "right",
-          "aspect": "left"
-        }
-      ]
+      "source": { "kind": "ship", "id": "ship-1" }
+    }
+  ],
+  "queue": [
+    {
+      "kind": "direct_fire",
+      "shooterId": "ship-1",
+      "weaponId": "starboard_lances",
+      "target": { "kind": "ship", "id": "ship-2" },
+      "arc": "right",
+      "aspect": "left"
     }
   ]
 }
@@ -778,7 +783,7 @@ The shapes above leave room for these without breaking changes. Each will add fi
 
 - **Squadrons:** a top-level `squadrons: { id, owner, shipIds, leadership }[]`; orders move to the squadron.
 - **Attack craft:** new `Ordnance` variants (`attack_craft` with role fighter/bomber/assault boat, `onCap` ship id); `loaded.launchBays`.
-- **Nova cannon:** weapon kind `nova_cannon`, a `SuspendedResolution` for scatter.
+- **Nova cannon:** weapon kind `nova_cannon`, a `WorkItem` for scatter.
 - **Terrain:** `table.features: Feature[]` (gas clouds, asteroid fields, planets with gravity wells), `table.sunwardEdge`.
 - **Boarding:** already sketched (`grapple`, `boardingDeclared`, `factionTraits.boardingModifier`); switched on by `meta.options.boarding`.
 - **Fleet commanders and re-rolls:** `players[].commander: { shipId, rerollsLeft }`.

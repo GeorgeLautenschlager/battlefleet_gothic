@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.2, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.4](../game_state/SPEC.md) and [Transforms v0.3](../transforms/SPEC.md).
+**Status:** draft v0.2, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.5](../game_state/SPEC.md) and [Transforms v0.4](../transforms/SPEC.md).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult

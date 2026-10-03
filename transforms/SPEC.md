@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.3, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.4](../game_state/SPEC.md).
+**Status:** draft v0.4, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.4](../game_state/SPEC.md).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -91,7 +91,7 @@ Movement and Ordnance steps have no `end_step`: every ship must move (p. 53) and
 
 ### 2.6 When the reducer offers a Brace
 
-Wherever a summary below says **offer brace (X)**, the reducer checks whether ship X can brace. If it can, it pushes a `brace` pending decision (state §9.2) carrying the rest of the resolution as `resume`, and stops. If it can't, resolution simply carries on.
+Wherever a summary below says **offer brace (X)**, the reducer checks whether ship X can brace. If it can, it pushes a `brace` pending decision (state §9.2) and stops; the rest of the resolution waits in the work queue (state §9.3, [reducer §1](../reducer/SPEC.md#1-the-work-queue)). If it can't, resolution simply carries on.
 
 Ship X **can brace** when it is `active` (not a hulk), its `specialOrder` is not already Brace For Impact!, and `turnState.braceFailures` has no entry for X against the current source.
 
@@ -211,7 +211,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - **Blast Marker, first contact:** if the ship has 0 shields, offer brace, then draw **1D6**; a 6 is 1 damage (once per move).
   - **Table edge:** `status = "disengaged"`, `position`/`heading` null, stop.
 
-  If a decision is pushed mid-path, the activation becomes `stage: "suspended"` with `remainingPath`. The reducer carries on by itself once `pending` empties, and ends the move early if the next step is no longer legal (state §9.1).
+  If a decision is pushed mid-path, the rest of the path waits in `remainingPath`, with a `continue_move` work item queued behind the contact's resolution. The reducer carries on by itself once the decision is answered, and ends the move early if the next step is no longer legal (state §9.1).
 
   **At the end of the move:** write `lastMove`. If `disengage`, draw **2D6** against Ld with these modifiers (p. 56): +1 per Blast Marker within 5 cm, −1 per enemy ship or salvo within 15 cm, cap 10, 11–12 always fail. "Within" means stem to centre. Pass: `disengaged`. Fail: `turnState.ships[id].disengage = "failed"`. Then set `moved` and clear `activation`.
 
@@ -300,7 +300,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - If `attempt`: draw **2D6** Command check against `commandCheckLd`.
     - **Pass:** `specialOrder` becomes Brace, with `replaced` = the previous order kind and expiry per state §7.3.
     - **Fail:** append to `braceFailures`. This doesn't set `commandCheckFailed` (state N4).
-  - Pop the entry and run its `resume` list in order; it may push new decisions. If `pending` empties and a move activation is `suspended`, continue the move.
+  - Pop the entry. The reducer then carries on with the work queue (reducer §1), which may push new decisions or finish a paused move.
 
 ### 4.6 End Phase
 
