@@ -5,7 +5,7 @@ A structured markdown extraction of **`BFG-Remastered-Official-Rulebook-v1-10.pd
 - **Page references** like `(p. 62)` are the book's printed page numbers. They match the PDF page index.
 - The text has been **condensed and restructured** (lists and tables instead of prose), but rule content is kept faithful. Flavour text, quotes and lore are omitted.
 - Where the book is ambiguous or contradicts itself, it's flagged in [Interpretations & known issues](#interpretations--known-issues) below. When in doubt, check the PDF page cited.
-- **Not in this book**: fleet lists, ship profiles and points costs (except the Lunar and Murder examples). Those are in the separate *BFG Remastered Fleets* book.
+- **Fleet lists, ship profiles and points costs** aren't in the rulebook. They come from the separate *BFG Remastered Fleets* book (WIP v0.36), which is extracted into [`fleets/`](fleets/README.md). That README has the per-faction file map, every fleet list, and an index of all 173 ships with points.
 
 ## File map
 
@@ -27,6 +27,7 @@ A structured markdown extraction of **`BFG-Remastered-Official-Rulebook-v1-10.pd
 | [13-narrative-campaigns.md](13-narrative-campaigns.md) | Third Armageddon War (3 scenarios) and 13th Black Crusade (7 scenarios) | 161–199 |
 | [14-designer-notes.md](14-designer-notes.md) | Andy Chambers' clarifications (arcs, halted ships, BMs, torpedo facing…) | 200–201 |
 | [ships-lunar-murder.md](ships-lunar-murder.md) | **Lunar** and **Murder** cruiser profiles + derived values + the book's worked examples | 43 |
+| [fleets/](fleets/README.md) | **From the Fleets book**: special rules and fleet lists for all 12 factions, every ship profile with points/options, planetary defences, refits, special torpedoes, points index | Fleets pp. 10–535 |
 
 Omitted: lore (pp. 10–35, 162–176, 182–189), art-only pages, and the sub-sector map images (pp. 161, 177, 190).
 
