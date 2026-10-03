@@ -1,12 +1,12 @@
 # Transform Specification
 
-**Status:** draft v0.2, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.4](../game_state/SPEC.md).
+**Status:** draft v0.3, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.4](../game_state/SPEC.md).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
 | | Defined here | Defined in the validator / reducer specs |
 |---|---|---|
-| Validator | Preconditions for each transform, in prose | Check order, reason codes, geometry helpers (contact, arcs, swept bases) |
+| Validator | Preconditions for each transform, in prose | [validator/SPEC.md](../validator/SPEC.md): check order, reason codes, geometry helpers (contact, arcs, swept bases) |
 | Reducer | Effect summary and **dice draw order** for each transform | Full resolution algorithms (gunnery, Blast Marker placement, criticals, catastrophic damage) |
 
 Section references like "state §9" point at the game state spec.
@@ -235,7 +235,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - **Range:** stem-to-stem distance ≤ `range`.
   - **Arc:** the target's bearing from the shooter falls in one of the weapon's `arcs`. On a boundary, `arc` must be supplied, must be one of the two adjacent quadrants, and must be one of the weapon's arcs. `aspect` follows the same rule for the target's quadrant facing the shooter.
   - **Line of fire:** the stem-to-stem line doesn't cross the base of a hulk other than the target (p. 71).
-  - **Target priority:** if `priorityTest = "failed"`, the target must be the **nearest** eligible target. That's the nearest non-hulk enemy ship, or the nearest enemy salvo when shooting at ordnance (p. 60, p. 75).
+  - **Target priority:** if `priorityTest = "failed"`, the target must be **nearest** for this weapon. That's the nearest non-hulk enemy ship (or enemy salvo, when shooting at ordnance) that this weapon could legally engage. See [validator §2.7](../validator/SPEC.md#27-lines-of-fire-and-targeting) and ruling V1 (p. 60, p. 75).
 - **Reducer:**
   1. **Priority test** (Ld test on **2D6**, no modifiers; pass if ≤ Ld): only if the target isn't the nearest and `priorityTest` is null. On a fail, record `"failed"`. The shot doesn't happen and the weapon isn't spent, so the player can fire it at the nearest target instead. On a pass, record `"passed"` and carry on.
   2. **Offer brace** (target), if it's a ship.
