@@ -3,7 +3,7 @@ import { constants, type GameState, type Point } from "@bfg/engine";
 import { ShipGlyph } from "./ShipGlyph";
 import { pointerToTable, toSvg, type View } from "./view";
 
-export type Ghost = { shipId: string; position: Point; heading: number; ok: boolean };
+export type Ghost = { shipId: string; position: Point; heading: number; status: "ok" | "short" | "bad" };
 
 type Props = {
   state: GameState;
@@ -13,8 +13,9 @@ type Props = {
   /** Blast Markers or salvos to pick out (e.g. while ordering removals). */
   highlight?: string[];
   onSelectShip?: (id: string) => void;
-  onPointer?: (p: Point | null) => void;
-  onTableClick?: (p: Point) => void;
+  /** `shift`: the Shift key was held. */
+  onPointer?: (p: Point | null, shift: boolean) => void;
+  onTableClick?: (p: Point, shift: boolean) => void;
   children?: ReactNode;
 };
 
@@ -46,15 +47,15 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
       onPointerMove={(e) => {
         const p = at(e);
         setHover(p);
-        onPointer?.(p);
+        onPointer?.(p, e.shiftKey);
       }}
       onPointerLeave={() => {
         setHover(null);
-        onPointer?.(null);
+        onPointer?.(null, false);
       }}
       onClick={(e) => {
         const p = at(e);
-        if (p !== null && onTableClick) onTableClick(p);
+        if (p !== null && onTableClick) onTableClick(p, e.shiftKey);
       }}
     >
       <rect className="space" x={0} y={0} width={width} height={height} />
@@ -114,7 +115,7 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
       )}
 
       {ghost !== null && ghostShip !== undefined && (
-        <ShipGlyph ship={{ ...ghostShip, position: ghost.position, heading: ghost.heading }} view={view} ghost={ghost.ok ? "ok" : "bad"} />
+        <ShipGlyph ship={{ ...ghostShip, position: ghost.position, heading: ghost.heading }} view={view} ghost={ghost.status} />
       )}
 
       {children}

@@ -14,6 +14,8 @@ import { NewGame } from "./panels/NewGame";
 import { BracePrompt } from "./controls/BracePrompt";
 import { StepControls } from "./controls/StepControls";
 import { TurnBanner } from "./controls/TurnBanner";
+import { usePlot } from "./plot/usePlot";
+import { PlotOverlay } from "./plot/PlotOverlay";
 
 export function App() {
   const [history, setHistory] = useState<History | null>(() => loadAutosave());
@@ -21,6 +23,7 @@ export function App() {
   const [rejection, setRejection] = useState<Reason | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [pointer, setPointer] = useState<Point | null>(null);
+  const [shift, setShift] = useState(false);
   const [highlight, setHighlight] = useState<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -30,8 +33,8 @@ export function App() {
 
   const state = history === null ? null : current(history);
 
-  const run = (t: Transform) => {
-    if (history === null) return;
+  const run = (t: Transform): boolean => {
+    if (history === null) return false;
     const r = apply(history, t);
     if (r.ok) {
       setHistory(r.history);
@@ -39,7 +42,10 @@ export function App() {
     } else {
       setRejection(r.reason);
     }
+    return r.ok;
   };
+
+  const plot = usePlot(state, pointer, shift, run);
 
   // Deployment: the next ship follows the pointer.
   const deploy = useMemo(() => {
@@ -55,7 +61,11 @@ export function App() {
   let ghost: Ghost | null = null;
   if (state !== null && deploy !== null && pointer !== null) {
     const t: Transform = { type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(pointer) };
-    ghost = { shipId: deploy.ship.id, position: pointer, heading: deploy.heading, ok: validate(state, t).ok };
+    ghost = { shipId: deploy.ship.id, position: pointer, heading: deploy.heading, status: validate(state, t).ok ? "ok" : "bad" };
+  } else if (plot !== null && (plot.path.length > 0 || plot.preview.length > 0)) {
+    const v = plot.preview.length > 0 ? plot.previewVerdict : plot.verdict;
+    const end = plot.previewStats.end;
+    ghost = { shipId: plot.ship.id, position: end.position, heading: end.heading, status: v.kind === "ok" ? "ok" : v.kind === "short" ? "short" : "bad" };
   }
 
   const startGame = (o: NewGameOptions) => {
@@ -143,11 +153,17 @@ export function App() {
               selectedShipId={selected}
               highlight={highlight}
               onSelectShip={setSelected}
-              onPointer={setPointer}
-              onTableClick={(p) => {
-                if (deploy !== null) run({ type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(p) });
+              onPointer={(p, s) => {
+                setPointer(p);
+                setShift(s);
               }}
-            />
+              onTableClick={(p, s) => {
+                if (deploy !== null) run({ type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(p) });
+                else if (plot !== null) plot.click(p, s);
+              }}
+            >
+              {plot !== null && <PlotOverlay state={state} plot={plot} />}
+            </Table>
           </section>
           <aside className="side">
             <section className="actions">
@@ -157,7 +173,7 @@ export function App() {
               ) : state.clock.stage === "setup" ? (
                 <SetupControls state={state} onApply={run} />
               ) : state.clock.stage === "battle" ? (
-                <StepControls state={state} onApply={run} onHighlight={setHighlight} />
+                <StepControls state={state} onApply={run} onHighlight={setHighlight} plot={plot} />
               ) : null}
               {state.result !== null && (
                 <p className="result">

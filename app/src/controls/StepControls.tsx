@@ -3,6 +3,7 @@ import { activePlayer, actor, isHulk, removableBlastMarkers, type GameState, typ
 import { playerName } from "../players";
 import { Act } from "./Act";
 import { MoveControls, needsToMove } from "./MoveControls";
+import type { Plot } from "../plot/usePlot";
 import { PriorityList, reconcile } from "./PriorityList";
 
 const words = (s: string) => s.replaceAll("_", " ");
@@ -12,10 +13,11 @@ type Props = {
   state: GameState;
   onApply: (t: Transform) => void;
   onHighlight: (ids: string[]) => void;
+  plot?: Plot | null;
 };
 
 /** What the acting player can do in the current battle step. */
-export function StepControls({ state, onApply, onHighlight }: Props) {
+export function StepControls({ state, onApply, onHighlight, plot = null }: Props) {
   const { step } = state.clock;
   const active = activePlayer(state);
   const mine = state.ships.filter((s) => s.owner === active);
@@ -40,7 +42,7 @@ export function StepControls({ state, onApply, onHighlight }: Props) {
       return (
         <>
           {ships.map((s) => (
-            <MoveControls key={s.id} state={state} ship={s} onApply={onApply} />
+            <MoveControls key={s.id} state={state} ship={s} plot={plot} onApply={onApply} />
           ))}
         </>
       );

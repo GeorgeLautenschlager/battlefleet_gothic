@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { isHulk, onTable, validate, type GameState, type OrderKind, type Ship, type Transform } from "@bfg/engine";
+import { isHulk, onTable, type GameState, type OrderKind, type Ship, type Transform } from "@bfg/engine";
+import { PlotPanel } from "../plot/PlotPanel";
+import type { Plot } from "../plot/usePlot";
 import { Act } from "./Act";
 
 const ORDERS: { kind: OrderKind; label: string; help: string }[] = [
@@ -10,8 +11,8 @@ const ORDERS: { kind: OrderKind; label: string; help: string }[] = [
   { kind: "reload_ordnance", label: "Reload Ordnance", help: "Reload torpedoes" },
 ];
 
-/** Movement for one ship: special orders, then (until the plotter lands) a straight-ahead move. */
-export function MoveControls({ state, ship, onApply }: { state: GameState; ship: Ship; onApply: (t: Transform) => void }) {
+/** Movement for one ship: special orders, then the plotter. */
+export function MoveControls({ state, ship, plot, onApply }: { state: GameState; ship: Ship; plot: Plot | null; onApply: (t: Transform) => void }) {
   const a = state.activation?.shipId === ship.id ? state.activation : null;
   const player = ship.owner;
   const enemies = state.ships.filter((s) => s.owner !== player && onTable(s));
@@ -48,48 +49,8 @@ export function MoveControls({ state, ship, onApply }: { state: GameState; ship:
           {a.aafExtra !== null ? ` (+${a.aafExtra} cm)` : ""}: move {a.minDistance === a.maxDistance ? `exactly ${a.maxDistance}` : `${a.minDistance}–${a.maxDistance}`} cm.
         </p>
       )}
-      <StraightAhead state={state} ship={ship} onApply={onApply} />
+      {plot !== null && plot.ship.id === ship.id && <PlotPanel plot={plot} />}
     </div>
-  );
-}
-
-/** A stopgap mover: N cm straight ahead, validated live. The movement plotter replaces it. */
-function StraightAhead({ state, ship, onApply }: { state: GameState; ship: Ship; onApply: (t: Transform) => void }) {
-  const a = state.activation?.shipId === ship.id ? state.activation : null;
-  const [distance, setDistance] = useState<string>("");
-  const [disengage, setDisengage] = useState(false);
-  const d = Number(distance === "" ? (a?.maxDistance ?? ship.profile.speed) : distance);
-  const t: Transform = { type: "move", player: ship.owner, shipId: ship.id, path: [{ kind: "advance", distance: d }], disengage };
-  const v = validate(state, t);
-  return (
-    <form
-      className="straight"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (v.ok) onApply(t);
-      }}
-    >
-      <label>
-        Straight ahead
-        <input
-          type="number"
-          min={0}
-          step={0.5}
-          value={distance}
-          placeholder={String(a?.maxDistance ?? ship.profile.speed)}
-          onChange={(e) => setDistance(e.target.value)}
-          aria-label="Distance in cm"
-        />
-        cm
-      </label>
-      <label className="check">
-        <input type="checkbox" checked={disengage} onChange={(e) => setDisengage(e.target.checked)} /> Disengage
-      </label>
-      <button type="submit" className="primary" disabled={!v.ok} title={v.ok ? undefined : v.reason.message}>
-        Move
-      </button>
-      {!v.ok && <small className="muted">{v.reason.message}</small>}
-    </form>
   );
 }
 

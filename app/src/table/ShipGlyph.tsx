@@ -7,7 +7,7 @@ const HULL = "M0,-3.6 L0.9,-1.8 L1.1,2.4 L0.6,3.2 L-0.6,3.2 L-1.1,2.4 L-0.9,-1.8
 type Props = {
   ship: Pick<Ship, "id" | "name" | "owner" | "status" | "profile"> & { position: { x: number; y: number }; heading: number };
   view: View;
-  ghost?: "ok" | "bad";
+  ghost?: "ok" | "short" | "bad";
   selected?: boolean;
   onSelect?: (id: string) => void;
 };
