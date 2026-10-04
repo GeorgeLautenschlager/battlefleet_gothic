@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** draft v0.1, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.5](../game_state/SPEC.md), [Transforms v0.4](../transforms/SPEC.md) and [Validator v0.2](../validator/SPEC.md).
+**Status:** draft v0.2, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.5](../game_state/SPEC.md), [Transforms v0.4](../transforms/SPEC.md) and [Validator v0.2](../validator/SPEC.md).
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState
@@ -635,8 +635,12 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | R9 | Explosion radius is measured to the stem: a ship is hit if its stem is within 3D6 cm. |
 | R10 | Explosion BMs form a cluster (§5.2); a new hulk's BM sits on its stem. |
 
-## 15. Open questions
+## 15. Decisions
 
-- **Q1. R6.** Do braced saves count as "inflicted" for reducing torpedo strength? Proposed: yes. The torpedoes struck the ship; Brace only stops the damage.
-- **Q2. R8.** A braced ship that was on All Ahead Full: does its firepower get halved once, or twice? Proposed: once. The wording is that the replaced order's effects "remain", but the examples given are about movement and reloads.
-- **Q3. R9.** Is explosion range measured to the stem, or to the nearest edge of the base? Proposed: stem, which is consistent with T5 and simpler. Base edge makes explosions about 1.6 cm nastier.
+| # | Question | Decision |
+|---|---|---|
+| D1 | Do brace-saved torpedo hits still cost the salvo strength? | Yes (R6). The torpedoes hit something; they just didn't do the job. |
+| D2 | Brace over a firepower-halving order: halve once or twice? | Once (R8). It's more fun. |
+| D3 | Explosion range measured to the stem or to the base edge? | The stem (R9). |
+
+No open questions at v0.2.
