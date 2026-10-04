@@ -8,8 +8,8 @@ This document defines the **game state**: a self-contained, machine-readable sna
 |---|---|---|
 | **Game state** | plain data | this document |
 | **Transform** | plain data: one proposed change, e.g. "Agrippa moves along this path" | [transforms/SPEC.md](../transforms/SPEC.md) |
-| **Validator** | `validate(state, transform) → { ok: true } \| { ok: false, reason }` | to do |
-| **Reducer** | `reduce(state, transform) → state` (transform already validated) | to do |
+| **Validator** | `validate(state, transform) → { ok: true } \| { ok: false, reason }` | [validator/SPEC.md](../validator/SPEC.md) |
+| **Reducer** | `reduce(state, transform) → state` (transform already validated) | [reducer/SPEC.md](../reducer/SPEC.md) |
 
 Rule references like `(p. 66)` are rulebook pages; `rules/05-damage.md` etc. are the markdown extraction. "Interpretation #N" refers to the numbered list in [`rules/README.md`](../rules/README.md#interpretations--known-issues).
 
