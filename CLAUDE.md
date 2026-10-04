@@ -36,4 +36,5 @@ Recorded in [`docs/adr/`](docs/adr/). Current:
 
 - **Phase 0**: rulebook and fleets book extracted to markdown (`rules/`, `rules/fleets/`). Done.
 - **Phase 1**: local browser, hot-seat (two players, one machine, honour system), **Cruiser Clash** scenario with one **Lunar** vs one **Murder**. Keep it as simple as possible.
-  - Rules engine specs (state, transforms, validator, reducer): written. Implementation next.
+  - Rules engine specs (state, transforms, validator, reducer): written.
+  - Engine implementation in [`engine/`](engine/README.md) (`npm run check` there): game state done; geometry, validator and reducer next.
