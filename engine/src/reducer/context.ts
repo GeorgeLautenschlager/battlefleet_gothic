@@ -16,14 +16,31 @@ export class Ctx {
   /** Player whose transform led to what's being resolved; null during housekeeping. */
   actor: PlayerId | null = null;
 
-  constructor(readonly state: GameState) {}
+  /**
+   * @param script Test seam only: when given, dice come from this list instead of
+   * the state's RNG, and the reducer checks every scripted die is used.
+   */
+  constructor(
+    readonly state: GameState,
+    private readonly script: number[] | null = null,
+  ) {}
 
   // --- Dice (§2.1)
 
   d6(): number {
+    if (this.script !== null) {
+      const next = this.script.shift();
+      if (next === undefined) throw new Error("scripted dice ran out: the reducer drew more dice than expected");
+      return next;
+    }
     const roll = rollD6(this.state.rng);
     this.state.rng = roll.rng;
     return roll.value;
+  }
+
+  /** Scripted dice left unused (test seam). */
+  get unusedScript(): readonly number[] {
+    return this.script ?? [];
   }
 
   nD6(n: number): number[] {

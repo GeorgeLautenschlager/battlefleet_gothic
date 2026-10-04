@@ -12,6 +12,7 @@ import { Ctx, NotImplementedError } from "./context";
 import { chooseFirstTurn, deployShip, rollDeployOrder, rollFirstTurn, rollLeadership, rollZones } from "./handlers/setup";
 import { answerBrace, declareOrder } from "./handlers/orders";
 import { removeBlastMarkers, repair } from "./handlers/end";
+import { fire } from "./handlers/fire";
 import { advanceStep, eliminatedSide, endGame, stepComplete } from "./steps";
 import { runWorkItem } from "./work";
 
@@ -20,6 +21,22 @@ export function reduce(state: GameState, transform: Transform): GameState {
   ctx.actor = transform.player;
   handle(ctx, transform);
   settle(ctx);
+  return ctx.state;
+}
+
+/**
+ * Test seam: reduce with scripted dice instead of the state's RNG. Throws if the
+ * reducer draws more or fewer dice than scripted, so tests pin the draw order.
+ * Not exported from the package.
+ */
+export function reduceWithDice(state: GameState, transform: Transform, dice: readonly number[]): GameState {
+  const ctx = new Ctx(cloneJson(state), [...dice]);
+  ctx.actor = transform.player;
+  handle(ctx, transform);
+  settle(ctx);
+  if (ctx.unusedScript.length > 0) {
+    throw new Error(`scripted dice left over: ${ctx.unusedScript.join(", ")} (the reducer drew fewer dice than expected)`);
+  }
   return ctx.state;
 }
 
@@ -48,9 +65,10 @@ function handle(ctx: Ctx, t: Transform): void {
       return repair(ctx, t);
     case "remove_blast_markers":
       return removeBlastMarkers(ctx, t);
+    case "fire":
+      return fire(ctx, t);
     case "drift_hulk":
     case "move":
-    case "fire":
     case "launch_torpedoes":
     case "move_ordnance":
       throw new NotImplementedError(`reducer: "${t.type}" arrives in a later PR`);

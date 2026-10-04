@@ -1,6 +1,6 @@
 /** Reducer test helpers: validated play, invariant checks, and rigged dice. */
 import { expect } from "vitest";
-import { reduce } from "../src/reducer/reduce";
+import { reduce, reduceWithDice } from "../src/reducer/reduce";
 import { validate } from "../src/validator/validate";
 import { checkInvariants } from "../src/state/invariants";
 import { nD6 } from "../src/state/rng";
@@ -41,3 +41,14 @@ export function rigDice(state: GameState, dice: number[]): void {
 
 /** Log entries of one kind, newest last. */
 export const logOf = (state: GameState, kind: string) => state.log.filter((e) => e.kind === kind);
+
+/** Like play(), but with scripted dice: the reducer must draw exactly these, in order. */
+export function playDice(state: GameState, t: Transform, dice: number[]): GameState {
+  const verdict = validate(state, t);
+  expect(verdict.ok ? "ok" : verdict.reason).toBe("ok");
+  const before = JSON.stringify(state);
+  const next = reduceWithDice(state, t, dice);
+  expect(JSON.stringify(state)).toBe(before);
+  expect(checkInvariants(next)).toEqual([]);
+  return next;
+}
