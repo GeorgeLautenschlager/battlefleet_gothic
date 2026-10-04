@@ -4,9 +4,11 @@
  */
 import { getShip } from "../state/derived";
 import type { AttackSource, GameState, Ship, WorkItem } from "../state/types";
-import { NotImplementedError, type Ctx } from "./context";
+import type { Ctx } from "./context";
 import { explosionHit, fireDamage } from "./damage";
 import { resolveDirectFire } from "./gunnery";
+import { continueMove, hulkDrift, ram, zeroShieldBm } from "./movement";
+import { ordnanceMove, torpedoAttack, torpedoHit } from "./torpedoes";
 
 export { enqueueFront } from "./queue";
 
@@ -37,8 +39,20 @@ export function runWorkItem(ctx: Ctx, item: WorkItem): void {
       return explosionHit(ctx, item.shipId, item.centre, item.strength, item.targetId);
     case "fire_damage":
       return fireDamage(ctx, item.shipId);
-    default:
-      throw new NotImplementedError(`reducer: work item "${item.kind}" arrives in a later PR`);
+    case "continue_move":
+      return continueMove(ctx);
+    case "ram":
+      return ram(ctx, item.rammerId, item.targetId);
+    case "zero_shield_bm":
+      return zeroShieldBm(ctx, item.shipId);
+    case "hulk_drift":
+      return hulkDrift(ctx, item.shipId, item.distance, item.travelled);
+    case "ordnance_move":
+      return ordnanceMove(ctx, item.ordnanceId, item.travelled, item.bmTested);
+    case "torpedo_attack":
+      return torpedoAttack(ctx, item.ordnanceId, item.targetId, item.bmTested);
+    case "torpedo_hit":
+      return torpedoHit(ctx, item.ordnanceId, item.targetId);
   }
 }
 

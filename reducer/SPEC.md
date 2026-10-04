@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** draft v0.2, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.5](../game_state/SPEC.md), [Transforms v0.4](../transforms/SPEC.md) and [Validator v0.2](../validator/SPEC.md).
+**Status:** v0.3, implemented in [`engine/`](../engine/README.md). **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.5](../game_state/SPEC.md), [Transforms v0.4](../transforms/SPEC.md) and [Validator v0.2](../validator/SPEC.md).
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState
@@ -378,14 +378,14 @@ continue_move:
 
 `advance(d)` moves the stem `d` cm along `headingVector(heading)`, and adds `d` to `distanceMoved` and `distanceSinceTurn`.
 
-**Events.** Ties are ordered: table exit, ram target, salvo (in `ordnance` order), Blast Marker. An event is only reported at `t > EPS` along the leg, except a BM the ship starts on, which counts as soon as it moves.
+**Events.** Ties are ordered: table exit, ram target, salvo (in `ordnance` order), Blast Marker. An event counts at any `t ≥ 0` along the leg, so contact the ship starts in counts as soon as it moves. Nothing fires twice, because each event is gated by state rather than by distance: a ram resolves once (`a.ram.resolved`), a salvo attacks a given ship once per round (its `attacks`), and only the first BM contact of the move is an event (`slowedByBlastMarkers`).
 
 | Event | Condition | Items / effect |
 |---|---|---|
 | Table exit | stem leaves the table (`exitT`) | Immediately: `status = "disengaged"`, position, heading and order null; log `disengaged { reason: "table_edge" }`. No items. |
 | Ram target | `a.ram.testPassed`, not `resolved`, swept base meets the target's base | `brace_offer(target)`, `brace_offer(rammer)`, `ram { rammerId, targetId }` |
 | Torpedo salvo | swept base meets a salvo's segment. Skip a salvo that already attacked this ship this round, and one this ship launched this player turn (T4). | `torpedo_attack { ordnanceId, targetId: ship, bmTested: false }` |
-| Blast Marker | first BM contact this move | Immediately: if `!slowedByBlastMarkers`, `maxDistance −= BM_SLOWDOWN` and set the flag. If `maxShields(ship) = 0` and `!zeroShieldBMTestDone`, set it and add items `brace_offer(ship)`, `zero_shield_bm { shipId }`. If the order is All Ahead Full, the BM is new, and `distanceMoved ≥ maxDistance − BM_SLOWDOWN`, end the move here (`remainingPath = []`). |
+| Blast Marker | first BM contact this move | Immediately: if `!slowedByBlastMarkers`, `maxDistance −= BM_SLOWDOWN` and set the flag. If `maxShields(ship) = 0` and `!zeroShieldBMTestDone`, set it and add items `brace_offer(ship)`, `zero_shield_bm { shipId }`. If the order is All Ahead Full, the BM is new (met at `t > EPS`, not started on), and `distanceMoved ≥ maxDistance − BM_SLOWDOWN`, end the move here (`remainingPath = []`). Log `blast_marker_contact`. |
 
 **`finish_move`:**
 1. If the ship is still `active`: set `lastMove = { playerTurn, distance: distanceMoved }`.
@@ -416,7 +416,7 @@ The `drift_hulk` handler draws `sum(nD6(4))` and enqueues `hulk_drift { shipId, 
 ```
 hulk_drift:
   move straight ahead, using the event loop of §8.2 with only two events:
-    table exit (status "destroyed", position null; stop)
+    table exit (status "destroyed", position null, log hulk_lost; stop)
     torpedo salvo (insert [torpedo_attack…, hulk_drift (with updated travelled)] and return)
   at the end: 1 trailing BM (§5.3); if blazing, catastrophic re-roll as §7.3 with a fresh source
   turnState.ships[id].drifted = true
@@ -572,8 +572,9 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `ram_test`, `priority_test`, `disengage_test` | `shipId, target, rolls, passed` (+ `targetId` for rams) |
 | `aaf_roll` | `shipId, rolls, extra` |
 | `move` | `shipId, from, to, distance, truncated` |
+| `blast_marker_contact` | `shipId, distance, maxDistance` (the slowed maximum) |
 | `ram` | `rammerId, targetId, headOn, facing, rammerRolls, rammerHits, targetRolls, targetHits` |
-| `attack` | `source, targetId, weapon: "battery" \| "lance" \| "torpedo" \| "explosion", column?, shifts?, need, rolls, rerolls, hits` |
+| `attack` | `source, targetId, weapon: "battery" \| "lance" \| "torpedo" \| "explosion", column?, shifts?, facing? (torpedoes), need, rolls, rerolls, hits` |
 | `shields` | `shipId, absorbed, blastMarkerIds` |
 | `brace_offer` | `pendingId, shipId, source` |
 | `brace_check` | `shipId, rolls, target, passed`, or `shipId, declined: true` |
@@ -582,9 +583,12 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `critical` | `shipId, rolls, rolled, applied, kind, extraRolls` |
 | `catastrophic` | `shipId, rolls, result, blastMarkerIds, radiusRolls?, radius?` |
 | `turrets` | `shipId, ordnanceId, rolls, stopped` |
-| `bm_test` | `entityId, rolls, effect` |
-| `ordnance_launch`, `ordnance_move`, `ordnance_removed` | `ordnanceId` + positions, or `reason` |
+| `bm_test` | `entityId, rolls, effect: "none" \| "removed" (salvo) \| "damage" (zero-shield ship)` |
+| `ordnance_launch` | `ordnanceId, shipId, position, heading, strength` |
+| `ordnance_move` | `ordnanceId, to` (only if the salvo survives the move) |
+| `ordnance_removed` | `ordnanceId, reason: "left_table" \| "collision" \| "blast_marker" \| "turrets" \| "spent" \| "shot"` |
 | `hulk_drift` | `shipId, rolls, distance` |
+| `hulk_lost` | `shipId, reason: "table_edge"` |
 | `disengaged` | `shipId, reason: "table_edge" \| "test"` |
 | `repair` | `shipId, rolls, repaired` |
 | `fire_damage` | `shipId, fires` |
@@ -646,4 +650,4 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | D2 | Brace over a firepower-halving order: halve once or twice? | Once (R8). It's more fun. |
 | D3 | Explosion range measured to the stem or to the base edge? | The stem (R9). |
 
-No open questions at v0.2.
+No open questions at v0.3.

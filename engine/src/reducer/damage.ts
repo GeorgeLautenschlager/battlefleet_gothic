@@ -171,6 +171,12 @@ function hulkHit(ctx: Ctx, hulk: Ship, src: DamageSource): void {
   resolveCatastrophic(ctx, hulk, rolls, sum(rolls), false);
 }
 
+/** A blazing hulk re-rolls on the Catastrophic Damage table after its drift (§8.4): no extra BM (R4). */
+export function rerollHulk(ctx: Ctx, hulk: Ship): void {
+  const rolls = ctx.nD6(2);
+  resolveCatastrophic(ctx, hulk, rolls, sum(rolls), false);
+}
+
 /** Work item: one explosion's lance shots at one ship (§7.2). */
 export function explosionHit(ctx: Ctx, explodingId: string, centre: Point, strength: number, targetId: string): void {
   const target = ctx.state.ships.find((s) => s.id === targetId);

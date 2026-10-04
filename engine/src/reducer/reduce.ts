@@ -8,11 +8,13 @@
 import { cloneJson } from "../state/json";
 import type { GameState } from "../state/types";
 import type { Transform } from "../transforms/types";
-import { Ctx, NotImplementedError } from "./context";
+import { Ctx } from "./context";
 import { chooseFirstTurn, deployShip, rollDeployOrder, rollFirstTurn, rollLeadership, rollZones } from "./handlers/setup";
 import { answerBrace, declareOrder } from "./handlers/orders";
 import { removeBlastMarkers, repair } from "./handlers/end";
 import { fire } from "./handlers/fire";
+import { driftHulk, move } from "./movement";
+import { launchTorpedoes, moveOrdnance } from "./torpedoes";
 import { advanceStep, eliminatedSide, endGame, stepComplete } from "./steps";
 import { runWorkItem } from "./work";
 
@@ -68,10 +70,13 @@ function handle(ctx: Ctx, t: Transform): void {
     case "fire":
       return fire(ctx, t);
     case "drift_hulk":
+      return driftHulk(ctx, t.shipId);
     case "move":
+      return move(ctx, t);
     case "launch_torpedoes":
+      return launchTorpedoes(ctx, t);
     case "move_ordnance":
-      throw new NotImplementedError(`reducer: "${t.type}" arrives in a later PR`);
+      return moveOrdnance(ctx, t.ordnanceId);
   }
 }
 
