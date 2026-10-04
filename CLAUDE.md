@@ -31,10 +31,12 @@ The engine is a pure state machine: `validate(state, transform)` → ok / reason
 Recorded in [`docs/adr/`](docs/adr/). Current:
 
 - [ADR 0001](docs/adr/0001-engine-language.md): the engine is **TypeScript**, a standalone package with no DOM or Node APIs. Engine code must not call platform trig (`Math.sin`, `atan2`, `hypot`, `pow`, …); use the deterministic `dmath` module ([validator §2.8](validator/SPEC.md#28-deterministic-maths)).
+- [ADR 0002](docs/adr/0002-browser-app.md): the app is **Vite + React + SVG** in `app/`. Every action goes through `validate` then `reduce`; undo stops at the last dice roll; saves are `{ config, transforms }`; deployed to GitHub Pages from `main`.
 
 ## Roadmap
 
 - **Phase 0**: rulebook and fleets book extracted to markdown (`rules/`, `rules/fleets/`). Done.
 - **Phase 1**: local browser, hot-seat (two players, one machine, honour system), **Cruiser Clash** scenario with one **Lunar** vs one **Murder**. Keep it as simple as possible.
   - Rules engine specs (state, transforms, validator, reducer): written.
-  - Engine implementation in [`engine/`](engine/README.md) (`npm run check` there): game state, geometry, validator and reducer done: a full Lunar vs Murder game plays from `newGame` to `game_end`. Next: the browser UI.
+  - Engine implementation in [`engine/`](engine/README.md) (`npm run check` there): game state, geometry, validator and reducer done: a full Lunar vs Murder game plays from `newGame` to `game_end`.
+  - Browser app in [`app/`](app/README.md) (`npm run check` and `npm run e2e` there): new game, setup, table view, log, undo and saves done; battle controls next.
