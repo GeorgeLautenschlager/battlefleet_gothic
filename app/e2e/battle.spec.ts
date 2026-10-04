@@ -92,3 +92,28 @@ test("plotting a move by clicking: straight, then a 45° turn", async ({ page })
   await expect(page.locator(".log")).toContainText(/Unclean moves 2\d(\.\d)? cm/);
   await page.screenshot({ path: "e2e-results/plotted.png" });
 });
+
+test("exact turns: one click goes exactly to the turn point and turns; typed steps for the rest", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('input[type="file"]').setInputFiles(SAVE);
+  const stats = page.locator(".plot-stats");
+
+  // Unclean at (95, 15) heading 0. A click well off the bow, before any turn is allowed:
+  // straight 10 cm (exactly), turn 45° to starboard, on toward the pointer.
+  await clickTable(page, 105, 35);
+  await expect(stats).toContainText("1 / 1");
+  await expect(page.locator(".plot-status")).toHaveText("Legal move.");
+  await page.keyboard.press("Escape");
+  await expect(stats).toContainText("0 cm");
+
+  // The same idea by numbers.
+  await page.getByLabel("Advance distance in cm").fill("12.5");
+  await page.getByRole("button", { name: "Advance", exact: true }).click();
+  await page.getByLabel("Turn angle in degrees").fill("30");
+  await page.getByRole("button", { name: "Turn to starboard" }).click();
+  await page.getByLabel("Advance distance in cm").fill("5");
+  await page.getByLabel("Advance distance in cm").press("Enter"); // submits the field, doesn't commit the move
+  await expect(stats).toContainText("17.5 cm");
+  await page.getByRole("button", { name: "Move", exact: true }).click();
+  await expect(page.locator(".log")).toContainText("Unclean moves 17.5 cm");
+});

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { apply, current, start, type History } from "../src/game/history";
 import { cruiserClash } from "../src/game/config";
-import { append, judge, propose, stats } from "../src/plot/plot";
-import type { GameState, PathStep, Transform } from "@bfg/engine";
+import { append, judge, propose, stats, typedStep } from "../src/plot/plot";
+import { cloneJson, type GameState, type PathStep, type Transform } from "@bfg/engine";
 
 const config = cruiserClash({ p1Name: "A", p2Name: "B", p1Ship: "Agrippa", p2Ship: "Unclean", seed: 1337 }, new Date("2026-10-04T12:00:00Z"));
 const play = (h: History, t: Transform): History => {
@@ -25,28 +25,69 @@ const move = (path: PathStep[]): Transform => ({ type: "move", player: "p2", shi
 
 describe("propose", () => {
   const s = battle();
+  const u = unclean(s);
   test("dead ahead (or nearly) is straight", () => {
-    expect(propose(unclean(s), [], { x: 95, y: 27 }, 45)).toEqual([{ kind: "advance", distance: 12 }]);
-    expect(propose(unclean(s), [], { x: 95.2, y: 27 }, 45)).toEqual([{ kind: "advance", distance: 12 }]);
+    expect(propose(s, u, [], { x: 95, y: 27 })).toEqual([{ kind: "advance", distance: 12 }]);
+    expect(propose(s, u, [], { x: 95.2, y: 27 })).toEqual([{ kind: "advance", distance: 12 }]);
   });
-  test("off the bow: turn toward the pointer, then go there", () => {
-    expect(propose(unclean(s), [], { x: 105, y: 25 }, 45)).toEqual([
+  test("off the bow before a turn is allowed: exactly to the turn point, then turn toward the pointer", () => {
+    expect(propose(s, u, [], { x: 105, y: 35 })).toEqual([
+      { kind: "advance", distance: 10 },
       { kind: "turn", degrees: 45 },
       { kind: "advance", distance: 14.1 },
     ]);
+    // From part-way there, only the rest of the 10 cm.
+    expect(propose(s, u, [{ kind: "advance", distance: 3.7 }], { x: 105, y: 28.7 })[0]).toEqual({ kind: "advance", distance: 6.3 });
   });
-  test("beyond the turn limit: turn the limit, advance by the projection", () => {
-    const steps = propose(unclean(s), [], { x: 85, y: 15 }, 45); // dead abeam to port
+  test("a pointer short of the turn point just goes straight", () => {
+    expect(propose(s, u, [], { x: 100, y: 21 })).toEqual([{ kind: "advance", distance: 6 }]);
+  });
+  test("where a turn is allowed: turn toward the pointer (up to the limit), then go there", () => {
+    const at10: PathStep[] = [{ kind: "advance", distance: 10 }];
+    expect(propose(s, u, at10, { x: 105, y: 35 })).toEqual([
+      { kind: "turn", degrees: 45 },
+      { kind: "advance", distance: 14.1 },
+    ]);
+    const steps = propose(s, u, at10, { x: 85, y: 25 }); // dead abeam to port
     expect(steps[0]).toEqual({ kind: "turn", degrees: -45 });
     expect(steps[1]).toEqual({ kind: "advance", distance: 7.1 });
   });
-  test("straight-only and no-turn ships project onto the bow", () => {
-    expect(propose(unclean(s), [], { x: 105, y: 25 }, 45, true)).toEqual([{ kind: "advance", distance: 10 }]);
-    expect(propose(unclean(s), [], { x: 105, y: 25 }, 0)).toEqual([{ kind: "advance", distance: 10 }]);
-    expect(propose(unclean(s), [], { x: 95, y: 5 }, 0)).toEqual([]); // behind: nothing
+  test("straight-only and no turns left project onto the bow", () => {
+    expect(propose(s, u, [], { x: 105, y: 25 }, true)).toEqual([{ kind: "advance", distance: 10 }]);
+    const used: PathStep[] = [{ kind: "advance", distance: 10 }, { kind: "turn", degrees: 10 }];
+    expect(propose(s, u, used, { x: 95, y: 5 })).toEqual([]); // behind: nothing
   });
-  test("from the end of the path so far", () => {
-    expect(propose(unclean(s), [{ kind: "advance", distance: 10 }], { x: 95, y: 30 }, 45)).toEqual([{ kind: "advance", distance: 5 }]);
+  test("Come To New Heading: two clicks, two exact 10 cm legs before each turn", () => {
+    const ordered = cloneJson(s);
+    ordered.activation = {
+      kind: "move", shipId: "ship-2", stage: "ordered", order: "come_to_new_heading", aafExtra: null, ram: null,
+      maxDistance: 25, minDistance: 12.5, start: { position: { x: 95, y: 15 }, heading: 0 }, distanceMoved: 0,
+      distanceSinceTurn: 0, turnsMade: 0, truncated: false, remainingPath: [], slowedByBlastMarkers: false,
+      zeroShieldBMTestDone: false, disengage: false,
+    };
+    const ship = unclean(ordered);
+    // First click: just past the first turn point and off to starboard (a short leg after the turn).
+    const first = append([], propose(ordered, ship, [], { x: 100, y: 28 }));
+    expect(first).toEqual([{ kind: "advance", distance: 10 }, { kind: "turn", degrees: 45 }, { kind: "advance", distance: 5.7 }]);
+    // Second click, well off the new bow: the leg is topped up to exactly 10 cm, then the second turn.
+    const second = append(first, propose(ordered, ship, first, { x: 106, y: 32 }));
+    expect(second.slice(0, 4)).toEqual([
+      { kind: "advance", distance: 10 },
+      { kind: "turn", degrees: 45 },
+      { kind: "advance", distance: 10 },
+      { kind: "turn", degrees: 45 },
+    ]);
+    expect(judge(ordered, { type: "move", player: "p2", shipId: "ship-2", path: second, disengage: false })).toEqual({ kind: "ok" });
+  });
+});
+
+describe("typed steps", () => {
+  test("advance and turns, rounded to 0.1; nonsense refused", () => {
+    expect(typedStep("advance", 12.5)).toEqual({ kind: "advance", distance: 12.5 });
+    expect(typedStep("port", 30)).toEqual({ kind: "turn", degrees: -30 });
+    expect(typedStep("starboard", 22.47)).toEqual({ kind: "turn", degrees: 22.5 });
+    expect(typedStep("advance", 0)).toBeNull();
+    expect(typedStep("advance", Number.NaN)).toBeNull();
   });
 });
 

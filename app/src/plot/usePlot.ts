@@ -21,6 +21,8 @@ export type Plot = {
   disengage: boolean;
   setDisengage: (on: boolean) => void;
   click: (p: Point, straight: boolean) => void;
+  /** Add a typed step. */
+  add: (step: PathStep) => void;
   back: () => void;
   clear: () => void;
   fullAhead: () => void;
@@ -50,8 +52,7 @@ export function usePlot(state: GameState | null, pointer: Point | null, straight
   };
 
   const st = state === null || ship === null ? null : stats(state, ship, path);
-  const maxTurn = (s: PlotStats | null) => (ship !== null && s?.canTurnHere ? ship.profile.turns : 0);
-  const preview = state === null || ship === null || pointer === null ? [] : propose(ship, path, pointer, maxTurn(st), straight);
+  const preview = state === null || ship === null || pointer === null ? [] : propose(state, ship, path, pointer, straight);
 
   const move = (p: PathStep[]): Transform => ({ type: "move", player: ship?.owner ?? "p1", shipId: ship?.id ?? "", path: p, disengage });
 
@@ -84,7 +85,8 @@ export function usePlot(state: GameState | null, pointer: Point | null, straight
     previewVerdict: judge(state, move(full)),
     disengage,
     setDisengage: (on) => update({ disengage: on }),
-    click: (p, straightOnly) => update({ path: append(path, propose(ship, path, p, maxTurn(st), straightOnly)) }),
+    click: (p, straightOnly) => update({ path: append(path, propose(state, ship, path, p, straightOnly)) }),
+    add: (step) => update({ path: append(path, [step]) }),
     back: () => update({ path: path.slice(0, -1) }),
     clear: () => update({ path: [] }),
     fullAhead: () => {

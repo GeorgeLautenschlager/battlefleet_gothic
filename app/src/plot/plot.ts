@@ -19,23 +19,51 @@ export function offBow(from: { position: Point; heading: number }, point: Point)
   return b > 180 ? b - 360 : b;
 }
 
-/**
- * The steps that take the end of `path` toward `pointer`: turn toward it (up to
- * `maxTurn`), then advance as far as its projection on the new heading.
- * Straight-only (or nearly dead ahead) skips the turn.
- */
-export function propose(ship: Ship, path: readonly PathStep[], pointer: Point, maxTurn: number, straightOnly = false): PathStep[] {
-  const end = paths.walkShipPath(ship, path).end;
-  const d = geometry.distance(end.position, pointer);
+/** Toward `pointer` from a pose: turn toward it (up to `maxTurn`), then advance by its projection on the new heading. */
+function toward(from: { position: Point; heading: number }, pointer: Point, maxTurn: number): PathStep[] {
+  const d = geometry.distance(from.position, pointer);
   if (d < 0.05) return [];
-  const b = Math.round(offBow(end, pointer));
-  const turn = straightOnly || Math.abs(b) < STRAIGHT_SNAP || maxTurn === 0 ? 0 : Math.max(-maxTurn, Math.min(maxTurn, b));
+  const b = Math.round(offBow(from, pointer));
+  const turn = Math.abs(b) < STRAIGHT_SNAP || maxTurn === 0 ? 0 : Math.max(-maxTurn, Math.min(maxTurn, b));
   const ahead = round1(d * Math.cos(rad(b - turn)));
   const steps: PathStep[] = [];
   if (turn !== 0) steps.push({ kind: "turn", degrees: turn });
   if (ahead > 0) steps.push({ kind: "advance", distance: ahead });
   return steps;
 }
+
+/**
+ * What a click at `pointer` adds to `path`.
+ *
+ * - Straight-only, nearly dead ahead, or no turns left: advance by the pointer's projection on the bow.
+ * - A turn allowed here: turn toward the pointer (up to the ship's limit), then go there.
+ * - A turn not allowed yet, pointer off the bow and beyond the turn point: advance to exactly the
+ *   turn point, then turn and go on toward the pointer. Precise turns without measuring.
+ */
+export function propose(state: GameState, ship: Ship, path: readonly PathStep[], pointer: Point, straightOnly = false): PathStep[] {
+  const st = stats(state, ship, path);
+  const turnsLeft = st.turnsUsed < st.turnsAllowed;
+  if (straightOnly || !turnsLeft) return toward(st.end, pointer, 0);
+  if (st.canTurnHere) return toward(st.end, pointer, ship.profile.turns);
+
+  const straight = toward(st.end, pointer, 0);
+  const offBowNow = Math.abs(offBow(st.end, pointer)) >= STRAIGHT_SNAP;
+  const untilTurn = round1(st.turnDistance - st.sinceTurn);
+  const ahead = straight[0]?.kind === "advance" ? straight[0].distance : 0;
+  if (!offBowNow || ahead <= untilTurn || untilTurn >= st.max - st.total) return straight;
+
+  const dir = geometry.headingVector(st.end.heading);
+  const pivot = { position: { x: st.end.position.x + untilTurn * dir.x, y: st.end.position.y + untilTurn * dir.y }, heading: st.end.heading };
+  return [{ kind: "advance", distance: untilTurn }, ...toward(pivot, pointer, ship.profile.turns)];
+}
+
+/** A typed step (advance N cm, or turn N° to port / starboard). */
+export const typedStep = (kind: "advance" | "port" | "starboard", amount: number): PathStep | null => {
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const n = round1(amount);
+  if (kind === "advance") return { kind: "advance", distance: n };
+  return { kind: "turn", degrees: kind === "port" ? -n : n };
+};
 
 /** Append steps, merging an advance into a preceding advance and a turn into a preceding turn. */
 export function append(path: readonly PathStep[], steps: readonly PathStep[]): PathStep[] {

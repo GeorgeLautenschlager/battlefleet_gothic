@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { typedStep } from "./plot";
 import type { Plot } from "./usePlot";
 
 const cm = (n: number) => `${Math.round(n * 10) / 10} cm`;
@@ -28,9 +30,10 @@ export function PlotPanel({ plot }: { plot: Plot }) {
       </dl>
       <p className={`plot-status ${status.cls}`}>{status.text}</p>
       <p className="muted small">
-        Click to head for the pointer, turning up to {plot.ship.profile.turns}° where a turn is allowed. Shift: straight ahead.
-        Backspace steps back, Esc clears, Enter moves.
+        Click to head for the pointer; off the bow, it turns exactly where it may. Shift: straight. Backspace, Esc, Enter: step
+        back, clear, move.
       </p>
+      <StepEntry plot={plot} />
       <div className="buttons">
         <button type="button" onClick={plot.fullAhead} disabled={st.total >= st.max}>
           Full ahead
@@ -46,6 +49,43 @@ export function PlotPanel({ plot }: { plot: Plot }) {
         </label>
         <button type="button" className="primary" data-commit-move onClick={plot.commit} disabled={verdict.kind !== "ok"}>
           Move
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Exact steps by number: advance N cm, or turn N° to port or starboard. */
+function StepEntry({ plot }: { plot: Plot }) {
+  const [distance, setDistance] = useState("");
+  const [degrees, setDegrees] = useState(String(plot.ship.profile.turns));
+  const advance = typedStep("advance", Number(distance));
+  const port = typedStep("port", Number(degrees));
+  const starboard = typedStep("starboard", Number(degrees));
+  const field = { type: "number", min: 0, step: "any", inputMode: "decimal" } as const;
+  return (
+    <div className="step-entry">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (advance !== null) {
+            plot.add(advance);
+            setDistance("");
+          }
+        }}
+      >
+        <input {...field} value={distance} onChange={(e) => setDistance(e.target.value)} aria-label="Advance distance in cm" placeholder="cm" />
+        <button type="submit" disabled={advance === null}>
+          Advance
+        </button>
+      </form>
+      <div>
+        <input {...field} value={degrees} onChange={(e) => setDegrees(e.target.value)} aria-label="Turn angle in degrees" placeholder="°" />
+        <button type="button" aria-label="Turn to port" disabled={port === null} onClick={() => port !== null && plot.add(port)}>
+          ⟲ Port
+        </button>
+        <button type="button" aria-label="Turn to starboard" disabled={starboard === null} onClick={() => starboard !== null && plot.add(starboard)}>
+          Starboard ⟳
         </button>
       </div>
     </div>
