@@ -10,6 +10,8 @@ type Props = {
   /** A ship being placed or plotted, drawn translucent. */
   ghost?: Ghost | null;
   selectedShipId?: string | null;
+  /** Blast Markers or salvos to pick out (e.g. while ordering removals). */
+  highlight?: string[];
   onSelectShip?: (id: string) => void;
   onPointer?: (p: Point | null) => void;
   onTableClick?: (p: Point) => void;
@@ -18,7 +20,7 @@ type Props = {
 
 const GRID = 10; // cm
 
-export function Table({ state, ghost = null, selectedShipId = null, onSelectShip, onPointer, onTableClick, children }: Props) {
+export function Table({ state, ghost = null, selectedShipId = null, highlight = [], onSelectShip, onPointer, onTableClick, children }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<Point | null>(null);
   const view: View = state.table;
@@ -75,13 +77,21 @@ export function Table({ state, ghost = null, selectedShipId = null, onSelectShip
 
       {state.blastMarkers.map((bm) => {
         const p = toSvg(view, bm.position);
-        return <circle key={bm.id} className="blast-marker" cx={p.x} cy={p.y} r={constants.BM_RADIUS} />;
+        return (
+          <circle
+            key={bm.id}
+            className={highlight.includes(bm.id) ? "blast-marker highlight" : "blast-marker"}
+            cx={p.x}
+            cy={p.y}
+            r={constants.BM_RADIUS}
+          />
+        );
       })}
 
       {state.ordnance.map((o) => {
         const p = toSvg(view, o.position);
         return (
-          <g key={o.id} className={`salvo ${o.owner}`} transform={`translate(${p.x} ${p.y}) rotate(${o.heading})`}>
+          <g key={o.id} className={`salvo ${o.owner}${highlight.includes(o.id) ? " highlight" : ""}`} transform={`translate(${p.x} ${p.y}) rotate(${o.heading})`}>
             <line x1={-o.width / 2} y1={0} x2={o.width / 2} y2={0} />
             <path d="M-0.8,-0.4 L0,-2 L0.8,-0.4" />
             <text y={2.6} textAnchor="middle" transform={`rotate(${-o.heading} 0 2.6)`}>

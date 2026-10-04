@@ -11,6 +11,9 @@ import { LogFeed } from "./panels/LogFeed";
 import { Console } from "./panels/Console";
 import { SetupControls } from "./panels/SetupControls";
 import { NewGame } from "./panels/NewGame";
+import { BracePrompt } from "./controls/BracePrompt";
+import { StepControls } from "./controls/StepControls";
+import { TurnBanner } from "./controls/TurnBanner";
 
 export function App() {
   const [history, setHistory] = useState<History | null>(() => loadAutosave());
@@ -18,6 +21,7 @@ export function App() {
   const [rejection, setRejection] = useState<Reason | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [pointer, setPointer] = useState<Point | null>(null);
+  const [highlight, setHighlight] = useState<string[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -137,6 +141,7 @@ export function App() {
               state={state}
               ghost={ghost}
               selectedShipId={selected}
+              highlight={highlight}
               onSelectShip={setSelected}
               onPointer={setPointer}
               onTableClick={(p) => {
@@ -146,8 +151,14 @@ export function App() {
           </section>
           <aside className="side">
             <section className="actions">
-              {state.clock.stage === "setup" && <SetupControls state={state} onApply={run} />}
-              {state.clock.stage === "battle" && <p className="hint">Battle controls arrive in the next PR. Until then, the console below drives the game.</p>}
+              <TurnBanner state={state} />
+              {state.pending.length > 0 ? (
+                <BracePrompt state={state} onApply={run} />
+              ) : state.clock.stage === "setup" ? (
+                <SetupControls state={state} onApply={run} />
+              ) : state.clock.stage === "battle" ? (
+                <StepControls state={state} onApply={run} onHighlight={setHighlight} />
+              ) : null}
               {state.result !== null && (
                 <p className="result">
                   {state.result.winner === null ? "A draw" : `${state.players[state.result.winner].name} wins`} · {state.result.scores.p1}–{state.result.scores.p2}
