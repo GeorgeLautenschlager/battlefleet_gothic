@@ -78,3 +78,20 @@ export function circlesTouch(a: Point, ra: number, b: Point, rb: number): boolea
 export function bmTouchesBase(bm: Point, stem: Point, size: BaseSize): boolean {
   return circlesTouch(bm, BM_RADIUS, stem, baseRadius(size));
 }
+
+/** Shortest distance from point `p` to segment `ab`. */
+export function segmentPointDistance(a: Point, b: Point, p: Point): number {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const lengthSq = abx * abx + aby * aby;
+  if (lengthSq === 0) return distance(a, p);
+  let s = ((p.x - a.x) * abx + (p.y - a.y) * aby) / lengthSq;
+  if (s < 0) s = 0;
+  else if (s > 1) s = 1;
+  return distance({ x: a.x + s * abx, y: a.y + s * aby }, p);
+}
+
+/** Segment `ab` touches the circle (centre `c`, radius `r`): inclusive, within EPS. */
+export function segmentTouchesCircle(a: Point, b: Point, c: Point, r: number): boolean {
+  return approxLe(segmentPointDistance(a, b, c), r);
+}
