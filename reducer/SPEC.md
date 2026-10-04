@@ -22,7 +22,7 @@ The reducer applies one **already validated** transform and returns the next sta
 - log entries (§12)
 - a worked example (§13)
 
-Geometry helpers (`relBearing`, `quadrantsOf`, swept contact, `walkPath`, …) are the ones in [validator §2](../validator/SPEC.md#2-geometry-helpers). The reducer imports the same module.
+Geometry helpers (`relBearing`, `quadrantsOf`, swept contact, `walkPath`, …) are the ones in [validator §2](../validator/SPEC.md#2-geometry-helpers). The reducer imports the same module. The maths rule in [validator §2.8](../validator/SPEC.md#28-deterministic-maths) applies here too: `asin` in Blast Marker placement means `dmath.asinDeg`, `sin`/`cos` mean `sinDeg`/`cosDeg`.
 
 ---
 

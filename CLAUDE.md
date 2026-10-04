@@ -26,6 +26,12 @@ The engine is a pure state machine: `validate(state, transform)` → ok / reason
 - Rule interpretations from extraction (`rules/README.md` › Interpretations) are referenced as `R#n`.
 - If code and spec disagree, the spec is right until it's updated.
 
+## Architecture decisions
+
+Recorded in [`docs/adr/`](docs/adr/). Current:
+
+- [ADR 0001](docs/adr/0001-engine-language.md): the engine is **TypeScript**, a standalone package with no DOM or Node APIs. Engine code must not call platform trig (`Math.sin`, `atan2`, `hypot`, `pow`, …); use the deterministic `dmath` module ([validator §2.8](validator/SPEC.md#28-deterministic-maths)).
+
 ## Roadmap
 
 - **Phase 0**: rulebook and fleets book extracted to markdown (`rules/`, `rules/fleets/`). Done.

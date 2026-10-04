@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.2, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.5](../game_state/SPEC.md) and [Transforms v0.4](../transforms/SPEC.md).
+**Status:** draft v0.3, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.5](../game_state/SPEC.md) and [Transforms v0.4](../transforms/SPEC.md).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -64,10 +64,10 @@ Angles are compared the same way, in degrees.
 norm(a)                 = ((a mod 360) + 360) mod 360
 tableBearing(from, to)  = norm(atan2deg(to.x − from.x, to.y − from.y))   // 0 = +y, clockwise
 relBearing(ship, point) = norm(tableBearing(ship.position, point) − ship.heading)
-headingVector(h)        = (sin h, cos h)
+headingVector(h)        = (sinDeg(h), cosDeg(h))
 ```
 
-`atan2deg(x, y)` is `atan2(x, y)` in degrees. Note the argument order: `x` first, because 0° is `+y`.
+`atan2deg(x, y)` is `atan2(x, y)` in degrees. Note the argument order: `x` first, because 0° is `+y`. All trig here goes through the deterministic maths module (§2.8), never the platform's `Math.sin` & co.
 
 **Quadrants of a bearing.** `quadrantsOf(b)` returns the set of quadrants whose closed range contains `b`, widened by `EPS` at each end:
 
@@ -179,6 +179,32 @@ isNearest(ship, weapon, target)      = target ∈ the matching set above
 ```
 
 Hulks are never "the nearest", so shooting at an enemy hulk always needs the priority test (p. 71). Ties all count as nearest; the shooter picks.
+
+### 2.8 Deterministic maths
+
+The engine promises that the same state and transform give a byte-identical result (state §1, principle 4) **on every platform**: Chrome, Firefox, Safari, Node. IEEE-754 guarantees that `+ − × ÷` and `sqrt` are correctly rounded, so they give the same answer everywhere. JavaScript's `Math.sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `hypot`, `pow`/`**`, `exp` and `log` are **implementation-approximated**, and can differ in the last bit between engines. Our positions come from trig, and a one-bit difference can flip a contact test that sits right at `EPS`, after which a replay diverges.
+
+**Rule:** engine code (state, validator, reducer, geometry) may use only these:
+
+| Allowed | Notes |
+|---|---|
+| `+ − × ÷ %`, unary `−` | IEEE-exact. JS never fuses multiply-add, so no FMA surprises. |
+| `Math.sqrt`, `abs`, `floor`, `ceil`, `trunc`, `round`, `min`, `max`, `sign`, `imul` | Exact by specification |
+| `dmath.*` | The engine's own deterministic functions, below |
+
+Everything else in `Math` is **forbidden** in engine code. That's enforced by lint (`no-restricted-properties`) on the engine package. Distances use `Math.sqrt(dx*dx + dy*dy)`, not `Math.hypot`.
+
+**`dmath`** is a small module of pure-software functions, ported from the FreeBSD/fdlibm implementations (as found in musl, or Rust's `libm` crate), so a future port can reproduce them bit for bit:
+
+```
+sinDeg(d), cosDeg(d)   // degrees in, exact at multiples of 90°
+asinDeg(x)             // degrees out
+atan2Deg(x, y)         // degrees out, our argument order (x first; 0° = +y)
+```
+
+**Degree-based argument reduction.** `sinDeg` / `cosDeg` first reduce `d` mod 360 (exact in floating point for our magnitudes), pick the octant, and convert only the remainder in `[−45°, 45°]` to radians for the polynomial kernel. So the cardinal headings are exact: `headingVector(0) = (0, 1)` exactly, not `(0, 1 − 1e-17)`. Cruiser Clash ships start on cardinal headings, so most early-game geometry stays exact.
+
+**Verification.** `dmath` ships with a test table of inputs → expected bit patterns (hex), generated once from the reference implementation. The cross-browser conformance run (seeded game transcripts in Chromium, Firefox and WebKit via Playwright; see [ADR 0001](../docs/adr/0001-engine-language.md)) checks that whole games match bit for bit.
 
 ---
 
@@ -474,6 +500,7 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V3 | **Burn Retros' maximum is half speed**, with no rounding. The turn-without-moving exemption only applies when `sinceLastTurn = 0`. |
 | V4 | **All Ahead Full meeting a BM within its last 5 cm** stops on contact, and the 5 cm slowdown is not applied on top. |
 | V5 | **No overlapping bases at deployment.** Bases may touch but not overlap. Overlap during play is still legal (p. 57). |
+| V6 | **Deterministic maths.** Engine code uses only IEEE-exact operations and the `dmath` module; platform trig is forbidden (§2.8). |
 
 ## 8. Decisions
 

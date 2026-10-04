@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.5, for discussion. **Scope:** Phase 1 (Cruiser Clash, one Lunar vs one Murder, hot-seat), with room to grow.
+**Status:** draft v0.6, for discussion. **Scope:** Phase 1 (Cruiser Clash, one Lunar vs one Murder, hot-seat), with room to grow.
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -20,7 +20,7 @@ Rule references like `(p. 66)` are rulebook pages; `rules/05-damage.md` etc. are
 1. **Plain JSON.** The state is a JSON value: objects, arrays, strings, finite numbers, booleans, `null`. No `undefined`, `NaN`, `Infinity`, dates, classes, maps or functions. `JSON.parse(JSON.stringify(s))` deep-equals `s`.
 2. **Self-contained.** Validator and reducer need nothing but the state and the transform. Ship profiles are **snapshotted** into the state at creation, so a later change to the fleets data can't change a game in progress. The random number generator's state lives in the game state too (§10).
 3. **Store facts, derive the rest.** The state records what happened (damage taken, criticals suffered, where Blast Markers sit) and never what can be computed from it (crippled, current speed, effective shields, score). Derived values are defined once, in §11, so the validator, reducer and UI can't drift apart. The exceptions are things that depend on history that's otherwise gone, e.g. how far a ship moved in its last Movement Phase.
-4. **Deterministic.** `reduce(s, t)` is a pure function. Same state + same transform → byte-identical result. All dice come from the in-state PRNG.
+4. **Deterministic.** `reduce(s, t)` is a pure function. Same state + same transform → byte-identical result, on every platform. All dice come from the in-state PRNG, and all trig from the engine's deterministic maths module ([validator §2.8](../validator/SPEC.md#28-deterministic-maths)).
 5. **At rest between transforms.** After every reduce, the state sits at a decision point, and exactly one player is being asked for input (§12). There's no hidden "the reducer is halfway through something" outside of the explicit `activation` and `pending` fields.
 6. **One transform per decision.** A ship's whole move is one transform carrying the complete path. Breaking it into drag-and-rotate steps is the interface layer's job. The only split is where the rules force one: a special order is declared (and its dice rolled) *before* the move is plotted, because the player needs to know whether the Command check passed and how far All Ahead Full goes (§9.1).
 7. **Count-only choices are made up front.** When a player's choice depends only on *how many* successes a roll produces (which criticals to repair, which Blast Markers to remove), the transform carries an ordered preference list and the reducer applies the first N. That avoids an extra round-trip and gives the same outcome as choosing afterwards. Choices that must come *before* an opponent's roll (Brace For Impact!) go through `pending` (§9).
