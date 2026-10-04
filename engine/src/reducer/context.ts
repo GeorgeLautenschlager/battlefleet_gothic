@@ -7,11 +7,6 @@ import { MAX_LEADERSHIP } from "../geometry/constants";
 import { d6 as rollD6 } from "../state/rng";
 import type { GameState, JsonValue, PlayerId } from "../state/types";
 
-/** A validated transform reached a part of the reducer that isn't written yet. */
-export class NotImplementedError extends Error {
-  override name = "NotImplementedError";
-}
-
 export class Ctx {
   /** Player whose transform led to what's being resolved; null during housekeeping. */
   actor: PlayerId | null = null;

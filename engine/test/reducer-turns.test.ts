@@ -1,6 +1,4 @@
 import { describe, expect, test } from "vitest";
-import { reduce } from "../src/reducer/reduce";
-import { NotImplementedError } from "../src/reducer/context";
 import { agrippa, battle, unclean } from "./validator-fixtures";
 import { logOf, play } from "./reducer-helpers";
 
@@ -89,13 +87,5 @@ describe("game end", () => {
     const s0 = battle("shooting", "direct_fire", 16);
     agrippa(s0).loaded.torpedoes = false;
     expect(play(s0, { type: "end_step", player: "p1" }).result?.winner).toBeNull();
-  });
-});
-
-describe("not yet implemented", () => {
-  test("moves, shots and ordnance throw a clear error", () => {
-    expect(() =>
-      reduce(battle(), { type: "move", player: "p2", shipId: "ship-2", path: [{ kind: "advance", distance: 20 }], disengage: false }),
-    ).toThrow(NotImplementedError);
   });
 });

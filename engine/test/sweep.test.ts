@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { exitT, sweptCircleVsCircle, sweptSegmentVsCircle, sweptSegmentVsSegment, toLocal } from "../src/geometry/sweep";
+import { exitT, sweptCircleVsCircle, sweptCircleVsSegment, sweptSegmentVsCircle, sweptSegmentVsSegment, toLocal } from "../src/geometry/sweep";
 import { segmentPointDistance, segmentTouchesCircle } from "../src/geometry/basic";
 
 const O = { x: 50, y: 50 };
@@ -98,5 +98,28 @@ describe("segment helpers", () => {
     expect(segmentPointDistance(a, a, { x: 3, y: 4 })).toBe(5);
     expect(segmentTouchesCircle(a, b, { x: 5, y: 3 }, 3)).toBe(true);
     expect(segmentTouchesCircle(a, b, { x: 5, y: 3.01 }, 3)).toBe(false);
+  });
+});
+
+describe("swept circle vs a stationary segment (a ship sailing into a salvo)", () => {
+  test("head-on into the middle of a salvo lying across its path", () => {
+    // Segment from (48.75, 70) to (51.25, 70): 2.5 cm wide, across a northbound ship's path.
+    expect(sweptCircleVsSegment(O, 0, 30, R_SHIP, { x: 48.75, y: 70 }, { x: 51.25, y: 70 })).toBeCloseTo(20 - R_SHIP, 12);
+  });
+
+  test("clipping the end of the segment", () => {
+    // Ship passes 2 cm right of the segment's right end: contact via the end disc.
+    const t = sweptCircleVsSegment(O, 0, 30, R_SHIP, { x: 46.75, y: 70 }, { x: 49.25, y: 70 });
+    expect(t).toBeCloseTo(20 - Math.sqrt(R_SHIP * R_SHIP - 0.75 * 0.75), 12);
+    expect(sweptCircleVsSegment(O, 0, 30, R_SHIP, { x: 46, y: 70 }, { x: 48.3, y: 70 })).toBeNull();
+  });
+
+  test("a segment lying along the path is met at its near end", () => {
+    expect(sweptCircleVsSegment(O, 0, 30, R_SHIP, { x: 50, y: 60 }, { x: 50, y: 62.5 })).toBeCloseTo(10 - R_SHIP, 12);
+  });
+
+  test("touching at the start → 0; behind → none", () => {
+    expect(sweptCircleVsSegment(O, 0, 30, R_SHIP, { x: 49, y: 51 }, { x: 51, y: 51 })).toBe(0);
+    expect(sweptCircleVsSegment(O, 0, 30, R_SHIP, { x: 49, y: 40 }, { x: 51, y: 40 })).toBeNull();
   });
 });

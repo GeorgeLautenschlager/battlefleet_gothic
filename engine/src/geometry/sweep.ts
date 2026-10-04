@@ -102,6 +102,49 @@ export function sweptSegmentVsSegment(
 }
 
 /**
+ * A circle of radius `radius` (a ship's base) swept against a stationary segment
+ * from `a` to `b` (a torpedo salvo lying across its own heading). Exact: the
+ * first contact with the segment's capsule, i.e. either end disc or the band between.
+ */
+export function sweptCircleVsSegment(
+  start: Point,
+  heading: number,
+  length: number,
+  radius: number,
+  a: Point,
+  b: Point,
+): number | null {
+  const candidates: number[] = [];
+  for (const end of [a, b]) {
+    const t = sweptCircleVsCircle(start, heading, length, radius, end, 0);
+    if (t !== null) candidates.push(t);
+  }
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const segLength = Math.sqrt(abx * abx + aby * aby);
+  if (segLength > 0) {
+    const n = { x: -aby / segLength, y: abx / segLength }; // unit normal to the segment
+    const dir = headingVector(heading);
+    const f0 = n.x * (start.x - a.x) + n.y * (start.y - a.y); // signed distance from the segment's line
+    const rate = n.x * dir.x + n.y * dir.y;
+    let enter: number | null = null;
+    if (Math.abs(f0) <= radius + EPS) enter = 0;
+    else if (rate !== 0) {
+      const t1 = (radius - f0) / rate;
+      const t2 = (-radius - f0) / rate;
+      const lo = Math.min(t1, t2);
+      if (Math.max(t1, t2) >= -EPS) enter = Math.max(0, lo);
+    }
+    if (enter !== null && enter <= length + EPS) {
+      const p = { x: start.x + enter * dir.x, y: start.y + enter * dir.y };
+      const s = ((p.x - a.x) * abx + (p.y - a.y) * aby) / (segLength * segLength);
+      if (s >= 0 && s <= 1) candidates.push(enter);
+    }
+  }
+  return candidates.length === 0 ? null : Math.min(...candidates);
+}
+
+/**
  * Distance along a straight move at which the point leaves the table, or null.
  * It only counts as leaving if the end of the move is outside by more than EPS;
  * the distance returned is where it crosses the edge itself.
