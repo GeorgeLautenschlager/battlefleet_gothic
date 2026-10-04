@@ -84,8 +84,12 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .ship.hulk .base { stroke-dasharray: 0.6 0.6; }
 .ship.blazing .hull { fill: #c2410c; }
 .ship.ghost { opacity: 0.6; pointer-events: none; }
+.ship.ghost.ok .hull { fill: var(--ok); }
+.ship.ghost.ok .base { stroke: var(--ok); }
 .ship.ghost.bad .hull { fill: var(--bad); }
 .ship.ghost.bad .base { stroke: var(--bad); }
+.ship.ghost.short .hull { fill: var(--accent); }
+.ship.ghost.short .base { stroke: var(--accent); }
 
 .blast-marker { fill: rgba(255, 159, 28, 0.35); stroke: var(--bm); stroke-width: 0.2; }
 .salvo line { stroke-width: 0.5; }
@@ -156,10 +160,6 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .ship-controls h3 { margin: 0; font-size: 1em; }
 .orders { display: flex; flex-wrap: wrap; gap: 6px; }
 .orders button { font-size: 0.85em; padding: 4px 8px; }
-.straight { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.straight label { display: flex; gap: 6px; align-items: center; }
-.straight input[type="number"] { width: 5em; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
-.straight small { flex-basis: 100%; }
 .prompt { display: grid; gap: 8px; padding: 10px; border-radius: 6px; border: 2px solid var(--accent); background: var(--panel-2); }
 .prompt p { margin: 0; }
 .prompt.p1 { border-color: var(--p1); }
@@ -169,3 +169,22 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .priority button { padding: 0 8px; }
 .blast-marker.highlight { stroke: #fff; stroke-width: 0.5; fill: rgba(255, 159, 28, 0.7); }
 .salvo.highlight line { stroke-width: 0.9; }
+
+/* --- Movement plotter */
+.plot-path { stroke: var(--text); stroke-width: 0.35; }
+.plot-preview { stroke-width: 0.3; stroke-dasharray: 0.8 0.5; }
+.plot-preview.ok { stroke: var(--ok); }
+.plot-preview.short { stroke: var(--accent); }
+.plot-preview.illegal { stroke: var(--bad); }
+.plot-guide { stroke: var(--muted); stroke-width: 0.15; stroke-dasharray: 0.4 0.6; }
+.plot-turn { stroke: var(--accent); stroke-width: 0.15; }
+.plot-turn-at { fill: none; stroke: var(--accent); stroke-width: 0.2; }
+.plotter { display: grid; gap: 6px; }
+.plot-stats { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; }
+.plot-stats dt { color: var(--muted); }
+.plot-stats dd { margin: 0; }
+.plot-status { margin: 0; font-size: 0.9em; }
+.plot-status.ok { color: var(--ok); }
+.plot-status.short { color: var(--accent); }
+.plot-status.illegal { color: var(--bad); }
+.check { display: inline-flex; gap: 4px; align-items: center; }
