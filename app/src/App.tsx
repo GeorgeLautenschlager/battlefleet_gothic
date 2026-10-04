@@ -16,6 +16,10 @@ import { StepControls } from "./controls/StepControls";
 import { TurnBanner } from "./controls/TurnBanner";
 import { usePlot } from "./plot/usePlot";
 import { PlotOverlay } from "./plot/PlotOverlay";
+import { FireControls } from "./fire/FireControls";
+import { FireOverlay } from "./fire/FireOverlay";
+import { liveAim, type Aim } from "./fire/aim";
+import { bearingToward, launch, targets } from "./fire/fire";
 
 export function App() {
   const [history, setHistory] = useState<History | null>(() => loadAutosave());
@@ -25,6 +29,8 @@ export function App() {
   const [pointer, setPointer] = useState<Point | null>(null);
   const [shift, setShift] = useState(false);
   const [highlight, setHighlight] = useState<string[]>([]);
+  const [aim, setAim] = useState<Aim | null>(null);
+  const [launchBearing, setLaunchBearing] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -46,6 +52,18 @@ export function App() {
   };
 
   const plot = usePlot(state, pointer, shift, run);
+
+  // Shooting: the weapon being aimed, its targets, and a torpedo bearing that follows the pointer.
+  const aimed = state === null ? null : liveAim(state, aim);
+  const aimTargets = state !== null && aimed !== null && aimed.weapon.kind !== "torpedoes" ? targets(state, aimed.ship, aimed.weapon) : [];
+  const pointerBearing = aimed !== null && aimed.weapon.kind === "torpedoes" && pointer !== null ? bearingToward(aimed.ship, aimed.weapon, pointer) : null;
+  const bearing = pointerBearing ?? launchBearing;
+  const fireAt = (id: string) => {
+    const t = aimTargets.find((x) => x.id === id);
+    const only = t?.options.length === 1 ? t.options[0] : undefined;
+    if (only !== undefined) run(only.transform);
+  };
+  const shooting = state !== null && (state.clock.step === "direct_fire" || state.clock.step === "launch_ordnance") && state.pending.length === 0;
 
   // Deployment: the next ship follows the pointer.
   const deploy = useMemo(() => {
@@ -151,18 +169,22 @@ export function App() {
               state={state}
               ghost={ghost}
               selectedShipId={selected}
-              highlight={highlight}
-              onSelectShip={setSelected}
+              highlight={aimed !== null ? aimTargets.filter((t) => t.options.length > 0).map((t) => t.id) : highlight}
+              onSelectShip={(id) => (aimed !== null ? fireAt(id) : setSelected(id))}
+              onSelectSalvo={(id) => aimed !== null && fireAt(id)}
               onPointer={(p, s) => {
                 setPointer(p);
                 setShift(s);
+                if (p !== null && aimed !== null && aimed.weapon.kind === "torpedoes") setLaunchBearing(bearingToward(aimed.ship, aimed.weapon, p));
               }}
               onTableClick={(p, s) => {
                 if (deploy !== null) run({ type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(p) });
                 else if (plot !== null) plot.click(p, s);
+                else if (aimed !== null && aimed.weapon.kind === "torpedoes") run(launch(aimed.ship, aimed.weapon, bearingToward(aimed.ship, aimed.weapon, p)));
               }}
             >
               {plot !== null && <PlotOverlay state={state} plot={plot} />}
+              {aimed !== null && <FireOverlay state={state} ship={aimed.ship} weapon={aimed.weapon} bearing={aimed.weapon.kind === "torpedoes" ? bearing : null} />}
             </Table>
           </section>
           <aside className="side">
@@ -172,6 +194,8 @@ export function App() {
                 <BracePrompt state={state} onApply={run} />
               ) : state.clock.stage === "setup" ? (
                 <SetupControls state={state} onApply={run} />
+              ) : shooting ? (
+                <FireControls state={state} aimed={aimed} onAim={setAim} onApply={run} bearing={bearing} />
               ) : state.clock.stage === "battle" ? (
                 <StepControls state={state} onApply={run} onHighlight={setHighlight} plot={plot} />
               ) : null}

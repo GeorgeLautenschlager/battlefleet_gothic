@@ -188,3 +188,16 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .plot-status.short { color: var(--accent); }
 .plot-status.illegal { color: var(--bad); }
 .check { display: inline-flex; gap: 4px; align-items: center; }
+
+/* --- Shooting */
+.weapons { display: grid; gap: 6px; }
+.weapon { display: flex; justify-content: space-between; gap: 8px; text-align: left; }
+.weapon.selected { border-color: var(--accent); background: rgba(227, 179, 65, 0.12); }
+.targets { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.targets li { display: grid; gap: 4px; }
+.arc { stroke-width: 0.2; }
+.arc.battery { fill: rgba(227, 179, 65, 0.08); stroke: rgba(227, 179, 65, 0.6); }
+.arc.lance { fill: rgba(90, 169, 255, 0.08); stroke: rgba(90, 169, 255, 0.6); }
+.arc.torpedoes { fill: rgba(255, 255, 255, 0.04); stroke: rgba(255, 255, 255, 0.3); stroke-dasharray: 0.6 0.6; }
+.torpedo-run { fill: none; stroke: var(--accent); stroke-width: 0.35; }
+.ship.targeted .base { stroke: var(--accent); stroke-width: 0.6; stroke-dasharray: 0.8 0.4; }

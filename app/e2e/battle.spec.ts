@@ -19,7 +19,7 @@ async function fullAhead(page: Page) {
   await page.getByRole("button", { name: "Move", exact: true }).click();
 }
 
-test("two rounds with the battle controls, a console shot and a brace decision", async ({ page }) => {
+test("two rounds: orders, moves, a torpedo launch, a shot from the table and a brace decision", async ({ page }) => {
   await page.goto("/");
   await page.locator('input[type="file"]').setInputFiles(SAVE);
   await expect(page.locator(".clock .where")).toContainText("Round 1");
@@ -30,23 +30,28 @@ test("two rounds with the battle controls, a console shot and a brace decision",
   await expect(page.locator(".log")).toContainText("Unclean moves 25 cm");
   await page.getByRole("button", { name: "Done shooting" }).click();
 
-  // Ann (Imperial): an order that needs a Command check, then move; the Lunar has torpedoes to decline.
+  // Ann (Imperial): an order that needs a Command check, then move, then torpedoes dead ahead.
   await expect(banner(page)).toContainText("Ann");
   await page.getByRole("button", { name: "Lock On" }).click();
   await expect(page.locator(".log")).toContainText("Command check");
   await fullAhead(page);
   await expect(page.locator(".log")).toContainText("Agrippa moves 20 cm");
   await page.getByRole("button", { name: "Done shooting" }).click();
-  await page.getByRole("button", { name: "Done launching" }).click();
+  await page.getByRole("button", { name: /Prow torpedoes/ }).click();
+  await expect(page.locator(".torpedo-run")).toHaveCount(1);
+  await page.getByRole("button", { name: "Launch dead ahead" }).click();
+  await expect(page.locator(".log")).toContainText("Agrippa launches 6 torpedoes");
+  await page.getByRole("button", { name: /Move Agrippa's torpedoes/ }).click();
+  await expect(page.locator(".log")).toContainText("Torpedoes move");
 
-  // Round 2, Bo closes and fires the prow lances through the console.
+  // Round 2, Bo closes, picks up the prow lances and clicks Agrippa on the table.
   await expect(page.locator(".clock .where")).toContainText("Round 2");
   await fullAhead(page);
-  await page.getByText("Transform console", { exact: true }).click();
-  await page.getByLabel("Transform JSON").fill(
-    JSON.stringify({ type: "fire", player: "p2", shipId: "ship-2", weaponId: "prow_lances", target: { kind: "ship", id: "ship-1" } }),
-  );
-  await page.getByRole("button", { name: "Apply" }).click();
+  await page.getByRole("button", { name: /Prow lance battery/ }).click();
+  await expect(page.locator(".arc.lance")).toHaveCount(1);
+  await expect(page.locator(".targets li").filter({ hasText: "Agrippa" }).filter({ hasNotText: "torpedoes" })).toContainText("Fire");
+  await expect(page.locator(".ship.targeted")).toHaveCount(1);
+  await page.locator('[data-ship="ship-1"]').click();
 
   // Ann decides whether Agrippa braces.
   const prompt = page.getByRole("alertdialog", { name: "Brace for impact?" });

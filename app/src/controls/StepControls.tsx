@@ -48,20 +48,6 @@ export function StepControls({ state, onApply, onHighlight, plot = null }: Props
       );
     }
 
-    case "direct_fire":
-    case "launch_ordnance":
-      return (
-        <>
-          <p className="muted small">
-            {step === "direct_fire" ? "Firing" : "Launching"} controls arrive in a later part; the transform console handles it for now.
-          </p>
-          <div className="buttons">
-            <Act state={state} transform={{ type: "end_step", player: active }} onApply={onApply}>
-              {step === "direct_fire" ? "Done shooting" : "Done launching"}
-            </Act>
-          </div>
-        </>
-      );
 
     case "active_ordnance":
     case "inactive_ordnance": {
