@@ -10,7 +10,9 @@ The Battlefleet Gothic Remastered rules engine: pure TypeScript, no DOM or Node 
 | Deterministic maths (`dmath`) and basic geometry | [validator §2.1–2.4, §2.8](../validator/SPEC.md#2-geometry-helpers) | `src/math/`, `src/geometry/` ✅ |
 | Swept contact, path walking, targeting | [validator §2.5–2.7](../validator/SPEC.md#25-swept-contact) | `src/geometry/` ✅ |
 | Validator | [validator](../validator/SPEC.md) | `src/validator/` ✅ |
-| Reducer | [reducer](../reducer/SPEC.md) | — |
+| Reducer: pipeline, work queue, setup, turn structure, game end, orders, Brace, repairs, BM removal | [reducer §1–2, §8.1, §10–12](../reducer/SPEC.md) | `src/reducer/` ✅ |
+| Reducer: damage pipeline, direct fire, fires | [reducer §3–7](../reducer/SPEC.md#3-the-damage-pipeline) | — |
+| Reducer: movement, rams, hulks, torpedoes | [reducer §8–9](../reducer/SPEC.md#8-movement) | — |
 
 ## Layout
 
@@ -31,6 +33,7 @@ src/
   rules/move.ts        move parameters and the All Ahead Full end point, shared by validator and reducer
   transforms/types.ts  every transform, mirroring transforms/SPEC.md
   validator/           validate(state, transform): schema (G1), gates (G2–G6), per-transform checks, reason codes
+  reducer/             reduce(state, transform): context (dice, ids, log), steps and turn boundaries, work queue, handlers
 test/                  vitest; spec-examples.test.ts runs the JSON in game_state/SPEC.md
 ```
 
