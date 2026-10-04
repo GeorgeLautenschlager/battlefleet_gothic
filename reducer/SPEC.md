@@ -563,8 +563,10 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `deploy_order_roll`, `first_turn_roll` | `rolls: [p1, p2], winner: PlayerId \| null` |
 | `deploy` | `shipId, position, heading` |
 | `first_turn_choice` | `firstPlayer` |
+| `battle_start` | `firstPlayer` |
 | `turn_start` | `round, player` |
-| `step` | `phase, step` |
+| `step` | `phase, step` (battle) or `setupStep` (setup) |
+| `end_step` | `step` (the step the player ended) |
 | `order_expired` | `shipId, order` |
 | `command_check` | `shipId, order, target, rolls, passed` |
 | `ram_test`, `priority_test`, `disengage_test` | `shipId, target, rolls, passed` (+ `targetId` for rams) |
@@ -573,6 +575,7 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `ram` | `rammerId, targetId, headOn, facing, rammerRolls, rammerHits, targetRolls, targetHits` |
 | `attack` | `source, targetId, weapon: "battery" \| "lance" \| "torpedo" \| "explosion", column?, shifts?, need, rolls, rerolls, hits` |
 | `shields` | `shipId, absorbed, blastMarkerIds` |
+| `brace_offer` | `pendingId, shipId, source` |
 | `brace_check` | `shipId, rolls, target, passed`, or `shipId, declined: true` |
 | `brace_saves` | `shipId, rolls, saved` |
 | `damage` | `shipId, cause, damageAfter` (one entry per point) |
