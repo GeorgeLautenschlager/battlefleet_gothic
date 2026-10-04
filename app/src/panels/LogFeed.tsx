@@ -8,7 +8,10 @@ const QUIET = new Set(["step"]);
 export function LogFeed({ state }: { state: GameState }) {
   const end = useRef<HTMLLIElement>(null);
   const entries = state.log.filter((e) => !QUIET.has(e.kind));
-  useEffect(() => end.current?.scrollIntoView({ block: "nearest" }), [entries.length]);
+  useEffect(() => {
+    // Braces matter: newer Chromes return a Promise from scrollIntoView, and React would call it as a cleanup.
+    void end.current?.scrollIntoView({ block: "nearest" });
+  }, [entries.length]);
   return (
     <ol className="log" aria-label="Game log">
       {entries.map((e) => (

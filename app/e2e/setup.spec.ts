@@ -1,7 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
 
 // Surface what the page was doing when a test fails: uncaught errors, console errors, and the accessibility tree.
-test.beforeEach(({ page }) => {
+test.beforeEach(async ({ page }) => {
+  // Newer Chromes return a Promise from scrollIntoView. Make every browser do so, so code that leaks its
+  // return value (e.g. as a React effect cleanup) fails here and not only on the newest browser.
+  await page.addInitScript(() => {
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element, ...args: Parameters<typeof original>) {
+      original.apply(this, args);
+      return Promise.resolve() as unknown as undefined;
+    };
+  });
   page.on("pageerror", (e) => console.log(`[pageerror] ${e.message}\n${e.stack ?? ""}`));
   page.on("console", (m) => {
     if (m.type() === "error" || m.type() === "warning") console.log(`[console.${m.type()}] ${m.text()}`);

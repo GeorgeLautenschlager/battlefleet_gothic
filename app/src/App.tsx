@@ -20,7 +20,9 @@ export function App() {
   const [pointer, setPointer] = useState<Point | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  useEffect(() => autosave(history), [history]);
+  useEffect(() => {
+    autosave(history);
+  }, [history]);
 
   const state = history === null ? null : current(history);
 
