@@ -5,11 +5,10 @@
 import { getShip } from "../state/derived";
 import type { AttackSource, GameState, Ship, WorkItem } from "../state/types";
 import { NotImplementedError, type Ctx } from "./context";
+import { explosionHit, fireDamage } from "./damage";
+import { resolveDirectFire } from "./gunnery";
 
-/** Insert items at the front of the queue, in the order they should run. */
-export function enqueueFront(state: GameState, items: WorkItem[]): void {
-  state.queue.unshift(...items);
-}
+export { enqueueFront } from "./queue";
 
 const sameSource = (a: AttackSource, b: AttackSource): boolean => a.kind === b.kind && a.id === b.id;
 
@@ -32,6 +31,12 @@ export function runWorkItem(ctx: Ctx, item: WorkItem): void {
       ctx.log("brace_offer", { pendingId: id, shipId: ship.id, source: item.source });
       return;
     }
+    case "direct_fire":
+      return resolveDirectFire(ctx, item);
+    case "explosion_hit":
+      return explosionHit(ctx, item.shipId, item.centre, item.strength, item.targetId);
+    case "fire_damage":
+      return fireDamage(ctx, item.shipId);
     default:
       throw new NotImplementedError(`reducer: work item "${item.kind}" arrives in a later PR`);
   }
