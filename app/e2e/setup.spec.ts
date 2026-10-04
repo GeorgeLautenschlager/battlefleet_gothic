@@ -1,5 +1,16 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// Surface what the page was doing when a test fails: uncaught errors, console errors, and the accessibility tree.
+test.beforeEach(({ page }) => {
+  page.on("pageerror", (e) => console.log(`[pageerror] ${e.message}\n${e.stack ?? ""}`));
+  page.on("console", (m) => {
+    if (m.type() === "error" || m.type() === "warning") console.log(`[console.${m.type()}] ${m.text()}`);
+  });
+});
+test.afterEach(async ({ page }, info) => {
+  if (info.status !== info.expectedStatus) console.log(`[page at failure]\n${await page.locator("body").ariaSnapshot()}`);
+});
+
 /** Click the table at a point in table cm (+y up). */
 async function clickTable(page: Page, x: number, y: number) {
   const svg = page.locator("svg.table");

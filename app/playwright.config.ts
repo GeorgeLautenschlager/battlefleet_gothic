@@ -8,6 +8,7 @@ export default defineConfig({
   outputDir: "test-results",
   use: {
     baseURL: "http://localhost:4173",
+    trace: "retain-on-failure",
     viewport: { width: 1400, height: 900 },
     ...(executablePath ? { launchOptions: { executablePath } } : {}),
   },
