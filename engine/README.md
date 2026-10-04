@@ -9,7 +9,7 @@ The Battlefleet Gothic Remastered rules engine: pure TypeScript, no DOM or Node 
 | Game state: types, dice, derived values, `actor`, invariants, `newGame` | [game_state](../game_state/SPEC.md), [transforms §5](../transforms/SPEC.md#5-creating-a-game) | `src/state/` ✅ |
 | Deterministic maths (`dmath`) and basic geometry | [validator §2.1–2.4, §2.8](../validator/SPEC.md#2-geometry-helpers) | `src/math/`, `src/geometry/` ✅ |
 | Swept contact, path walking, targeting | [validator §2.5–2.7](../validator/SPEC.md#25-swept-contact) | `src/geometry/` ✅ |
-| Validator | [validator](../validator/SPEC.md) | — |
+| Validator | [validator](../validator/SPEC.md) | `src/validator/` ✅ |
 | Reducer | [reducer](../reducer/SPEC.md) | — |
 
 ## Layout
@@ -28,6 +28,9 @@ src/
   geometry/sweep.ts    swept contact: base vs circle, salvo vs circle/salvo, table exit
   geometry/path.ts     walkPath, Blast Markers along a path, exit distance
   geometry/targeting.ts  line of fire, canEngage, nearest target per weapon (V1)
+  rules/move.ts        move parameters and the All Ahead Full end point, shared by validator and reducer
+  transforms/types.ts  every transform, mirroring transforms/SPEC.md
+  validator/           validate(state, transform): schema (G1), gates (G2–G6), per-transform checks, reason codes
 test/                  vitest; spec-examples.test.ts runs the JSON in game_state/SPEC.md
 ```
 

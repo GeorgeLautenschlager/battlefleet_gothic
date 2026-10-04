@@ -1,0 +1,173 @@
+/** Movement checks (validator spec §4.2): drift_hulk, declare_order, move. */
+import { BM_SLOWDOWN } from "../geometry/constants";
+import { approxEq, approxGe, approxLe } from "../geometry/basic";
+import { exitDistance, touchesAnyBm, walkShipPath } from "../geometry/path";
+import { allAheadFullEnd, moveParameters } from "../rules/move";
+import { isHulk, onTable } from "../state/derived";
+import type { GameState, Ship } from "../state/types";
+import type { DeclareOrder, DriftHulk, Move } from "../transforms/types";
+import { cm, OK, reject, type ValidationResult } from "./reasons";
+
+/** Shared checks 1–2: the ship exists and belongs to the player. */
+export function ownShip(state: GameState, shipId: string, player: string): Ship | ValidationResult {
+  const ship = state.ships.find((s) => s.id === shipId);
+  if (ship === undefined) return reject("UNKNOWN_SHIP", `No ship ${shipId}`, { shipId });
+  if (ship.owner !== player) return reject("NOT_YOUR_SHIP", `${ship.name} isn't yours`, { shipId });
+  return ship;
+}
+
+export const isResult = (x: Ship | ValidationResult): x is ValidationResult => "ok" in x;
+
+/** Shared checks 1–3: own ship, and active. */
+export function ownActiveShip(state: GameState, shipId: string, player: string): Ship | ValidationResult {
+  const ship = ownShip(state, shipId, player);
+  if (isResult(ship)) return ship;
+  if (ship.status !== "active") {
+    return reject("SHIP_NOT_ACTIVE", `${ship.name} is ${ship.status.replace("_", " ")}`, { shipId, status: ship.status });
+  }
+  return ship;
+}
+
+export function checkDriftHulk(state: GameState, t: DriftHulk): ValidationResult {
+  const ship = ownShip(state, t.shipId, t.player);
+  if (isResult(ship)) return ship;
+  if (!isHulk(ship)) return reject("NOT_A_HULK", `${ship.name} isn't a hulk`, { shipId: ship.id });
+  if (state.turnState.ships[ship.id]?.drifted === true) {
+    return reject("ALREADY_DRIFTED", `${ship.name} has already drifted this turn`, { shipId: ship.id });
+  }
+  return OK;
+}
+
+export function checkDeclareOrder(state: GameState, t: DeclareOrder): ValidationResult {
+  const ship = ownActiveShip(state, t.shipId, t.player);
+  if (isResult(ship)) return ship;
+  if (state.turnState.ships[ship.id]?.moved === true) {
+    return reject("ALREADY_MOVED", `${ship.name} has already moved this turn`, { shipId: ship.id });
+  }
+  if (state.activation !== null) {
+    return reject("ACTIVATION_OPEN", "Another ship has declared an order and must move first", {
+      shipId: state.activation.shipId,
+    });
+  }
+  if (state.turnState.commandCheckFailed) {
+    return reject("ORDERS_LOCKED", "Your fleet failed a Command check this turn: no more special orders");
+  }
+  if (ship.specialOrder !== null) {
+    return reject("ALREADY_ON_ORDERS", `${ship.name} is already on ${ship.specialOrder.kind.replaceAll("_", " ")}`, {
+      shipId: ship.id,
+      order: ship.specialOrder.kind,
+    });
+  }
+  if (t.order === "brace_for_impact") {
+    return reject("INVALID_ORDER", "Brace For Impact! is only declared when a ship is attacked");
+  }
+  if (t.ramTargetId !== undefined) {
+    if (t.order !== "all_ahead_full" || !state.meta.options.ramming) {
+      return reject("RAM_NOT_ALLOWED", "Ramming needs All Ahead Full, with ramming enabled");
+    }
+    const target = state.ships.find((s) => s.id === t.ramTargetId);
+    if (target === undefined || target.owner === ship.owner || !onTable(target)) {
+      return reject("INVALID_RAM_TARGET", `${t.ramTargetId} isn't an enemy ship on the table`, {
+        ramTargetId: t.ramTargetId,
+      });
+    }
+  }
+  return OK;
+}
+
+export function checkMove(state: GameState, t: Move): ValidationResult {
+  // 1–5: identify the move
+  const ship = ownActiveShip(state, t.shipId, t.player);
+  if (isResult(ship)) return ship;
+  if (state.turnState.ships[ship.id]?.moved === true) {
+    return reject("ALREADY_MOVED", `${ship.name} has already moved this turn`, { shipId: ship.id });
+  }
+  const { activation } = state;
+  if (activation !== null && !(activation.stage === "ordered" && activation.shipId === ship.id)) {
+    return reject("ACTIVATION_OPEN", "Another ship has declared an order and must move first", {
+      shipId: activation.shipId,
+    });
+  }
+
+  // Parameters, as the reducer computes them
+  const p = moveParameters(ship, activation);
+  const walk = walkShipPath(ship, t.path);
+  const exit = exitDistance(walk, state.table);
+  const slowed = touchesAnyBm(state, ship, walk);
+  const limit = p.maxIfBR - (slowed ? BM_SLOWDOWN : 0);
+
+  // 6: step shapes
+  for (const [stepIndex, step] of t.path.entries()) {
+    const bad = step.kind === "advance" ? !(step.distance > 0) : step.degrees === 0;
+    if (bad) return reject("INVALID_PATH_STEP", `Step ${stepIndex} doesn't move or turn`, { stepIndex });
+  }
+  // 7: turn angle
+  for (const turn of walk.turns) {
+    if (!approxLe(Math.abs(turn.degrees), ship.profile.turns)) {
+      return reject("TURN_TOO_SHARP", `${ship.name} can turn at most ${ship.profile.turns}°`, {
+        stepIndex: turn.stepIndex,
+        degrees: turn.degrees,
+        max: ship.profile.turns,
+      });
+    }
+  }
+  // 8: number of turns
+  if (walk.turns.length > p.turnsAllowed) {
+    return reject("TOO_MANY_TURNS", `${ship.name} may make ${p.turnsAllowed} turn(s) this move`, {
+      turns: walk.turns.length,
+      allowed: p.turnsAllowed,
+    });
+  }
+  // 9: distance before each turn (Burn Retros may turn without moving first)
+  for (const turn of walk.turns) {
+    const exempt = p.order === "burn_retros" && turn.sinceLastTurn === 0;
+    if (!exempt && !approxGe(turn.sinceLastTurn, p.turnDistance)) {
+      return reject(
+        "TURN_TOO_EARLY",
+        `${ship.name} must move ${cm(p.turnDistance)} before turning (has moved ${cm(turn.sinceLastTurn)})`,
+        { stepIndex: turn.stepIndex, sinceLastTurn: turn.sinceLastTurn, required: p.turnDistance },
+      );
+    }
+  }
+  // 10, 11: leaving the table
+  if (exit !== null) {
+    const last = t.path.length - 1;
+    const lastLeg = walk.legs[walk.legs.length - 1];
+    if (lastLeg === undefined || lastLeg.stepIndex !== last || exit < lastLeg.distanceBefore) {
+      return reject("PATH_CONTINUES_OFF_TABLE", "The ship leaves the table before its last step", { exit });
+    }
+    if (t.disengage) {
+      return reject("ALREADY_LEAVING_TABLE", "This move leaves the table: no disengage test needed");
+    }
+  }
+
+  // 14: All Ahead Full replaces 12 and 13
+  if (p.order === "all_ahead_full") {
+    const aaf = allAheadFullEnd(state, ship, p.d0);
+    const leavesFirst = exit !== null && approxLe(exit, aaf.end);
+    if (!leavesFirst && !approxEq(walk.total, aaf.end)) {
+      const code = aaf.stoppedByBm ? "MUST_STOP_AT_BLAST_MARKER" : "MUST_MOVE_FULL_DISTANCE";
+      const why = aaf.stoppedByBm ? "stop where it meets the Blast Marker" : "move its full distance";
+      return reject(code, `On All Ahead Full, ${ship.name} must ${why}: ${cm(aaf.end)}`, {
+        total: walk.total,
+        required: aaf.end,
+      });
+    }
+    return OK;
+  }
+
+  // 12: maximum
+  if (!approxLe(walk.total, limit)) {
+    return reject("PATH_TOO_LONG", `${ship.name} can move at most ${cm(limit)}`, { total: walk.total, limit, slowed });
+  }
+  // 13: minimum, unless leaving the table
+  const minimum = Math.min(p.minDistance, limit);
+  if (exit === null && !approxGe(walk.total, minimum)) {
+    return reject("PATH_TOO_SHORT", `${ship.name} must move at least ${cm(minimum)}`, {
+      total: walk.total,
+      limit: minimum,
+      slowed,
+    });
+  }
+  return OK;
+}

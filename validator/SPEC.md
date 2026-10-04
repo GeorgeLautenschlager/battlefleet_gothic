@@ -509,4 +509,4 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | D1 | Nearest target: per weapon or strict? | Per weapon (V1). |
 | D2 | Overlapping bases at deployment? | Forbidden (V5), so the presentation layer never has to resolve it. |
 
-No open questions at v0.2.
+No open questions.

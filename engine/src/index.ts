@@ -12,3 +12,6 @@ export * as dmath from "./math/dmath";
 export * as sweep from "./geometry/sweep";
 export * as paths from "./geometry/path";
 export * as targeting from "./geometry/targeting";
+export type * from "./transforms/types";
+export * from "./validator";
+export { moveParameters, allAheadFullEnd, type MoveParameters } from "./rules/move";

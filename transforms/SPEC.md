@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.4, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.4](../game_state/SPEC.md).
+**Status:** draft v0.4, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.6](../game_state/SPEC.md).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -373,4 +373,4 @@ type GameConfig = {
 | D1 | Is a ship that sails into its own torpedo salvo attacked? | Yes (T6). Overrun your own torpedoes and you have a bad time. |
 | D2 | Can hulks be rammed? | Yes. `ramTargetId` accepts any enemy ship on the table, hulks included. |
 
-No open questions at v0.2.
+No open questions.
