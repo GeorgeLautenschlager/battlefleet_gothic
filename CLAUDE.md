@@ -39,4 +39,4 @@ Recorded in [`docs/adr/`](docs/adr/). Current:
 - **Phase 1**: local browser, hot-seat (two players, one machine, honour system), **Cruiser Clash** scenario with one **Lunar** vs one **Murder**. Keep it as simple as possible.
   - Rules engine specs (state, transforms, validator, reducer): written.
   - Engine implementation in [`engine/`](engine/README.md) (`npm run check` there): game state, geometry, validator and reducer done: a full Lunar vs Murder game plays from `newGame` to `game_end`.
-  - Browser app in [`app/`](app/README.md) (`npm run check` and `npm run e2e` there): new game, setup, table view, log, undo, saves, battle controls and the movement plotter done; firing and torpedo launching next.
+  - Browser app in [`app/`](app/README.md) (`npm run check` and `npm run e2e` there): new game, setup, table view, log, undo, saves, battle controls, movement plotter and shooting done: a whole game is playable in the UI. Next: zoom, dice presentation, polish.

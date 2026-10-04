@@ -13,6 +13,7 @@ type Props = {
   /** Blast Markers or salvos to pick out (e.g. while ordering removals). */
   highlight?: string[];
   onSelectShip?: (id: string) => void;
+  onSelectSalvo?: (id: string) => void;
   /** `shift`: the Shift key was held. */
   onPointer?: (p: Point | null, shift: boolean) => void;
   onTableClick?: (p: Point, shift: boolean) => void;
@@ -21,7 +22,7 @@ type Props = {
 
 const GRID = 10; // cm
 
-export function Table({ state, ghost = null, selectedShipId = null, highlight = [], onSelectShip, onPointer, onTableClick, children }: Props) {
+export function Table({ state, ghost = null, selectedShipId = null, highlight = [], onSelectShip, onSelectSalvo, onPointer, onTableClick, children }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<Point | null>(null);
   const view: View = state.table;
@@ -92,7 +93,12 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
       {state.ordnance.map((o) => {
         const p = toSvg(view, o.position);
         return (
-          <g key={o.id} className={`salvo ${o.owner}${highlight.includes(o.id) ? " highlight" : ""}`} transform={`translate(${p.x} ${p.y}) rotate(${o.heading})`}>
+          <g
+            key={o.id}
+            className={`salvo ${o.owner}${highlight.includes(o.id) ? " highlight" : ""}`}
+            transform={`translate(${p.x} ${p.y}) rotate(${o.heading})`}
+            onClick={onSelectSalvo ? () => onSelectSalvo(o.id) : undefined}
+          >
             <line x1={-o.width / 2} y1={0} x2={o.width / 2} y2={0} />
             <path d="M-0.8,-0.4 L0,-2 L0.8,-0.4" />
             <text y={2.6} textAnchor="middle" transform={`rotate(${-o.heading} 0 2.6)`}>
@@ -109,6 +115,7 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
             ship={{ ...s, position: s.position, heading: s.heading }}
             view={view}
             selected={s.id === selectedShipId}
+            targeted={highlight.includes(s.id)}
             {...(onSelectShip ? { onSelect: onSelectShip } : {})}
           />
         ),
