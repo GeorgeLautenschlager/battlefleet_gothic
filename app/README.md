@@ -10,9 +10,10 @@ Battlefleet Gothic in the browser: hot-seat Cruiser Clash (one Lunar vs one Murd
 | Table view: ships, Blast Markers, salvos, deployment zones | ✅ |
 | Setup: rolls, click-to-deploy, first-turn choice | ✅ |
 | Log as prose | ✅ |
-| Transform console (raw JSON, validated live) | ✅ stopgap for the battle |
-| Battle controls: steps, orders, brace prompts, hulks, repairs, BM removal | next |
-| Movement plotter | — |
+| Transform console (raw JSON, validated live) | ✅ stopgap for firing and launching |
+| Battle controls: turn banner, orders, brace prompts, hulk drift, salvo moves, repairs, BM removal, end step | ✅ |
+| Straight-ahead move (stopgap) | ✅ until the plotter |
+| Movement plotter | next |
 | Firing, torpedoes, ordnance | — |
 
 ## Layout
@@ -24,9 +25,10 @@ src/
   game/config.ts    the Cruiser Clash config (Lunar vs Murder)
   table/            the SVG table: view maths, ship glyphs, ghosts
   panels/           clock bar, ship cards, log feed, setup controls, console, new game
+  controls/         battle controls: Act (validated button), brace prompt, per-step controls, priority lists
   log/format.ts     log entries as sentences
 test/               vitest (logic)
-e2e/                Playwright (flows through the built app)
+e2e/                Playwright (flows through the built app); fixtures/ holds seeded saves
 ```
 
 ## Working on it

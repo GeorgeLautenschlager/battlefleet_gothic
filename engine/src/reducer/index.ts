@@ -1,2 +1,2 @@
 export { reduce } from "./reduce";
-export { stepComplete } from "./steps";
+export { stepComplete, removableBlastMarkers } from "./steps";
