@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** v0.3, implemented in [`engine/`](../engine/README.md). **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.5](../game_state/SPEC.md), [Transforms v0.4](../transforms/SPEC.md) and [Validator v0.2](../validator/SPEC.md).
+**Status:** v0.4. v0.3 is implemented in [`engine/`](../engine/README.md); v0.4 adds boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15), not yet implemented. **Scope:** Cruiser Clash (1–4 cruisers a side). Builds on [Game State v0.7](../game_state/SPEC.md), [Transforms v0.5](../transforms/SPEC.md) and [Validator v0.4](../validator/SPEC.md).
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState
@@ -149,6 +149,8 @@ damagePoint(ship, critCheck):
 | Rams | no | yes |
 | 0-shield ship crossing a BM | no | yes |
 | Fire!, critical extra damage | (bypass `inflict`; `damagePoint` with `critCheck = false`) | no |
+| Boarding damage | (bypasses `inflict`; `damagePoint` with `critCheck = false`; 0 hits → drifting hulk, no catastrophic roll, §10.4) | no |
+| Teleport attacks | (no hits: a critical only, §10.5) | yes |
 
 ---
 
@@ -265,7 +267,9 @@ placeCluster(centre, n):
 
 ```
 critical(ship):
-  rolls = nD6(2); n = sum
+  rolls = nD6(2); applyCritical(ship, sum(rolls))
+
+applyCritical(ship, n):                              // also a Hit-and-Run result: n is one D6 (§10.5)
   while not applies(ship, n): n += 1                 // "next highest" (p. 67); 12 always applies
   apply n, then its extra damage via damagePoint(ship, critCheck = false)
 ```
@@ -301,7 +305,7 @@ catastrophic(ship):
   12:   explode(ship, strength = H, markers = H)
 ```
 
-`H` is the ship's starting hits (`profile.hits`).
+`H` is the ship's starting hits (`profile.hits`). Every outcome takes the ship out of its grapple, if it's in one (§7.4).
 
 ### 7.2 Explosions
 
@@ -334,6 +338,24 @@ A hulk has no shields, can't brace, and is already at 0 hits, so the hits themse
 
 ---
 
+### 7.4 Leaving a grapple
+
+Whenever a ship stops being `active` (it becomes a hulk, explodes or leaves the table), it leaves its grapple (state §7):
+
+```
+leaveGrapple(x):
+  if x.grapple = null: return
+  g = x.grapple; x.grapple = null
+  rest = g.attackerIds minus x.id
+  if x.id = g.defenderId or rest is empty:
+    for every other member m: m.grapple = null
+    log grapple_ended { defenderId: g.defenderId, shipId: x.id }
+  else:
+    for every other member m: m.grapple = { defenderId: g.defenderId, attackerIds: rest }
+```
+
+In practice that's §7.1 (a capital ship reaching 0) and §10.4 (a ship boarded to 0). Grappled ships don't move, so they never leave the table.
+
 ## 8. Movement
 
 ### 8.1 Handlers
@@ -347,8 +369,10 @@ A hulk has no shields, can't brace, and is already at 0 hits, so the hits themse
 
 **`move`.**
 1. Create the activation if there isn't one (no order).
-2. Set `stage: "moving"`, `remainingPath = path` and `disengage`.
+2. Set `stage: "moving"`, `remainingPath = path`, `disengage` and `boardTargetId` (null if absent).
 3. Enqueue `continue_move`.
+
+**Entering `move_ships`.** For each of the active player's `active` ships with `grapple ≠ null`, in order: `turnState.ships[id].moved = true`, `lastMove = { playerTurn, distance: 0 }` (so it's targeted as Defences), log `grappled`. The step's completion rule then needs nothing from them.
 
 ### 8.2 `continue_move`
 
@@ -390,7 +414,14 @@ continue_move:
 **`finish_move`:**
 1. If the ship is still `active`: set `lastMove = { playerTurn, distance: distanceMoved }`.
 2. If `disengage` was requested, run the test. Pass → `disengaged`; fail → `turnState.ships[id].disengage = "failed"`.
-3. Set `turnState.ships[id].moved = true`, log `move`, and set `activation = null`.
+3. If `boardTargetId ≠ null` (transform T8), with `t` the target:
+   ```
+   if !a.truncated and ship.status = "active" and t.status = "active" and t.grapple = null and basesTouch(ship, t):
+     turnState.ships[id].boardingDeclared = t.id; log boarding_declared
+   else:
+     log boarding_lapsed { reason: a.truncated ? "truncated" : t.status ≠ "active" or t.grapple ≠ null ? "target_gone" : "no_contact" }
+   ```
+4. Set `turnState.ships[id].moved = true`, log `move`, and set `activation = null`.
 
 ### 8.3 `ram`
 
@@ -509,6 +540,92 @@ roll = d6(); remove the first min(roll, |priority|) BMs in priority; blastMarker
 
 If nothing is removable, the step is complete on entry and no die is rolled.
 
+### 10.4 Boarding
+
+**Entering `boarding`.** If `meta.options.boarding` is off, nothing happens and the step is complete. Otherwise, for each ship `d` in order whose `grapple.defenderId = d.id`, enqueue `boarding_fight { defenderId: d.id, attackerIds: d.grapple.attackerIds }`.
+
+**Completion.** The step is complete when `boardingsToFight` is empty (transform §4.6) and no legal `teleport` exists: no pair of an active-player ship and an enemy ship passes validator §4.6's `teleport` checks. Otherwise it waits for `board`, `teleport` or `end_step`.
+
+**`board` handler.** Set `boarded` on every ship in `priority`. Together: enqueue one `boarding_fight { defenderId: target, attackerIds: priority }`. Separately: enqueue one `boarding_fight { defenderId: target, attackerIds: [a] }` per ship `a`, in `priority` order.
+
+**`boarding_fight { defenderId, attackerIds }`:**
+
+```
+d = ship(defenderId); A = [ship(a) for a in attackerIds if status = "active"]
+if d.status ≠ "active" or A is empty: log skipped; return               // e.g. separately, after the target fell (T16)
+
+attVal = Σ boardingValue(a) for a in A
+defVal = boardingValue(d) + turrets(d)                                  // the defender adds its turrets (p. 89)
+enemy(x) = (bmsInContact(x) ≠ ∅ ? 1 : 0) + (isCrippled(x) ? 2 : 0) + (x.specialOrder ≠ null ? 1 : 0)
+attMod = ratio(attVal, defVal) + enemy(d) + players[owner(A)].factionTraits.boardingModifier
+defMod = ratio(defVal, attVal) + max(enemy(a) for a in A) + players[d.owner].factionTraits.boardingModifier   // T11
+attRoll = d6(); defRoll = d6()
+att = attRoll + attMod; def = defRoll + defMod; diff = |att − def|
+log boarding
+
+if diff = 0: joinGrapple(d, A); return                                  // a draw: no damage, no criticals
+(losers, winners) = att < def ? (A, [d]) : ([d], A)
+boardingDamage(losers, diff)
+(loserNeed, winnerNeed) = CRITS[min(diff, 5)]
+insert at the front, in order:
+  boarding_critical { shipId: x, need: loserNeed }  for x in losers
+  boarding_critical { shipId: x, need: winnerNeed } for x in winners
+```
+
+```
+ratio(own, enemy) = own ≥ 4·enemy ? 4 : own ≥ 3·enemy ? 3 : own ≥ 2·enemy ? 2 : own > enemy ? 1 : 0
+
+CRITS = { 1: (5, 5), 2: (4, 5), 3: (3, 6), 4: (2, 6), 5: ("auto", "none") }    // (loser, winner), R#1
+
+boardingDamage(ships, n):                       // in order: fill each ship before the next (T16)
+  for x in ships:
+    while n > 0 and x.damage < x.profile.hits: damagePoint(x, critCheck = false); n −= 1    // cause "boarding"
+    if x.damage = x.profile.hits:
+      status = "drifting_hulk"; specialOrder = null; 1 BM at the stem (§5.3); leaveGrapple(x); log boarded_hulk   // R12
+    if n = 0: return
+                                                // damage left over after every loser is a hulk is discarded (R2)
+
+joinGrapple(d, A):
+  g = d.grapple ?? { defenderId: d.id, attackerIds: [] }
+  append to g.attackerIds each a in A not already in it, in order
+  set an identical copy of g on d and on every attacker in g; log grapple
+```
+
+All of a fight's ships stay in base contact while grappled, because nothing moves them, so contact isn't checked again (R14).
+
+**`boarding_critical { shipId, need }`:**
+
+```
+x = ship(shipId)
+if x.status ≠ "active" or need = "none": return        // a ship at 0 makes no critical checks (R2)
+rolls = need = "auto" ? [] : [d6()]
+log boarding_critical
+if need = "auto" or rolls[0] ≥ need:
+  critical(x)                                           // §6; Brace doesn't apply (T12)
+  if x.damage = x.profile.hits: catastrophic(x)         // reduced to 0 by a critical: roll as normal (p. 90)
+```
+
+One item per ship, queued, so an explosion set off by one check (and its brace offers) resolves before the next check (R11).
+
+### 10.5 Teleport attacks
+
+**`teleport` handler.** Set `teleported`. Enqueue `[brace_offer { shipId: target, source: { kind: "ship", id: shipId } }, teleport_attack { shipId, targetId }]`.
+
+**`teleport_attack { shipId, targetId }`:**
+
+```
+t = ship(targetId)
+if t.status ≠ "active": log skipped; return
+r = d6()
+if r = 1: log teleport { result: "failed" }; return
+if isBraced(t): s = d6(); if s ≥ 4: log teleport { result: "saved" }; return       // p. 66
+log teleport { result: "critical" }
+applyCritical(t, r)                                     // §6: the D6 score read as the 2D6 total
+if t.damage = t.profile.hits: catastrophic(t)
+```
+
+Against escorts a Hit-and-Run destroys the ship on 4+ instead (pp. 91–92). Cruiser Clash has no escorts, so that waits for them.
+
 ---
 
 ## 11. Work items
@@ -529,6 +646,9 @@ type WorkItem =
   | { kind: "explosion_hit", shipId: string, centre: Point, strength: number, targetId: string }
   | { kind: "hulk_drift", shipId: string, distance: number, travelled: number }
   | { kind: "fire_damage", shipId: string }
+  | { kind: "boarding_fight", defenderId: string, attackerIds: string[] }
+  | { kind: "boarding_critical", shipId: string, need: number | "auto" | "none" }
+  | { kind: "teleport_attack", shipId: string, targetId: string }
 ```
 
 | Item | Does |
@@ -543,6 +663,8 @@ type WorkItem =
 | `explosion_hit` | §7.2 |
 | `hulk_drift` | §8.4 |
 | `fire_damage` | §10.2 |
+| `boarding_fight`, `boarding_critical` | §10.4 |
+| `teleport_attack` | §10.5 |
 
 **`answer_brace` handler.**
 - `attempt: true`: run the Command check. On a pass, set `specialOrder = { kind: brace, issued: now, expires, replaced: previous kind or null }`; the expiry follows state §7.3. On a fail, append to `turnState.braceFailures`.
@@ -572,6 +694,9 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `ram_test`, `priority_test`, `disengage_test` | `shipId, target, rolls, passed` (+ `targetId` for rams) |
 | `aaf_roll` | `shipId, rolls, extra` |
 | `move` | `shipId, from, to, distance, truncated` |
+| `grappled` | `shipId` (stays put this Movement Phase) |
+| `boarding_declared` | `shipId, targetId` |
+| `boarding_lapsed` | `shipId, targetId, reason: "truncated" \| "no_contact" \| "target_gone"` |
 | `blast_marker_contact` | `shipId, distance, maxDistance` (the slowed maximum) |
 | `ram` | `rammerId, targetId, headOn, facing, rammerRolls, rammerHits, targetRolls, targetHits` |
 | `attack` | `source, targetId, weapon: "battery" \| "lance" \| "torpedo" \| "explosion", column?, shifts?, facing? (torpedoes), need, rolls, rerolls, hits` |
@@ -579,7 +704,7 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `brace_offer` | `pendingId, shipId, source` |
 | `brace_check` | `shipId, rolls, target, passed`, or `shipId, declined: true` |
 | `brace_saves` | `shipId, rolls, saved` |
-| `damage` | `shipId, cause, damageAfter` (one entry per point) |
+| `damage` | `shipId, cause, damageAfter` (one entry per point; `cause` includes `"boarding"`) |
 | `critical` | `shipId, rolls, rolled, applied, kind, extraRolls` |
 | `catastrophic` | `shipId, rolls, result, blastMarkerIds, radiusRolls?, radius?` |
 | `turrets` | `shipId, ordnanceId, rolls, stopped` |
@@ -592,6 +717,12 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `disengaged` | `shipId, reason: "table_edge" \| "test"` |
 | `repair` | `shipId, rolls, repaired` |
 | `fire_damage` | `shipId, fires` |
+| `boarding` | `defenderId, attackerIds, values: { attackers, defender }, modifiers: { attackers, defender }, rolls: [attackers, defender], totals: { attackers, defender }, result: "draw" \| "stalemate" \| "heavy_fighting" \| "driven_back" \| "stormed" \| "overwhelmed", loser: "attackers" \| "defender" \| null, damage` |
+| `boarding_critical` | `shipId, need, rolls, critical` |
+| `boarded_hulk` | `shipId, blastMarkerIds` |
+| `grapple` | `defenderId, attackerIds` (formed or joined) |
+| `grapple_ended` | `defenderId, shipId` (the ship whose loss ended it) |
+| `teleport` | `shipId, targetId, rolls, saveRolls?, result: "failed" \| "saved" \| "critical"` |
 | `bm_removal` | `rolls, removed` |
 | `skipped` | `item` |
 | `game_end` | `reason, scores, winner` |
@@ -641,6 +772,11 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | R8 | A ship braced over All Ahead Full / Come To New Heading / Burn Retros halves its firepower **once**, for Brace. The replaced order's movement rules persist; its firepower penalty doesn't stack. |
 | R9 | Explosion radius is measured to the stem: a ship is hit if its stem is within 3D6 cm. |
 | R10 | Explosion BMs form a cluster (§5.2); a new hulk's BM sits on its stem. |
+| R11 | Boarding critical checks are separate work items, losers first: an explosion set off by one resolves, with its brace offers, before the next check. |
+| R12 | A ship boarded to 0 becomes a drifting hulk with its BM on the stem, like any new hulk, and rolls no catastrophic damage (p. 90). Damage beyond 0 is discarded. |
+| R13 | A ship that stops being `active` leaves its grapple; a grapple that loses its defender or its last attacker dissolves (§7.4). |
+| R14 | Grappled ships aren't re-checked for base contact: nothing moves them while they're locked together. |
+| R15 | A teleport attack's brace save is rolled after the Hit-and-Run roll, and only if that roll would cause a critical. |
 
 ## 15. Decisions
 
@@ -650,4 +786,4 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | D2 | Brace over a firepower-halving order: halve once or twice? | Once (R8). It's more fun. |
 | D3 | Explosion range measured to the stem or to the base edge? | The stem (R9). |
 
-No open questions at v0.3.
+No open questions at v0.4.

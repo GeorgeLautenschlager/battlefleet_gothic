@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.4, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.6](../game_state/SPEC.md).
+**Status:** draft v0.5, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side). Builds on [Game State v0.7](../game_state/SPEC.md). v0.5 adds boarding actions, grapples and teleport attacks (pp. 89–92): `move`'s `boardTargetId`, `board`, `teleport`, and the `boarding` step (§2.3, §4.6, T8–T16).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -63,12 +63,12 @@ check for game end
 | setup / `roll_first_turn` | either | `roll_first_turn` | no | `firstTurnChooser` set | — |
 | setup / `choose_first_turn` | chooser | `choose_first_turn` | no | `firstPlayer` set | on leaving: start the battle (§2.5) |
 | movement / `hulks_drift` | active | `drift_hulk` | no | every active-player hulk has `drifted` | — |
-| movement / `move_ships` | active | `declare_order`, `move` | no | every active-player `active` ship has `moved` | — |
+| movement / `move_ships` | active | `declare_order`, `move` | no | every active-player `active` ship has `moved` | grappled ships stay put (state §6) |
 | shooting / `direct_fire` | active | `fire` | **yes** | no active-player ship has an unfired, undisabled battery or lance | — |
 | shooting / `launch_ordnance` | active | `launch_torpedoes` | **yes** | no active-player ship can launch (§4.3) | — |
 | ordnance / `active_ordnance` | active | `move_ordnance` | no | every active-player salvo moved this step | reset `ordnanceMoved` |
 | ordnance / `inactive_ordnance` | inactive | `move_ordnance` | no | every inactive-player salvo moved this step | reset `ordnanceMoved` |
-| end / `boarding` | — | — | no | always (Phase 1: `options.boarding = false`) | — |
+| end / `boarding` | active | `board`, `teleport` | **yes** | `options.boarding` is off; or no boarding action is left to fight (§4.6) and no ship can teleport | **grapples fight** (§4.6) |
 | end / `damage_control` | ship owners | `repair` | no | every ship needing repair has `repaired` (§4.6) | — |
 | end / `blast_marker_removal` | active | `remove_blast_markers` | no | `blastMarkersRemoved`, or nothing is removable | **fires burn** (§4.6) |
 | leaving `blast_marker_removal` | | | | | end the player turn (§2.5) |
@@ -95,7 +95,7 @@ Wherever a summary below says **offer brace (X)**, the reducer checks whether sh
 
 Ship X **can brace** when it is `active` (not a hulk), its `specialOrder` is not already Brace For Impact!, and `turnState.braceFailures` has no entry for X against the current source.
 
-Brace is offered **before** every roll that can damage a ship: direct-fire to-hit rolls, torpedo attacks (before turrets), rams (target first, then rammer), explosion lance hits, and a 0-shield ship's Blast Marker roll. It is **not** offered against fire damage or critical extra damage, which follow from hits already rolled, nor in boarding (p. 66).
+Brace is offered **before** every roll that can damage a ship: direct-fire to-hit rolls, torpedo attacks (before turrets), rams (target first, then rammer), explosion lance hits, and a 0-shield ship's Blast Marker roll. It is also offered before a **teleport attack**'s roll, since Brace protects against Hit-and-Run critical damage (p. 66). It is **not** offered against fire damage or critical extra damage, which follow from hits already rolled, nor in a boarding action (p. 66, p. 90).
 
 ---
 
@@ -111,14 +111,16 @@ Brace is offered **before** every roll that can damage a ship: direct-fire to-hi
 | `choose_first_turn` | `goFirst` | setup / `choose_first_turn` |
 | `drift_hulk` | `shipId` | movement / `hulks_drift` |
 | `declare_order` | `shipId`, `order`, `ramTargetId?` | movement / `move_ships` |
-| `move` | `shipId`, `path`, `disengage` | movement / `move_ships` |
+| `move` | `shipId`, `path`, `disengage`, `boardTargetId?` | movement / `move_ships` |
 | `fire` | `shipId`, `weaponId`, `target`, `arc?`, `aspect?` | shooting / `direct_fire` |
 | `launch_torpedoes` | `shipId`, `weaponId`, `bearing` | shooting / `launch_ordnance` |
 | `move_ordnance` | `ordnanceId` | ordnance / either step |
+| `board` | `targetId`, `together`, `priority` | end / `boarding` |
+| `teleport` | `shipId`, `targetId` | end / `boarding` |
 | `repair` | `shipId`, `priority` | end / `damage_control` |
 | `remove_blast_markers` | `priority` | end / `blast_marker_removal` |
 | `answer_brace` | `pendingId`, `attempt` | any, while `pending` is non-empty |
-| `end_step` | — | shooting / `direct_fire` or `launch_ordnance` |
+| `end_step` | — | shooting / `direct_fire` or `launch_ordnance`; end / `boarding` |
 
 ---
 
@@ -173,7 +175,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 }
 ```
 - **Legal when:**
-  - `activation` is null, and the ship is the active player's, `active`, and hasn't `moved`;
+  - `activation` is null, and the ship is the active player's, `active`, not grappled, and hasn't `moved`;
   - `turnState.commandCheckFailed` is false (p. 48);
   - the ship has no live `specialOrder` (in practice, a Brace carried over from last turn blocks it, p. 66);
   - `ramTargetId` only with `all_ahead_full` and `options.ramming`, and it names an enemy ship on the table.
@@ -191,7 +193,8 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   type: "move", player,
   shipId: string,
   path: PathStep[],           // state §9.1; [] = stay put (Burn Retros only)
-  disengage: boolean          // take a disengage test at the end of the move
+  disengage: boolean,         // take a disengage test at the end of the move
+  boardTargetId?: string      // declare a boarding action against this ship (p. 89)
 }
 ```
 - **Legal when:**
@@ -205,6 +208,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - **Minimum:** total advance ≥ `min(minDistance, maxDistance after BM reduction)`. All Ahead Full must use its full distance, unless its base touches a Blast Marker within the last 5 cm. In that case the path must end exactly at the first point of contact (p. 69).
   - **Table edge:** if the stem crosses the table edge, that must happen in the last step, and the path must not go back onto the table. The ship disengages there, and the minimum doesn't apply.
   - **Disengage flag:** `disengage` must be false if the path leaves the table.
+  - **Boarding** (only with `boardTargetId`): `options.boarding` is on; the target is an enemy ship that is `active` (not a hulk) and not grappled; the path doesn't leave the table and `disengage` is false; and at the path's end the two bases touch (inclusive, overlap counts; validator `basesTouch`). A ship can board only if it ends its move in base contact (p. 56, p. 89), so the declaration goes with the move that makes the contact (T8).
 - **Reducer:** execute the path from the start, in order of contact along each advance:
   - **Ram target base** (if `ram.testPassed` and not yet `resolved`): stop at contact. Offer brace (target), then offer brace (rammer). Draw **D6 × rammer's starting hits** against the target's armour on the struck facing. Then draw **D6 × target's starting hits** (head-on or Defence) or **half** (side/rear), rounded up, against the rammer's **front** armour. Shields don't apply. Damage, criticals and catastrophic damage resolve as in the reducer spec. Set `ram.resolved`.
   - **Torpedo salvo** (any owner; a salvo ignores its own launcher during its launch turn): the salvo attacks the ship (as `move_ordnance`, minus the salvo's own move).
@@ -213,7 +217,11 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 
   If a decision is pushed mid-path, the rest of the path waits in `remainingPath`, with a `continue_move` work item queued behind the contact's resolution. The reducer carries on by itself once the decision is answered, and ends the move early if the next step is no longer legal (state §9.1).
 
-  **At the end of the move:** write `lastMove`. If `disengage`, draw **2D6** against Ld with these modifiers (p. 56): +1 per Blast Marker within 5 cm, −1 per enemy ship or salvo within 15 cm, cap 10, 11–12 always fail. "Within" means stem to centre. Pass: `disengaged`. Fail: `turnState.ships[id].disengage = "failed"`. Then set `moved` and clear `activation`.
+  **At the end of the move:** write `lastMove`. If `disengage`, draw **2D6** against Ld with these modifiers (p. 56): +1 per Blast Marker within 5 cm, −1 per enemy ship or salvo within 15 cm, cap 10, 11–12 always fail. "Within" means stem to centre. Pass: `disengaged`. Fail: `turnState.ships[id].disengage = "failed"`.
+
+  If the move declared a boarding action, it **stands** only if the ship completed its whole path (not truncated), is still `active`, and the target is still an `active`, ungrappled enemy whose base touches its own. Then set `boardingDeclared = boardTargetId`. Otherwise the declaration **lapses**: it's logged, and the ship may fire as normal (T8). No dice.
+
+  Then set `moved` and clear `activation`.
 
 ### 4.3 Shooting
 
@@ -229,7 +237,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 }
 ```
 - **Legal when:**
-  - **Shooter:** the active player's, `active`, and its disengage test didn't fail this turn.
+  - **Shooter:** the active player's, `active`, its disengage test didn't fail this turn, it isn't grappled, and it hasn't declared a boarding action this turn (p. 89; drawn combats, pp. 90–91).
   - **Weapon:** a `battery` or `lance` not in `weaponsFired` and not disabled by a critical.
   - **Target:** an enemy ship on the table (hulks included), or an enemy torpedo salvo. Never a friendly hulk.
   - **Range:** stem-to-stem distance ≤ `range`.
@@ -255,7 +263,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 { type: "launch_torpedoes", player, shipId: string, weaponId: string, bearing: number }   // relative bearing, clockwise from the bow
 ```
 - **Legal when:**
-  - the ship is the active player's, `active`, its disengage test didn't fail, and `loaded.torpedoes` is true;
+  - the ship is the active player's, `active`, its disengage test didn't fail, it isn't grappled or boarding (as `fire`), and `loaded.torpedoes` is true;
   - the weapon is `torpedoes`, not fired this turn, and not disabled;
   - `bearing` falls inside the weapon's arcs (Front = 315°–45°).
 - **Reducer:** create a `TorpedoSalvo` at the launcher's stem with `heading = (ship.heading + bearing) mod 360` and `strength = effectiveStrength` (crippled and braced halve it, p. 65). Set `launched = playerTurn`, `loaded.torpedoes = false`, and add the weapon to `weaponsFired`. No dice.
@@ -264,7 +272,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 ```ts
 { type: "end_step", player }
 ```
-- **Legal when:** the step is `direct_fire` or `launch_ordnance`, and `activation` is null.
+- **Legal when:** the step is `direct_fire`, `launch_ordnance` or `boarding`, and `activation` is null. In `boarding`, only once no boarding action is left to fight: declared boardings must be fought (§4.6).
 - **Reducer:** advance (§2.3).
 
 ### 4.4 Ordnance
@@ -304,6 +312,68 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 
 ### 4.6 End Phase
 
+The End Phase runs boarding first, then damage control, then Blast Marker removal (p. 88).
+
+#### Boarding: what's left to fight
+
+**`boardingsToFight(state)`** groups the active player's declared boarding actions by target. For each enemy ship `t` that is `active` and not grappled, its group is the active player's ships with `boardingDeclared = t.id` and `boarded = false` that are still `active` with bases touching `t`'s. Only non-empty groups count. A declaration whose ship or target no longer qualifies (say the target exploded in the Shooting Phase) has simply lapsed.
+
+#### Grapples fight (entry housekeeping for `boarding`)
+
+Every grapple fights again, in **every** End Phase, both players' (drawn combats, pp. 90–91). In `ships` order of their defenders, each grapple is one boarding fight (below): all its attackers together against the defender, taking damage in `attackerIds` order (T10). No transform and no choices.
+
+#### `board`
+```ts
+{ type: "board", player, targetId: string, together: boolean, priority: string[] }   // priority: boarding ship ids
+```
+- **Legal when:** `targetId` has a group in `boardingsToFight`, and `priority` lists exactly that group's ships, once each. `together` is the attacker's choice (multi-ship boarding, pp. 90–91); with one boarder both values mean the same.
+- **Reducer:** set `boarded` on each ship in `priority`. Then:
+  - **Together:** one fight, every ship in `priority` against the target. The attackers take damage in `priority` order.
+  - **Separately:** one fight per ship, in `priority` order, each on its own boarding value. Damage to the target carries over. Once the target is no longer `active`, the remaining fights lapse (T16).
+
+#### A boarding fight
+
+One boarding action: one or more attackers against one defender (pp. 89–91). Dice in draw order:
+
+1. **Boarding values.** Attackers: `Σ boardingValue(a)`. Defender: `boardingValue(d) + turrets(d)` (state §11; the defender adds its remaining turrets, p. 89).
+2. **Modifiers**, for each side (p. 90):
+   - **Boarding values:** own value higher than the enemy's +1, at least twice +2, three times +3, four or more times +4. Only the highest applies.
+   - **The enemy ship:** has Blast Markers in base contact +1; is crippled +2; is on special orders (any live order, Brace included) +1. Against several attackers, the defender takes the best single attacker's total of these (T11).
+   - **Own fleet:** `factionTraits.boardingModifier` (Chaos and Orks +1, Space Marines +2).
+3. **Roll:** draw **1D6** for the attackers, then **1D6** for the defender. Each total is roll + modifiers, uncapped.
+4. **A draw** (equal totals): no damage and no criticals. The fight's ships grapple. If the defender is already grappled, any attacker new to it is appended to its grapple's `attackerIds`. Otherwise a new grapple forms, with `attackerIds` in the fight's order.
+5. **Otherwise the lower total loses**, and takes **1 damage per point of difference**. There are no per-point critical checks, and Brace doesn't help (p. 90, T12).
+   - Against attackers, the damage fills them in order: the first until it reaches 0, then the next.
+   - A ship reduced to 0 by boarding damage becomes a **drifting hulk** with no catastrophic damage roll (p. 90).
+6. **Critical checks**, for the loser's ships first, then the winner's, each in order, skipping any at 0. The results table is read as Loser / Winner (R#1):
+
+   | Difference | Result | Loser | Winner |
+   |---:|---|---|---|
+   | 1 | Stalemate | 5+ | 5+ |
+   | 2 | Heavy Fighting | 4+ | 5+ |
+   | 3 | Driven Back | 3+ | 6+ |
+   | 4 | Stormed | 2+ | 6+ |
+   | 5+ | Overwhelmed | automatic | none |
+
+   Each check draws **1D6** (none when it's automatic or none). On a success, the ship suffers a critical as usual: **2D6** on the table, then any extra-damage dice. A ship reduced to 0 by a critical's extra damage rolls catastrophic damage as normal (p. 90), and an explosion can offer brace to ships nearby.
+
+A decisive result inside a grapple doesn't end it: the ships fight on in the next End Phase until the defender or every attacker is no longer `active` (T10, state §7).
+
+#### `teleport`
+```ts
+{ type: "teleport", player, shipId: string, targetId: string }
+```
+- **Legal when:**
+  - **Ship:** the active player's, `active`, a capital ship (not an escort), not crippled, not grappled, hasn't declared a boarding action this turn, didn't fail a disengage test, and hasn't teleported this turn (pp. 91–92, T13). Its special order is none, Lock On or Reload Ordnance (R#7).
+  - **Target:** an enemy ship that is `active`, with `shieldsDown` (state §11), within **10 cm** stem to stem (T14), and with no more hits remaining than the ship (pp. 91–92).
+- **Reducer:** set `teleported`. Offer brace (target). Then:
+  1. Draw **1D6**. On a 1 the attack fails.
+  2. Otherwise the score is a result on the Critical Hits table, as if it were the 2D6 total (pp. 91–92). "Next highest" applies when it can't be.
+  3. If the target is braced, draw **1D6**; on a 4+ the critical is saved (Brace covers Hit-and-Run criticals, p. 66).
+  4. Apply the critical, and draw any extra-damage dice. Catastrophic damage follows as usual if the target reaches 0.
+
+  Fleets with a Hit-and-Run bonus (+1, or −1 against them) aren't in Cruiser Clash yet; they'd add a `factionTraits` entry.
+
 #### `repair`
 ```ts
 { type: "repair", player, shipId: string, priority: string[] }   // critical ids, most important first
@@ -339,7 +409,7 @@ newGame(config: GameConfig) → GameState
 type GameConfig = {
   seed: number                               // uint32
   createdAt: string
-  options?: { ramming?: boolean, boarding?: boolean }   // defaults: true, false
+  options?: { ramming?: boolean, boarding?: boolean }   // defaults: true, false (false keeps older saves replaying unchanged)
   players: {
     p1: { name: string, faction: FactionId },
     p2: { name: string, faction: FactionId }
@@ -365,6 +435,15 @@ type GameConfig = {
 | T5 | "Within X cm" for disengage modifiers is measured stem to marker or salvo centre. |
 | T6 | A ship that moves into a torpedo salvo is attacked by it, whoever owns the salvo. This matches "torpedoes hit friends too". |
 | T7 | Head-on ram = the rammer's stem lies in the target's front quadrant. |
+| T8 | **Boarding is declared with the move that makes contact** (`move.boardTargetId`), and stands only if the ship completes its whole path in base contact with the target (p. 56, p. 89). A truncated move, or a target that's no longer an active enemy, lapses it; the ship may then fire as normal. |
+| T9 | **Only active, ungrappled enemy ships can be boarded.** Not hulks (there's no crew left to fight), and not ships already locked in a grapple, which fight their own action until it ends. |
+| T10 | **A grapple is one fight.** It fights in every End Phase, both players', with all its attackers together, until the defender or every attacker is no longer `active` (drawn combats, pp. 90–91: "until one is reduced to zero damage"). A decisive result inside a grapple doesn't break it. |
+| T11 | **Several attackers against one defender:** the defender's "enemy ship" modifiers (Blast Markers, crippled, special orders) are the best single attacker's total, counted once (multi-ship boarding, pp. 90–91: "counted once, highest applies"). |
+| T12 | **Boarding damage makes no per-point critical checks.** Criticals come only from the results table, read as Loser / Winner (R#1). Brace protects against neither (p. 90). |
+| T13 | A ship that's grappled, or that declared a boarding action this turn, can't make a teleport attack. |
+| T14 | **Teleport range is stem to stem**, ≤ 10 cm, like weapon ranges. "No shields" means shield capacity 0 (state R#11), which covers ships with collapsed or no shields too. |
+| T15 | `options.boarding` switches boarding actions and teleport attacks on together. |
+| T16 | **Boarding separately** resolves in the attacker's `priority` order; once the target is no longer `active`, the rest lapse. **Boarding together**, the attackers take damage in `priority` order. |
 
 ## 7. Decisions
 
@@ -372,5 +451,10 @@ type GameConfig = {
 |---|---|---|
 | D1 | Is a ship that sails into its own torpedo salvo attacked? | Yes (T6). Overrun your own torpedoes and you have a bad time. |
 | D2 | Can hulks be rammed? | Yes. `ramTargetId` accepts any enemy ship on the table, hulks included. |
+| D3 | How is a boarding action declared? | With the `move` that makes contact (T8). It's one decision, made where the rule says ("when contact is made", p. 89), and the plotter can offer it when a path ends touching an enemy. |
+| D4 | Can a hulk be boarded? | No (T9). |
+| D5 | Can other ships board a grappled ship? | No (T9). It keeps every grapple a single fight, and it's rare with four cruisers a side. |
+| D6 | Who decides how a group of attackers takes damage? | The attacker, up front, in `board.priority` (T16), the same way repairs and Blast Marker removals are ordered. No decision mid-fight. |
+| D7 | Teleport attacks too? | Yes. They're in the same End Phase step (p. 88), under the same option (T15), and any Lunar or Murder can make them. |
 
 No open questions.
