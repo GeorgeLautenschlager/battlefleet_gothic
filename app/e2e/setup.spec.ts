@@ -90,3 +90,20 @@ test("fleets: a two-a-side Chaos mirror match, deploying and moving ships in the
   await expect(page.locator(".ship-controls h3")).not.toHaveText(second);
   await page.screenshot({ path: "e2e-results/fleets.png" });
 });
+
+test("carriers: with the option on, each side brings its carrier first", async ({ page }) => {
+  await page.goto("/");
+  const form = page.locator("form", { hasText: "Hot-seat" });
+  await form.getByLabel("Cruisers a side").selectOption("2");
+  await expect(form.locator("fieldset.p1")).toContainText("2 × Lunar class cruiser");
+  await form.getByLabel("One carrier each, over the points cap (p. 129)").check();
+  await expect(form.locator("fieldset.p1")).toContainText("1 × Dictator class cruiser (220 pts), 1 × Lunar class cruiser (180 pts) · 400 pts");
+  await expect(form.locator("fieldset.p2")).toContainText("1 × Devastation class cruiser (190 pts), 1 × Murder class cruiser (170 pts) · 360 pts");
+  // Player 2 leaves theirs at home.
+  await form.locator("fieldset.p2").getByLabel(/Bring a carrier/).uncheck();
+  await expect(form.locator("fieldset.p2")).toContainText("2 × Murder class cruiser");
+  await form.getByRole("button", { name: "Start" }).click();
+  await expect(page.locator(".card").filter({ hasText: "Agrippa" })).toContainText("Dictator class cruiser");
+  await expect(page.locator(".card").filter({ hasText: "Agrippa" })).toContainText("Bays ready");
+  await expect(page.locator(".card").filter({ hasText: "Unclean" })).toContainText("Murder class cruiser");
+});

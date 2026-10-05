@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { activePlayer, actor, isHulk, removableBlastMarkers, type GameState, type Transform } from "@bfg/engine";
-import { ordnanceLabel } from "../ordnance";
+import { activePlayer, isHulk, removableBlastMarkers, validate, type GameState, type Transform } from "@bfg/engine";
+import { OrdnanceControls } from "../craft/OrdnanceControls";
+import type { CraftPlot } from "../craft/useCraftPlot";
+import { capOver } from "../craft/craft";
 import { playerName } from "../players";
 import { Act } from "./Act";
 import { MoveControls, needsToMove } from "./MoveControls";
@@ -22,10 +24,13 @@ type Props = {
   seat?: Seat;
   /** Pick the ship to move next. */
   onFocus?: (id: string) => void;
+  craftPlot?: CraftPlot | null;
+  /** Pick the attack craft wave to fly next. */
+  onFocusWave?: (id: string) => void;
 };
 
 /** What the acting player can do in the current battle step. */
-export function StepControls({ state, onApply, onHighlight, plot = null, seat = "both", onFocus = () => {} }: Props) {
+export function StepControls({ state, onApply, onHighlight, plot = null, seat = "both", onFocus = () => {}, craftPlot = null, onFocusWave = () => {} }: Props) {
   const { step } = state.clock;
   const active = activePlayer(state);
   const mine = state.ships.filter((s) => s.owner === active);
@@ -49,8 +54,21 @@ export function StepControls({ state, onApply, onHighlight, plot = null, seat = 
       const open = state.activation?.shipId;
       const ships = mine.filter((s) => (open === undefined ? needsToMove(state, s) : s.id === open));
       const current = ships.find((s) => s.id === plot?.ship.id) ?? ships[0];
+      // CAP can be released only before any ship moves (p. 82).
+      const releases = mine.flatMap((s) =>
+        capOver(state, s.id).map((w) => ({ wave: w, ship: s, transform: { type: "release_cap" as const, player: active, ordnanceId: w.id } })),
+      );
       return (
         <>
+          {releases.some((r) => validate(state, r.transform).ok) && (
+            <div className="buttons">
+              {releases.map((r) => (
+                <Act key={r.wave.id} state={state} transform={r.transform} onApply={onApply}>
+                  Release {r.wave.squadrons[0]?.name ?? "fighter"} from CAP over {r.ship.name}
+                </Act>
+              ))}
+            </div>
+          )}
           <ShipPicker ships={ships} current={current?.id} verb="Move" onPick={onFocus} />
           {current && <MoveControls state={state} ship={current} plot={plot} onApply={onApply} />}
         </>
@@ -59,34 +77,8 @@ export function StepControls({ state, onApply, onHighlight, plot = null, seat = 
 
 
     case "active_ordnance":
-    case "inactive_ordnance": {
-      const mover = actor(state);
-      if (mover !== "p1" && mover !== "p2") return null;
-      // CAP fighters stay with their ship; attack craft only get "stay put" until the wave plotter lands.
-      const salvos = state.ordnance.filter(
-        (o) => o.owner === mover && !state.turnState.ordnanceMoved.includes(o.id) && (o.kind === "torpedo_salvo" || o.cap === null),
-      );
-      return (
-        <div className="buttons">
-          {salvos.map((o) => {
-            const from = state.ships.find((s) => s.id === o.launchedBy)?.name ?? "torpedoes";
-            return (
-              <span key={o.id} onPointerEnter={() => onHighlight([o.id])} onPointerLeave={() => onHighlight([])}>
-                {o.kind === "torpedo_salvo" ? (
-                  <Act state={state} transform={{ type: "move_ordnance", player: mover, ordnanceId: o.id }} onApply={onApply} primary>
-                    Move {from}'s torpedoes ({o.strength})
-                  </Act>
-                ) : (
-                  <Act state={state} transform={{ type: "move_ordnance", player: mover, ordnanceId: o.id, path: [] }} onApply={onApply} primary>
-                    {from}'s {ordnanceLabel(o)} stay put
-                  </Act>
-                )}
-              </span>
-            );
-          })}
-        </div>
-      );
-    }
+    case "inactive_ordnance":
+      return <OrdnanceControls state={state} plot={craftPlot} onApply={onApply} onHighlight={onHighlight} onFocus={onFocusWave} />;
 
     case "boarding":
       return <BoardingControls state={state} onApply={onApply} />;

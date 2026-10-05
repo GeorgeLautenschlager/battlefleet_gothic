@@ -11,7 +11,7 @@ const options = (p1: NewGameOptions["p1"], p2: NewGameOptions["p2"]): NewGameOpt
 describe("cruiserClash config", () => {
   test("a fleet per side, in config order, with the ramming option", () => {
     const c = cruiserClash(options({ name: "A", fleet: "imperial_navy", ships: ["Agrippa", "Hammer of Terra"] }, { name: "B", fleet: "chaos", ships: ["Unclean", "Woe Eternal"] }), when);
-    expect(c.options).toEqual({ ramming: false, boarding: false });
+    expect(c.options).toEqual({ ramming: false, boarding: false, carriers: false });
     expect(c.ships.map((s) => [s.owner, s.classId])).toEqual([["p1", "lunar"], ["p1", "lunar"], ["p2", "murder"], ["p2", "murder"]]);
     expect(newGame(c).ships).toHaveLength(4);
   });
@@ -22,6 +22,19 @@ describe("cruiserClash config", () => {
     expect(s.players.p1.faction).toBe("chaos");
     expect(s.players.p2.faction).toBe("chaos");
     expect(new Set(s.ships.map((x) => x.name)).size).toBe(6);
+  });
+
+  test("carriers: with the option, a side that brings one fields it first; without it, the carrier flag is ignored", () => {
+    const sides = (): [NewGameOptions["p1"], NewGameOptions["p2"]] => [
+      { name: "A", fleet: "imperial_navy", ships: ["Fortitude", "Agrippa"], carrier: true },
+      { name: "B", fleet: "chaos", ships: ["Deathbane", "Unclean"], carrier: false },
+    ];
+    const on = cruiserClash({ ...options(...sides()), carriers: true }, when);
+    expect(on.options?.carriers).toBe(true);
+    expect(on.ships.map((s) => s.classId)).toEqual(["dictator", "lunar", "murder", "murder"]);
+    expect(newGame(on).ships[0]!.loaded.launchBays).toBe(true);
+    const off = cruiserClash(options(...sides()), when);
+    expect(off.ships.map((s) => s.classId)).toEqual(["lunar", "lunar", "murder", "murder"]);
   });
 
   test("default names never repeat across a 4-a-side mirror match", () => {

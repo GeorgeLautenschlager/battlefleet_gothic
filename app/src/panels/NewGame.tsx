@@ -6,10 +6,11 @@ import { CountSelect, duplicates, DuplicateNames, FleetFields, resize, RulesChec
 const PLAYERS: PlayerId[] = ["p1", "p2"];
 
 const INITIAL: NewGameOptions = {
-  p1: { name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1) },
-  p2: { name: "Player 2", fleet: "chaos", ships: defaultNames("chaos", 1) },
+  p1: { name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1), carrier: true },
+  p2: { name: "Player 2", fleet: "chaos", ships: defaultNames("chaos", 1), carrier: true },
   ramming: true,
   boarding: true,
+  carriers: false,
 };
 
 /** Hot-seat Cruiser Clash: each side picks a fleet; both field the same number of cruisers. */
@@ -45,9 +46,17 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
       <p className="muted">Cruiser Clash on this device: up to four cruisers a side, the same number each. Pass it over when it says so.</p>
       <CountSelect value={count} onChange={setCount} />
       {PLAYERS.map((p) => (
-        <FleetFields key={p} legend={p === "p1" ? "Player 1" : "Player 2"} className={p} side={o[p]} onChange={(patch) => change(p, patch)} dupes={dupes} />
+        <FleetFields
+          key={p}
+          legend={p === "p1" ? "Player 1" : "Player 2"}
+          className={p}
+          side={o[p]}
+          onChange={(patch) => change(p, patch)}
+          dupes={dupes}
+          carriers={o.carriers === true}
+        />
       ))}
-      <RulesChecks value={o} onChange={(rules) => setO({ ...o, ...rules })} />
+      <RulesChecks value={{ ...o, carriers: o.carriers === true }} onChange={(rules) => setO({ ...o, ...rules })} />
       <DuplicateNames dupes={dupes} />
       <div className="buttons">
         <button type="submit" className="primary" disabled={dupes.length > 0}>

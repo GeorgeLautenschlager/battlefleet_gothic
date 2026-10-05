@@ -1,6 +1,6 @@
 /** Online Cruiser Clash (p. 128): each seat brings its own fleet; the room builds the config when both have. */
 import { newGame, type FactionId, type GameConfig, type PlayerId } from "@bfg/engine";
-import { MAX_NAME_LENGTH, MAX_SHIPS, type ShipEntry } from "./protocol";
+import { MAX_NAME_LENGTH, MAX_SHIPS, type RoomOptions, type ShipEntry } from "./protocol";
 
 export type SeatFleet = { name: string; faction: FactionId; ships: ShipEntry[] };
 
@@ -8,13 +8,13 @@ export function cruiserClash(
   seats: Record<PlayerId, SeatFleet>,
   seed: number,
   createdAt: string,
-  options: { ramming: boolean; boarding: boolean },
+  options: RoomOptions,
 ): GameConfig {
   const ships = (owner: PlayerId) => seats[owner].ships.map((s) => ({ owner, name: s.name, classId: s.classId }));
   return {
     seed,
     createdAt,
-    options: { ramming: options.ramming, boarding: options.boarding },
+    options: { ramming: options.ramming, boarding: options.boarding, carriers: options.carriers },
     players: {
       p1: { name: seats.p1.name, faction: seats.p1.faction },
       p2: { name: seats.p2.name, faction: seats.p2.faction },
@@ -35,7 +35,7 @@ export const cleanName = (s: string): string | null => {
  * (classes, faction, cruisers only, points) are the engine's: the fleet is
  * tried against a mirror of itself.
  */
-export function fleetProblem(faction: string, ships: ShipEntry[], count: number): string | null {
+export function fleetProblem(faction: string, ships: ShipEntry[], count: number, carriers = false): string | null {
   if (!Number.isInteger(count) || count < 1 || count > MAX_SHIPS) return `A fleet has 1–${MAX_SHIPS} cruisers`;
   if (ships.length !== count) return `This game is ${count} cruiser${count === 1 ? "" : "s"} a side`;
   if (ships.some((s) => cleanName(s.name) === null)) return `Ship names need 1–${MAX_NAME_LENGTH} characters`;
@@ -46,6 +46,7 @@ export function fleetProblem(faction: string, ships: ShipEntry[], count: number)
     newGame({
       seed: 1,
       createdAt: "1970-01-01T00:00:00Z",
+      options: { carriers },
       players: { p1: { name: "a", faction: faction as FactionId }, p2: { name: "b", faction: faction as FactionId } },
       ships: [...side("p1"), ...side("p2")],
     });
