@@ -1,10 +1,15 @@
 /** A room plus fake connections, for tests: send raw messages, collect what each connection receives. */
 import { createHash } from "node:crypto";
-import type { GameState, PlayerId } from "@bfg/engine";
+import type { FactionId, GameState, PlayerId } from "@bfg/engine";
 import { GameRoom, createRoom, type Deps } from "../src/room";
-import { PROTOCOL, type ServerMessage } from "../src/protocol";
+import { PROTOCOL, type ServerMessage, type ShipEntry } from "../src/protocol";
 
 export const ENGINE = "test-engine";
+
+/** The host's default fleet (one Lunar) and the guest's join (one Murder). */
+export const HOST_FLEET = { faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }] } as const;
+export const GUEST_FLEET = { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }] } as const;
+export type Fleet = { faction: FactionId; ships: readonly ShipEntry[] };
 
 /** Deterministic deps: a seeded byte stream, real SHA-256, and a clock the test moves. */
 export function testDeps(seed = 1): Deps & { clock: { t: number } } {
@@ -34,9 +39,13 @@ export class Harness {
     readonly tokens: Record<PlayerId, string>,
   ) {}
 
-  static async create(opts: { side?: PlayerId; seed?: number } = {}): Promise<Harness> {
+  static async create(opts: { side?: PlayerId; seed?: number; fleet?: Fleet; ramming?: boolean } = {}): Promise<Harness> {
     const deps = testDeps(opts.seed);
-    const created = await createRoom({ name: "Ann", shipName: "Agrippa", side: opts.side ?? "p1" }, deps);
+    const fleet = opts.fleet ?? HOST_FLEET;
+    const created = await createRoom(
+      { name: "Ann", side: opts.side ?? "p1", faction: fleet.faction, ships: [...fleet.ships], ramming: opts.ramming ?? true },
+      deps,
+    );
     if ("error" in created) throw new Error(created.error);
     const guest: PlayerId = created.seat === "p1" ? "p2" : "p1";
     const tokens = { [created.seat]: created.token, [guest]: created.inviteToken } as Record<PlayerId, string>;
@@ -65,12 +74,16 @@ export class Harness {
   }
 
   /** Host on "a" (p1), guest on "b" (p2) who joins as Bo / Unclean: the game starts. */
-  static async started(seed = 1): Promise<Harness> {
-    const h = await Harness.create({ seed });
+  static async started(seed = 1, fleets: { host: Fleet; guest: Fleet } = { host: HOST_FLEET, guest: GUEST_FLEET }): Promise<Harness> {
+    const h = await Harness.create({ seed, fleet: fleets.host });
     await h.hello("a", "p1");
     await h.hello("b", "p2");
-    await h.send("b", { type: "join", token: h.tokens.p2, name: "Bo", shipName: "Unclean" });
+    await h.join("b", "p2", "Bo", fleets.guest);
     return h;
+  }
+
+  join(conn: string, seat: PlayerId, name: string, fleet: Fleet) {
+    return this.send(conn, { type: "join", token: this.tokens[seat], name, faction: fleet.faction, ships: fleet.ships });
   }
 
   nextId(): string {

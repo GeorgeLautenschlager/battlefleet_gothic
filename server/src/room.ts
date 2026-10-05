@@ -3,8 +3,8 @@
  * authoritative engine. No Cloudflare APIs: messages in, addressed messages
  * out, and `data` to persist. Randomness, hashing and time come in as `Deps`.
  */
-import { newGame, reduce, validate, type GameConfig, type GameState, type PlayerId, type Transform } from "@bfg/engine";
-import { cruiserClash } from "./config";
+import { newGame, reduce, validate, type FactionId, type GameConfig, type GameState, type PlayerId, type Transform } from "@bfg/engine";
+import { cleanName, cruiserClash, fleetProblem } from "./config";
 import {
   MAX_MESSAGES_PER_SECOND,
   MAX_NAME_LENGTH,
@@ -18,6 +18,7 @@ import {
   type RejectCode,
   type RoomStatus,
   type ServerMessage,
+  type ShipEntry,
 } from "./protocol";
 import { redactState } from "./redact";
 import { replay } from "./verify";
@@ -33,7 +34,8 @@ export type Deps = {
   engine: string;
 };
 
-export type SeatRecord = { tokenHash: string; name: string | null; shipName: string | null };
+/** A seat: who holds it, and once they've joined, their name and fleet. */
+export type SeatRecord = { tokenHash: string; name: string | null; faction: FactionId | null; ships: ShipEntry[] };
 
 export type TransformRecord = {
   /** The seq this transform produced: 1 for the first. */
@@ -54,6 +56,9 @@ export type RoomData = {
   endedAt: number | null;
   status: RoomStatus;
   seats: Record<PlayerId, SeatRecord>;
+  /** Ships a side, set by the host. */
+  count: number;
+  options: { ramming: boolean };
   /** Secret until the game ends. */
   config: GameConfig | null;
   transforms: TransformRecord[];
@@ -82,27 +87,27 @@ export function toBase64Url(bytes: Uint8Array): string {
   return out;
 }
 
-const cleanName = (s: string): string | null => {
-  const t = s.trim();
-  return t.length > 0 && t.length <= MAX_NAME_LENGTH ? t : null;
-};
+const trimShips = (ships: ShipEntry[]): ShipEntry[] => ships.map((s) => ({ name: s.name.trim(), classId: s.classId }));
 
-export type CreateRequest = { name: string; shipName: string; side: PlayerId };
+/** The host's fleet sets the number of ships a side. */
+export type CreateRequest = { name: string; side: PlayerId; faction: FactionId; ships: ShipEntry[]; ramming: boolean };
 export type Created = { data: RoomData; seat: PlayerId; token: string; inviteToken: string };
+export type CreateError = { error: "INVALID_NAME" | "INVALID_SIDE" | "INVALID_FLEET"; message?: string };
 
 /** A new game in its lobby, with the host's seat filled (spec §3, D3). */
-export async function createRoom(req: CreateRequest, deps: Deps): Promise<Created | { error: "INVALID_NAME" | "INVALID_SIDE" }> {
+export async function createRoom(req: CreateRequest, deps: Deps): Promise<Created | CreateError> {
   if (req.side !== "p1" && req.side !== "p2") return { error: "INVALID_SIDE" };
   const name = cleanName(req.name);
-  const shipName = cleanName(req.shipName);
-  if (name === null || shipName === null) return { error: "INVALID_NAME" };
+  if (name === null) return { error: "INVALID_NAME" };
+  const problem = fleetProblem(req.faction, req.ships, req.ships.length);
+  if (problem !== null) return { error: "INVALID_FLEET", message: problem };
   const token = toBase64Url(deps.randomBytes(16));
   const inviteToken = toBase64Url(deps.randomBytes(16));
   const guest: PlayerId = req.side === "p1" ? "p2" : "p1";
   const now = deps.now();
   const seats = {
-    [req.side]: { tokenHash: await deps.sha256(token), name, shipName },
-    [guest]: { tokenHash: await deps.sha256(inviteToken), name: null, shipName: null },
+    [req.side]: { tokenHash: await deps.sha256(token), name, faction: req.faction, ships: trimShips(req.ships) },
+    [guest]: { tokenHash: await deps.sha256(inviteToken), name: null, faction: null, ships: [] },
   } as Record<PlayerId, SeatRecord>;
   const data: RoomData = {
     gameId: toBase64Url(deps.randomBytes(12)),
@@ -111,11 +116,25 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
     endedAt: null,
     status: "lobby",
     seats,
+    count: req.ships.length,
+    options: { ramming: req.ramming },
     config: null,
     transforms: [],
     snapshot: null,
   };
   return { data, seat: req.side, token, inviteToken };
+}
+
+/** Protocol 1 rooms (one Lunar vs one Murder, `shipName` per seat), read as protocol 2. */
+export function upgradeRoomData(data: RoomData): RoomData {
+  if (typeof data.count === "number") return data;
+  const legacy = (p: PlayerId, seat: SeatRecord & { shipName?: string | null }): SeatRecord => ({
+    tokenHash: seat.tokenHash,
+    name: seat.name,
+    faction: seat.name === null ? null : p === "p1" ? "imperial_navy" : "chaos",
+    ships: seat.shipName ? [{ name: seat.shipName, classId: p === "p1" ? "lunar" : "murder" }] : [],
+  });
+  return { ...data, count: 1, options: { ramming: true }, seats: { p1: legacy("p1", data.seats.p1), p2: legacy("p2", data.seats.p2) } };
 }
 
 type Session = { seat: PlayerId | null; recent: number[] };
@@ -172,7 +191,7 @@ export class GameRoom {
     if (seat === null) return this.fail(conn, "HELLO_FIRST", "Say hello first");
     switch (msg.type) {
       case "join":
-        return this.join(conn, seat, msg.token, msg.name, msg.shipName);
+        return this.join(conn, seat, msg.token, msg.name, msg.faction, msg.ships);
       case "propose":
         return this.propose(conn, seat, msg.id, msg.base, msg.transform);
       case "undo":
@@ -194,17 +213,19 @@ export class GameRoom {
     return [{ to: [conn], message: this.welcome(seat) }, this.presenceToAll()];
   }
 
-  private async join(conn: string, seat: PlayerId, token: string, rawName: string, rawShip: string): Promise<Outgoing[]> {
+  private async join(conn: string, seat: PlayerId, token: string, rawName: string, faction: FactionId, ships: ShipEntry[]): Promise<Outgoing[]> {
     if ((await this.deps.sha256(token)) !== this.data.seats[seat].tokenHash) {
       return this.fail(conn, "UNKNOWN_TOKEN", "That token isn't this seat's");
     }
     if (this.data.status !== "lobby") return this.reject(conn, "", "ALREADY_STARTED", "The game has already started");
     const name = cleanName(rawName);
-    const shipName = cleanName(rawShip);
-    if (name === null || shipName === null) {
-      return this.reject(conn, "", "INVALID_NAME", `Names need 1–${MAX_NAME_LENGTH} characters`);
-    }
-    this.data.seats[seat] = { ...this.data.seats[seat], name, shipName };
+    if (name === null) return this.reject(conn, "", "INVALID_NAME", `Names need 1–${MAX_NAME_LENGTH} characters`);
+    const problem = fleetProblem(faction, ships, this.data.count);
+    if (problem !== null) return this.reject(conn, "", "INVALID_FLEET", problem);
+    const other = this.data.seats[seat === "p1" ? "p2" : "p1"];
+    const taken = trimShips(ships).find((s) => other.ships.some((o) => o.name === s.name));
+    if (taken !== undefined) return this.reject(conn, "", "INVALID_NAME", `${taken.name} is already a ship in this game`);
+    this.data.seats[seat] = { ...this.data.seats[seat], name, faction, ships: trimShips(ships) };
     this.touch();
     const out: Outgoing[] = [{ to: this.seated(), message: { type: "lobby", ...this.lobby() } }];
     if (SEATS.every((p) => this.data.seats[p].name !== null)) out.push(...this.start());
@@ -215,10 +236,12 @@ export class GameRoom {
   private start(): Outgoing[] {
     const [b0 = 0, b1 = 0, b2 = 0, b3 = 0] = this.deps.randomBytes(4);
     const seed = ((b0 << 24) | (b1 << 16) | (b2 << 8) | b3) >>> 0;
-    const names = Object.fromEntries(
-      SEATS.map((p) => [p, { name: this.data.seats[p].name ?? p, shipName: this.data.seats[p].shipName ?? p }]),
-    ) as Record<PlayerId, { name: string; shipName: string }>;
-    const config = cruiserClash(names, seed, new Date(this.deps.now()).toISOString());
+    const fleet = (p: PlayerId) => {
+      const s = this.data.seats[p];
+      if (s.name === null || s.faction === null) throw new Error(`${p} hasn't joined`);
+      return { name: s.name, faction: s.faction, ships: s.ships };
+    };
+    const config = cruiserClash({ p1: fleet("p1"), p2: fleet("p2") }, seed, new Date(this.deps.now()).toISOString(), this.data.options);
     this.data.config = config;
     this.data.snapshot = newGame(config);
     this.data.status = "active";
@@ -309,8 +332,11 @@ export class GameRoom {
   }
 
   private lobby(): Lobby {
-    const seat = (p: PlayerId) => ({ name: this.data.seats[p].name, shipName: this.data.seats[p].shipName, joined: this.data.seats[p].name !== null });
-    return { seats: { p1: seat("p1"), p2: seat("p2") } };
+    const seat = (p: PlayerId) => {
+      const s = this.data.seats[p];
+      return { name: s.name, faction: s.faction, ships: s.ships, joined: s.name !== null };
+    };
+    return { seats: { p1: seat("p1"), p2: seat("p2") }, count: this.data.count, options: this.data.options };
   }
 
   private presence(): Presence {

@@ -1,55 +1,34 @@
 import { useState } from "react";
-import type { PlayerId } from "@bfg/engine";
+import { CATALOGUE, type PlayerId } from "@bfg/engine";
+import type { Lobby as LobbyInfo, SeatInfo } from "@bfg/server";
+import { asFleet, shipEntries, type Side } from "../game/config";
+import { duplicates, DuplicateNames, FleetFields, resize } from "../panels/FleetForm";
+import { factionName } from "../players";
 import { inviteLink } from "./config";
 import type { MyGame } from "./myGames";
 import type { Remote } from "./useRemoteSource";
 
-const SIDE: Record<PlayerId, string> = { p1: "Imperial Navy · Lunar", p2: "Chaos · Murder" };
+const SEAT: Record<PlayerId, string> = { p1: "Player 1", p2: "Player 2" };
+const other = (p: PlayerId): PlayerId => (p === "p1" ? "p2" : "p1");
 
-/** Before the game starts: claim your seat, or share the invite and wait. */
-export function Lobby({ remote, game }: { remote: Remote; game: MyGame }) {
-  const seat = remote.seat;
-  const seats = remote.lobby?.seats;
-  const mine = seat !== null ? seats?.[seat] : undefined;
-  const [name, setName] = useState(seat === "p1" ? "Player 1" : "Player 2");
-  const [shipName, setShipName] = useState(seat === "p2" ? "Unclean" : "Agrippa");
-  const [copied, setCopied] = useState(false);
-  if (seat === null || seats === undefined) return <p className="muted center-note">Connecting…</p>;
-
-  if (mine?.joined !== true) {
-    return (
-      <form
-        className="new-game"
-        onSubmit={(e) => {
-          e.preventDefault();
-          remote.join(name.trim(), shipName.trim());
-        }}
-      >
-        <h2>You've been invited</h2>
-        <p className="muted">
-          You'll play <strong className={seat}>{SIDE[seat]}</strong>
-          {(() => {
-            const other = seats[seat === "p1" ? "p2" : "p1"];
-            return other.name ? ` against ${other.name}` : "";
-          })()}
-          .
-        </p>
-        <label>
-          Your name
-          <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={40} />
-        </label>
-        <label>
-          Ship name
-          <input value={shipName} onChange={(e) => setShipName(e.target.value)} required maxLength={40} />
-        </label>
-        <div className="buttons">
-          <button type="submit" className="primary">
-            Join the battle
-          </button>
-        </div>
-      </form>
-    );
+/** "Imperial Navy: 2 × Lunar class cruiser (Agrippa, Hammer of Terra)" */
+function fleetLine(seat: SeatInfo): string {
+  if (seat.faction === null) return "";
+  const classes = new Map<string, number>();
+  for (const s of seat.ships) {
+    const name = CATALOGUE[s.classId]?.profile.className ?? s.classId;
+    classes.set(name, (classes.get(name) ?? 0) + 1);
   }
+  const list = [...classes].map(([name, n]) => `${n} × ${name}`).join(", ");
+  return `${factionName(seat.faction)}: ${list} (${seat.ships.map((s) => s.name).join(", ")})`;
+}
+
+/** Before the game starts: claim your seat with your fleet, or share the invite and wait. */
+export function Lobby({ remote, game }: { remote: Remote; game: MyGame }) {
+  const [copied, setCopied] = useState(false);
+  const { seat, lobby } = remote;
+  if (seat === null || lobby === null) return <p className="muted center-note">Connecting…</p>;
+  if (!lobby.seats[seat].joined) return <JoinForm remote={remote} seat={seat} lobby={lobby} />;
 
   const link = game.inviteToken === undefined ? null : inviteLink(game.gameId, game.inviteToken);
   return (
@@ -73,14 +52,69 @@ export function Lobby({ remote, game }: { remote: Remote; game: MyGame }) {
       ) : (
         <p className="muted">The game starts when the other seat joins.</p>
       )}
+      <p className="muted small">
+        Cruiser Clash, {lobby.count} cruiser{lobby.count === 1 ? "" : "s"} a side{lobby.options.ramming ? ", ramming allowed" : ", no ramming"}.
+      </p>
       <ul className="seats">
         {(["p1", "p2"] as const).map((p) => (
           <li key={p} className={p}>
-            <strong>{seats[p].name ?? "(open)"}</strong> <span className="muted">{SIDE[p]}</span>
+            <strong>{lobby.seats[p].name ?? "(open)"}</strong>
             {p === seat && <span className="muted"> · you</span>}
+            {lobby.seats[p].joined && <div className="muted small">{fleetLine(lobby.seats[p])}</div>}
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/** The guest's form: the host has set the size of the battle; you pick your fleet and name your ships. */
+function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lobby: LobbyInfo }) {
+  const host = lobby.seats[other(seat)];
+  const hostNames = host.ships.map((s) => s.name);
+  const [side, setSide] = useState<Side>(() => {
+    // Default to the classic matchup: whichever fleet the host didn't pick.
+    const fleet = asFleet(host.faction) === "chaos" ? "imperial_navy" : "chaos";
+    return { name: SEAT[seat], fleet, ships: resize([], fleet, lobby.count, hostNames) };
+  });
+  const dupes = duplicates([...hostNames, ...side.ships]);
+  return (
+    <form
+      className="new-game"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (dupes.length === 0) remote.join(side.name.trim(), side.fleet, shipEntries(side));
+      }}
+    >
+      <h2>You've been invited</h2>
+      <p className="muted">
+        Cruiser Clash, {lobby.count} cruiser{lobby.count === 1 ? "" : "s"} a side{lobby.options.ramming ? ", ramming allowed" : ", no ramming"}.
+      </p>
+      {host.joined && (
+        <p className="muted small">
+          <strong className={other(seat)}>{host.name}</strong> brings {fleetLine(host)}.
+        </p>
+      )}
+      <FleetFields
+        legend="You"
+        className={seat}
+        side={side}
+        onChange={(patch) =>
+          setSide({
+            ...side,
+            ...patch,
+            ...(patch.fleet !== undefined && patch.fleet !== side.fleet ? { ships: resize([], patch.fleet, lobby.count, hostNames) } : {}),
+          })
+        }
+        dupes={dupes}
+      />
+      <DuplicateNames dupes={dupes} />
+      {remote.rejection && <p className="rejection">{remote.rejection.message}</p>}
+      <div className="buttons">
+        <button type="submit" className="primary" disabled={dupes.length > 0}>
+          Join the battle
+        </button>
+      </div>
+    </form>
   );
 }

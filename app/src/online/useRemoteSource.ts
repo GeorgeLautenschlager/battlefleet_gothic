@@ -4,8 +4,8 @@
  * renders what comes back, and verifies the dice when the game ends.
  */
 import { useEffect, useRef, useState } from "react";
-import type { GameState, PlayerId, Transform } from "@bfg/engine";
-import { PROTOCOL, verifyEnded, type Lobby, type Presence, type RoomStatus, type ServerMessage, type Verification } from "@bfg/server";
+import type { FactionId, GameState, PlayerId, Transform } from "@bfg/engine";
+import { PROTOCOL, verifyEnded, type Lobby, type Presence, type RoomStatus, type ServerMessage, type ShipEntry, type Verification } from "@bfg/server";
 import type { SavedGame } from "../game/history";
 import type { GameSource, Notice } from "../game/source";
 import { ENGINE_BUILD, socketUrl } from "./config";
@@ -26,7 +26,9 @@ export type Remote = {
   source: GameSource | null;
   /** Once the game is over: the full save, and whether replaying it matches what the server sent. */
   ended: { save: SavedGame; verification: Verification } | null;
-  join(name: string, shipName: string): void;
+  /** The server's last refusal (in the lobby: a join it didn't accept). */
+  rejection: Notice | null;
+  join(name: string, faction: FactionId, ships: ShipEntry[]): void;
 };
 
 type Applied = { seq: number; by: PlayerId; rolled: boolean };
@@ -117,13 +119,14 @@ export function useRemoteSource(config: RemoteConfig | null): Remote | null {
             presence: m.presence,
             state: m.state,
             seq: m.seq,
+            rejection: null, // e.g. a refused join, now fixed: the game has started
             applied: [], // history before this connection is unknown here: nothing to undo yet
           }));
           // Anything still unanswered from before a reconnect goes again with its original id (spec §4.5).
           for (const p of inFlight.values()) sock.send(JSON.stringify(p.message));
           return;
         case "lobby":
-          setSnap((s) => ({ ...s, lobby: { seats: m.seats } }));
+          setSnap((s) => ({ ...s, lobby: { seats: m.seats, count: m.count, options: m.options } }));
           return;
         case "presence":
           setSnap((s) => ({ ...s, presence: { p1: m.p1, p2: m.p2 } }));
@@ -245,8 +248,9 @@ export function useRemoteSource(config: RemoteConfig | null): Remote | null {
     presence: snap.presence,
     source,
     ended: snap.ended,
-    join: (name, shipName) => {
-      socket.current?.send(JSON.stringify({ type: "join", token, name, shipName }));
+    rejection: snap.rejection,
+    join: (name, faction, ships) => {
+      socket.current?.send(JSON.stringify({ type: "join", token, name, faction, ships }));
     },
   };
 }

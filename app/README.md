@@ -1,6 +1,6 @@
 # @bfg/app
 
-Battlefleet Gothic in the browser: hot-seat Cruiser Clash (1–4 cruisers a side: Lunars for the Imperial Navy, Murders for Chaos, mirror matches welcome), online one Lunar vs one Murder on top of [`@bfg/engine`](../engine/README.md). Decisions in [ADR 0002](../docs/adr/0002-browser-app.md).
+Battlefleet Gothic in the browser: hot-seat Cruiser Clash (1–4 cruisers a side: Lunars for the Imperial Navy, Murders for Chaos, mirror matches welcome), online the same, each player bringing their own fleet, on top of [`@bfg/engine`](../engine/README.md). Decisions in [ADR 0002](../docs/adr/0002-browser-app.md).
 
 ## Status
 
@@ -14,7 +14,7 @@ Battlefleet Gothic in the browser: hot-seat Cruiser Clash (1–4 cruisers a side
 | Battle controls: turn banner, orders, brace prompts, hulk drift, salvo moves, repairs, BM removal, end step | ✅ |
 | Movement plotter: click-to-plot with turn limits, exact turns at the turn point, typed steps, live verdict, guides, keyboard | ✅ |
 | Shooting: weapon picker, arc/range overlay, target list with the engine's reasons, click-to-fire, arc/aspect choices, torpedo aiming and launch | ✅ |
-| Fleets (hot-seat): pick a fleet per side (Imperial Navy or Chaos, mirror matches allowed), 1–4 cruisers a side, ship names, ramming option; pick which ship to deploy or move next | ✅ |
+| Fleets: pick a fleet per side (Imperial Navy or Chaos, mirror matches allowed), 1–4 cruisers a side, ship names, ramming option; pick which ship to deploy or move next. Online: the host sets the size and options, the guest brings their own fleet in the lobby | ✅ |
 | Online play: start screen (hot-seat / online / My games), invite links, lobby, `RemoteSource` over WebSocket, waiting and presence, reconnect, online undo, end-of-game dice verification, export | ✅ |
 | Zoom and pan, dice presentation, polish | next |
 

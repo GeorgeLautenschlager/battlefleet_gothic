@@ -24,7 +24,7 @@ test("host creates, guest joins by link, setup over the server, online undo, rec
   // Ann creates an online game as the Imperials.
   await ann.goto("/");
   const online = ann.locator("form", { hasText: "Online" });
-  await online.getByLabel("Your name").fill("Ann");
+  await online.getByLabel("Commander").fill("Ann");
   await online.getByRole("button", { name: "Create game" }).click();
   await expect(ann.getByText("Waiting for your opponent")).toBeVisible();
   const link = await ann.getByLabel("Invite link").inputValue();
@@ -33,8 +33,9 @@ test("host creates, guest joins by link, setup over the server, online undo, rec
   // Bo opens the link and joins as Chaos.
   await bo.goto(link);
   await expect(bo.getByText("You've been invited")).toBeVisible();
-  await expect(bo.getByText("Chaos · Murder")).toBeVisible();
-  await bo.getByLabel("Your name").fill("Bo");
+  await expect(bo.getByText("Ann brings Imperial Navy: 1 × Lunar class cruiser (Agrippa).")).toBeVisible();
+  await expect(bo.locator("fieldset")).toContainText("1 × Murder class cruiser"); // the other fleet, by default
+  await bo.getByLabel("Commander").fill("Bo");
   await bo.getByRole("button", { name: "Join the battle" }).click();
 
   // Both are in the game, both online.
@@ -77,4 +78,43 @@ test("host creates, guest joins by link, setup over the server, online undo, rec
   await expect(where(bo)).toContainText("Deploy");
   await expect(log(bo)).toContainText("Zones rolled");
   await bo.screenshot({ path: "e2e-results/online-guest.png" });
+});
+
+test("fleets online: two a side, a Chaos mirror match, names checked against the host's", async ({ browser }) => {
+  const ann = await player(browser);
+  const bo = await player(browser);
+
+  await ann.goto("/");
+  const online = ann.locator("form", { hasText: "Online" });
+  await online.getByLabel("Cruisers a side").selectOption("2");
+  await online.getByLabel("Fleet").selectOption("chaos");
+  await online.getByLabel("Commander").fill("Ann");
+  await online.getByLabel("Ramming").uncheck();
+  await online.getByRole("button", { name: "Create game" }).click();
+  await expect(ann.getByText("Waiting for your opponent")).toBeVisible();
+  await expect(ann.locator(".seats")).toContainText("Chaos: 2 × Murder class cruiser");
+  const link = await ann.getByLabel("Invite link").inputValue();
+
+  await bo.goto(link);
+  await expect(bo.getByText("2 cruisers a side, no ramming")).toBeVisible();
+  const form = bo.locator("form", { hasText: "You've been invited" });
+  await form.getByLabel("Fleet").selectOption("chaos");
+  await expect(form.locator("fieldset")).toContainText("2 × Murder class cruiser");
+  // The default names steer clear of Ann's; a clash is caught before it's sent.
+  const annShips = (await ann.locator(".seats li.p1 .small").innerText()).match(/\((.*)\)/)?.[1]?.split(", ") ?? [];
+  expect(annShips).toHaveLength(2);
+  for (const n of annShips) await expect(form.getByLabel("Ship 1")).not.toHaveValue(n);
+  await form.getByLabel("Ship 1").fill(annShips[0] ?? "");
+  await expect(form.getByRole("button", { name: "Join the battle" })).toBeDisabled();
+  await form.getByLabel("Ship 1").fill("Woe Unending");
+  await form.getByLabel("Commander").fill("Bo");
+  await form.getByRole("button", { name: "Join the battle" }).click();
+
+  for (const p of [ann, bo]) {
+    await expect(where(p)).toContainText("Setup · Roll leadership");
+    await expect(p.locator(".card")).toHaveCount(4);
+    await expect(p.locator(".card").filter({ hasText: "Murder class cruiser" })).toHaveCount(4);
+  }
+  await expect(bo.locator(".card").filter({ hasText: "Woe Unending" })).toHaveCount(1);
+  await bo.screenshot({ path: "e2e-results/online-fleets.png" });
 });

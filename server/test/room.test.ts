@@ -1,26 +1,53 @@
 import { describe, expect, test } from "vitest";
 import { createRoom, ENDED_LIFETIME, IDLE_LIFETIME } from "../src/room";
-import { MAX_MESSAGE_BYTES, MAX_MESSAGES_PER_SECOND } from "../src/protocol";
-import { Harness, testDeps } from "./harness";
+import { MAX_MESSAGE_BYTES, MAX_MESSAGES_PER_SECOND, PROTOCOL } from "../src/protocol";
+import { GUEST_FLEET, Harness, testDeps } from "./harness";
+import { upgradeRoomData, type CreateRequest, type RoomData } from "../src/room";
 
 const rejection = (msgs: { type: string }[]) => msgs.find((m) => m.type === "rejected") as { reason: { code: string } } | undefined;
 const errorOf = (msgs: { type: string }[]) => msgs.find((m) => m.type === "error") as { code: string } | undefined;
 
 describe("creating a game", () => {
   test("the host's seat is named; the guest's waits; tokens are stored only as hashes", async () => {
-    const created = await createRoom({ name: "  Ann ", shipName: "Agrippa", side: "p2" }, testDeps());
+    const ships = [{ name: " Agrippa ", classId: "lunar" }, { name: "Hammer of Terra", classId: "lunar" }];
+    const created = await createRoom({ name: "  Ann ", side: "p2", faction: "imperial_navy", ships, ramming: false }, testDeps());
     if ("error" in created) throw new Error(created.error);
     expect(created.seat).toBe("p2");
-    expect(created.data.seats.p2).toMatchObject({ name: "Ann", shipName: "Agrippa" });
-    expect(created.data.seats.p1).toMatchObject({ name: null, shipName: null });
+    expect(created.data.seats.p2).toMatchObject({ name: "Ann", faction: "imperial_navy", ships: [{ name: "Agrippa" }, { name: "Hammer of Terra" }] });
+    expect(created.data.seats.p1).toMatchObject({ name: null, faction: null, ships: [] });
+    expect(created.data).toMatchObject({ count: 2, options: { ramming: false } });
     expect(JSON.stringify(created.data)).not.toContain(created.token);
     expect(JSON.stringify(created.data)).not.toContain(created.inviteToken);
     expect(created.token).toMatch(/^[A-Za-z0-9_-]{22}$/);
   });
 
-  test("names and sides are checked", async () => {
-    expect(await createRoom({ name: " ", shipName: "x", side: "p1" }, testDeps())).toEqual({ error: "INVALID_NAME" });
-    expect(await createRoom({ name: "x", shipName: "y", side: "p3" as "p1" }, testDeps())).toEqual({ error: "INVALID_SIDE" });
+  test("names, sides and fleets are checked", async () => {
+    const req: CreateRequest = { name: "Ann", side: "p1", faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }], ramming: true };
+    expect(await createRoom({ ...req, name: " " }, testDeps())).toEqual({ error: "INVALID_NAME" });
+    expect(await createRoom({ ...req, side: "p3" as "p1" }, testDeps())).toEqual({ error: "INVALID_SIDE" });
+    const fleet = async (r: Partial<CreateRequest>) => {
+      const out = await createRoom({ ...req, ...r }, testDeps());
+      return "error" in out ? out : null;
+    };
+    expect(await fleet({ ships: [] })).toMatchObject({ error: "INVALID_FLEET" });
+    expect(await fleet({ ships: Array.from({ length: 5 }, (_, i) => ({ name: `L${i}`, classId: "lunar" })) })).toMatchObject({ error: "INVALID_FLEET" });
+    expect(await fleet({ ships: [{ name: "A", classId: "lunar" }, { name: "A", classId: "lunar" }] })).toMatchObject({ error: "INVALID_FLEET", message: "Every ship needs its own name" });
+    expect(await fleet({ ships: [{ name: "A", classId: "murder" }] })).toMatchObject({ error: "INVALID_FLEET" }); // a Murder isn't Imperial
+    expect(await fleet({ ships: [{ name: "A", classId: "battle_barge" }] })).toMatchObject({ error: "INVALID_FLEET" });
+    expect(await fleet({ ships: [{ name: " ", classId: "lunar" }] })).toMatchObject({ error: "INVALID_FLEET" });
+    expect(await fleet({ faction: "chaos", ships: [{ name: "A", classId: "murder" }, { name: "B", classId: "murder" }] })).toBeNull();
+  });
+
+  test("a protocol 1 room reads as protocol 2", () => {
+    const v1 = {
+      gameId: "g", createdAt: 0, lastActivity: 0, endedAt: null, status: "lobby", config: null, transforms: [], snapshot: null,
+      seats: { p1: { tokenHash: "h1", name: "Ann", shipName: "Agrippa" }, p2: { tokenHash: "h2", name: null, shipName: null } },
+    } as unknown as RoomData;
+    const v2 = upgradeRoomData(v1);
+    expect(v2).toMatchObject({ count: 1, options: { ramming: true } });
+    expect(v2.seats.p1).toEqual({ tokenHash: "h1", name: "Ann", faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }] });
+    expect(v2.seats.p2).toEqual({ tokenHash: "h2", name: null, faction: null, ships: [] });
+    expect(upgradeRoomData(v2)).toBe(v2);
   });
 });
 
@@ -29,10 +56,12 @@ describe("lobby and start", () => {
     const h = await Harness.create();
     const [welcome] = await h.hello("a", "p1");
     expect(welcome).toMatchObject({ type: "welcome", seat: "p1", status: "lobby", seq: 0, state: null });
-    expect(welcome).toMatchObject({ lobby: { seats: { p1: { name: "Ann", joined: true }, p2: { joined: false } } } });
+    expect(welcome).toMatchObject({
+      lobby: { count: 1, options: { ramming: true }, seats: { p1: { name: "Ann", faction: "imperial_navy", joined: true }, p2: { joined: false } } },
+    });
 
     await h.hello("b", "p2");
-    await h.send("b", { type: "join", token: h.tokens.p2, name: "Bo", shipName: "Unclean" });
+    await h.join("b", "p2", "Bo", GUEST_FLEET);
     for (const conn of ["a", "b"]) {
       const w = h.last(conn);
       expect(w).toMatchObject({ type: "welcome", status: "active", seq: 0 });
@@ -45,12 +74,36 @@ describe("lobby and start", () => {
     expect(h.room.data.snapshot!.rng.seed).toBe(h.room.data.config!.seed);
   });
 
-  test("join checks names, and is refused once the game is on", async () => {
+  test("join checks names and fleets, and is refused once the game is on", async () => {
     const h = await Harness.create();
     await h.hello("b", "p2");
-    expect(rejection(await h.send("b", { type: "join", token: h.tokens.p2, name: "", shipName: "x" }))?.reason.code).toBe("INVALID_NAME");
-    await h.send("b", { type: "join", token: h.tokens.p2, name: "Bo", shipName: "Unclean" });
-    expect(rejection(await h.send("b", { type: "join", token: h.tokens.p2, name: "Bo2", shipName: "x" }))?.reason.code).toBe("ALREADY_STARTED");
+    expect(rejection(await h.join("b", "p2", "", GUEST_FLEET))?.reason.code).toBe("INVALID_NAME");
+    const two = { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }, { name: "Woe", classId: "murder" }] } as const;
+    expect(rejection(await h.join("b", "p2", "Bo", two))?.reason.code).toBe("INVALID_FLEET"); // the host set one a side
+    const clash = { faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }] } as const;
+    expect(rejection(await h.join("b", "p2", "Bo", clash))?.reason).toMatchObject({ code: "INVALID_NAME", message: "Agrippa is already a ship in this game" });
+    expect(rejection(await h.send("b", { type: "join", token: h.tokens.p2, name: "Bo", shipName: "Unclean" }))).toBeUndefined();
+    expect(h.closed.has("b")).toBe(true); // a protocol 1 join is malformed now
+  });
+
+  test("join is refused once the game is on", async () => {
+    const h = await Harness.started();
+    expect(rejection(await h.join("b", "p2", "Bo2", GUEST_FLEET))?.reason.code).toBe("ALREADY_STARTED");
+  });
+
+  test("fleets: a 3-a-side Imperial mirror match starts with the host's options", async () => {
+    const lunars = (prefix: string) => ({ faction: "imperial_navy", ships: [1, 2, 3].map((i) => ({ name: `${prefix} ${i}`, classId: "lunar" })) }) as const;
+    const h = await Harness.create({ fleet: lunars("Ann"), ramming: false });
+    await h.hello("a", "p1");
+    await h.hello("b", "p2");
+    await h.join("b", "p2", "Bo", lunars("Bo"));
+    const state = h.stateOf("b")!;
+    expect(state.ships.map((s) => `${s.owner} ${s.name} ${s.profile.className}`)).toEqual([
+      "p1 Ann 1 Lunar class cruiser", "p1 Ann 2 Lunar class cruiser", "p1 Ann 3 Lunar class cruiser",
+      "p2 Bo 1 Lunar class cruiser", "p2 Bo 2 Lunar class cruiser", "p2 Bo 3 Lunar class cruiser",
+    ]);
+    expect(state.players.p2.faction).toBe("imperial_navy");
+    expect(state.meta.options.ramming).toBe(false);
   });
 
   test("proposals before the start are refused", async () => {
@@ -136,8 +189,9 @@ describe("connections", () => {
     const h = await Harness.create();
     expect(errorOf(await h.send("x", "not json"))?.code).toBe("MALFORMED_MESSAGE");
     expect(errorOf(await h.send("x", { type: "propose", id: "1", base: 0, transform: {} }))?.code).toBe("HELLO_FIRST");
-    expect(errorOf(await h.send("x", { type: "hello", token: "nope", protocol: 1, engine: "test-engine" }))?.code).toBe("UNKNOWN_TOKEN");
+    expect(errorOf(await h.send("x", { type: "hello", token: "nope", protocol: PROTOCOL, engine: "test-engine" }))?.code).toBe("UNKNOWN_TOKEN");
     expect(errorOf(await h.hello("x", "p1", { protocol: 999 }))?.code).toBe("PROTOCOL_MISMATCH");
+    expect(errorOf(await h.hello("x", "p1", { protocol: 1 }))?.code).toBe("PROTOCOL_MISMATCH"); // a page from before fleets
     expect(errorOf(await h.hello("x", "p1", { engine: "older" }))?.code).toBe("ENGINE_MISMATCH");
     expect(errorOf(await h.send("x", "x".repeat(MAX_MESSAGE_BYTES + 1)))?.code).toBe("MESSAGE_TOO_LARGE");
     expect(h.closed.has("x")).toBe(true);

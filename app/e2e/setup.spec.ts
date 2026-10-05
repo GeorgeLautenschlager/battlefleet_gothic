@@ -40,18 +40,19 @@ test("new game, setup by clicking, into the battle", async ({ page }) => {
 
 test("fleets: a two-a-side Chaos mirror match, deploying and moving ships in the order picked", async ({ page }) => {
   await page.goto("/");
-  await page.getByLabel("Cruisers a side").selectOption("2");
-  const p1 = page.locator("fieldset.p1");
+  const form = page.locator("form", { hasText: "Hot-seat" });
+  await form.getByLabel("Cruisers a side").selectOption("2");
+  const p1 = form.locator("fieldset.p1");
   await p1.getByLabel("Fleet").selectOption("chaos");
   await expect(p1).toContainText("2 × Murder class cruiser");
-  await expect(page.locator("fieldset.p2")).toContainText("2 × Murder class cruiser");
+  await expect(form.locator("fieldset.p2")).toContainText("2 × Murder class cruiser");
   // Duplicate names are refused.
   const first = p1.getByLabel("Ship 1");
   const original = await first.inputValue();
-  await first.fill(await page.locator("fieldset.p2").getByLabel("Ship 1").inputValue());
-  await expect(page.getByRole("button", { name: "Start" })).toBeDisabled();
+  await first.fill(await form.locator("fieldset.p2").getByLabel("Ship 1").inputValue());
+  await expect(form.getByRole("button", { name: "Start" })).toBeDisabled();
   await first.fill(original);
-  await page.getByRole("button", { name: "Start" }).click();
+  await form.getByRole("button", { name: "Start" }).click();
 
   await page.getByRole("button", { name: "Roll Leadership" }).click();
   await page.getByRole("button", { name: /deployment zones/ }).click();

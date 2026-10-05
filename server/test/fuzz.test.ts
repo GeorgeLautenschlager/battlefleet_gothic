@@ -9,12 +9,12 @@ import { validate, type GameState, type PlayerId } from "@bfg/engine";
 import { candidates } from "../../engine/test/bot";
 import { verifyEnded } from "../src/verify";
 import type { Ended } from "../src/protocol";
-import { Harness } from "./harness";
+import { Harness, type Fleet } from "./harness";
 
 const CONN: Record<PlayerId, string> = { p1: "a", p2: "b" };
 
-async function playOut(seed: number): Promise<{ h: Harness; undos: number }> {
-  const h = await Harness.started(seed);
+async function playOut(seed: number, fleets?: { host: Fleet; guest: Fleet }): Promise<{ h: Harness; undos: number }> {
+  const h = await Harness.started(seed, fleets);
   let undos = 0;
   for (let n = 0; h.room.data.status !== "ended"; n++) {
     if (n > 5000) throw new Error(`seed ${seed}: no end in sight`);
@@ -64,5 +64,21 @@ describe("full games through the room", () => {
     expect(verifyEnded(ended, final)).toEqual({ ok: true });
     expect(verifyEnded({ ...ended, transforms: ended.transforms.slice(0, -1) }, final).ok).toBe(false);
     expect(verifyEnded({ ...ended, config: { ...ended.config, seed: ended.config.seed + 1 } }, final).ok).toBe(false);
+  });
+});
+
+describe("full games with fleets through the room", () => {
+  const fleet = (faction: Fleet["faction"], classId: string, prefix: string, n: number): Fleet => ({
+    faction,
+    ships: Array.from({ length: n }, (_, i) => ({ name: `${prefix} ${i + 1}`, classId })),
+  });
+  test.each([
+    ["4 Lunars vs 4 Murders", { host: fleet("imperial_navy", "lunar", "Ann", 4), guest: fleet("chaos", "murder", "Bo", 4) }],
+    ["mirror: 2 Murders a side", { host: fleet("chaos", "murder", "Ann", 2), guest: fleet("chaos", "murder", "Bo", 2) }],
+  ] as const)("%s", async (_, fleets) => {
+    const { h } = await playOut(7, fleets);
+    const ended = h.inbox.get("a")!.find((m) => m.type === "ended") as Ended;
+    expect(ended.config.ships).toHaveLength(fleets.host.ships.length * 2);
+    expect(verifyEnded(ended, h.stateOf("a")!)).toEqual({ ok: true });
   });
 });

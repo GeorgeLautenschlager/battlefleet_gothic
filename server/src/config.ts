@@ -1,19 +1,51 @@
-/** Phase 1's only matchup, as the app builds it: p1 is the Imperial Lunar, p2 the Chaos Murder. */
-import type { GameConfig, PlayerId } from "@bfg/engine";
+/** Online Cruiser Clash (p. 128): each seat brings its own fleet; the room builds the config when both have. */
+import { newGame, type FactionId, type GameConfig, type PlayerId } from "@bfg/engine";
+import { MAX_NAME_LENGTH, MAX_SHIPS, type ShipEntry } from "./protocol";
 
-export type SeatNames = Record<PlayerId, { name: string; shipName: string }>;
+export type SeatFleet = { name: string; faction: FactionId; ships: ShipEntry[] };
 
-export function cruiserClash(seats: SeatNames, seed: number, createdAt: string): GameConfig {
+export function cruiserClash(seats: Record<PlayerId, SeatFleet>, seed: number, createdAt: string, options: { ramming: boolean }): GameConfig {
+  const ships = (owner: PlayerId) => seats[owner].ships.map((s) => ({ owner, name: s.name, classId: s.classId }));
   return {
     seed,
     createdAt,
+    options: { ramming: options.ramming },
     players: {
-      p1: { name: seats.p1.name, faction: "imperial_navy" },
-      p2: { name: seats.p2.name, faction: "chaos" },
+      p1: { name: seats.p1.name, faction: seats.p1.faction },
+      p2: { name: seats.p2.name, faction: seats.p2.faction },
     },
-    ships: [
-      { owner: "p1", name: seats.p1.shipName, classId: "lunar" },
-      { owner: "p2", name: seats.p2.shipName, classId: "murder" },
-    ],
+    ships: [...ships("p1"), ...ships("p2")],
   };
+}
+
+/** Trimmed, or null if empty or too long. */
+export const cleanName = (s: string): string | null => {
+  const t = s.trim();
+  return t.length > 0 && t.length <= MAX_NAME_LENGTH ? t : null;
+};
+
+/**
+ * Why one seat's fleet can't play, or null if it can. Checked when it's
+ * offered, so starting the game never fails. The force rules themselves
+ * (classes, faction, cruisers only, points) are the engine's: the fleet is
+ * tried against a mirror of itself.
+ */
+export function fleetProblem(faction: string, ships: ShipEntry[], count: number): string | null {
+  if (!Number.isInteger(count) || count < 1 || count > MAX_SHIPS) return `A fleet has 1–${MAX_SHIPS} cruisers`;
+  if (ships.length !== count) return `This game is ${count} cruiser${count === 1 ? "" : "s"} a side`;
+  if (ships.some((s) => cleanName(s.name) === null)) return `Ship names need 1–${MAX_NAME_LENGTH} characters`;
+  const names = ships.map((s) => s.name.trim());
+  if (new Set(names).size !== names.length) return "Every ship needs its own name";
+  const side = (owner: PlayerId) => ships.map((s) => ({ owner, name: s.name, classId: s.classId }));
+  try {
+    newGame({
+      seed: 1,
+      createdAt: "1970-01-01T00:00:00Z",
+      players: { p1: { name: "a", faction: faction as FactionId }, p2: { name: "b", faction: faction as FactionId } },
+      ships: [...side("p1"), ...side("p2")],
+    });
+  } catch (e) {
+    return (e as Error).message;
+  }
+  return null;
 }
