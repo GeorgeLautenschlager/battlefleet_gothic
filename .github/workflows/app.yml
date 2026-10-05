@@ -3,9 +3,9 @@ name: app
 on:
   push:
     branches: [main]
-    paths: ["app/**", "engine/src/**", ".github/workflows/app.yml"]
+    paths: ["app/**", "engine/src/**", "server/**", ".github/workflows/app.yml"]
   pull_request:
-    paths: ["app/**", "engine/src/**", ".github/workflows/app.yml"]
+    paths: ["app/**", "engine/src/**", "server/**", ".github/workflows/app.yml"]
   workflow_dispatch:
 
 permissions:
@@ -15,6 +15,11 @@ concurrency:
   group: app-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # The live game server (network play). The engine build id must match the server's: both are the
+  # last commit that touched engine/src (network/SPEC.md §9).
+  SERVER_URL: https://bfg-server.georgelautenschlager.workers.dev
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -23,21 +28,31 @@ jobs:
         working-directory: app
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # for the engine build id
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: app/package-lock.json
+          cache-dependency-path: |
+            app/package-lock.json
+            server/package-lock.json
       - run: npm ci
+      - run: npm ci # the shared protocol types, and wrangler for the e2e game server
+        working-directory: server
       - run: npm run check
       - run: npx playwright install --with-deps chromium
-      - run: npm run e2e # builds dist/ on the way
+      - run: npm run e2e # builds dist/ against a local game server on the way
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-traces
           path: app/test-results
           retention-days: 7
+      # The e2e build points at the local server; Pages gets one that points at the live one.
+      - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        name: Build for Pages
+        run: VITE_SERVER_URL="$SERVER_URL" VITE_ENGINE_BUILD="$(git log -1 --format=%h -- ../engine/src)" npm run build
       - if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:

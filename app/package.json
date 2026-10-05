@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@bfg/engine": "file:../engine",
+    "@bfg/server": "file:../server",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
