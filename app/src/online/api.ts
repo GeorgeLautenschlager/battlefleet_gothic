@@ -1,5 +1,5 @@
 /** The game server's HTTP side (spec §8.1). */
-import type { FactionId, PlayerId } from "@bfg/engine";
+import type { FactionId, Forces, PlayerId, Scoring } from "@bfg/engine";
 import type { ShipEntry } from "@bfg/server";
 import { SERVER_URL } from "./config";
 
@@ -11,7 +11,17 @@ const ERRORS: Record<string, string> = {
   RATE_LIMITED: "Too many new games just now; try again in a minute.",
 };
 
-export type CreateGame = { name: string; side: PlayerId; faction: FactionId; ships: ShipEntry[]; ramming: boolean; boarding: boolean; carriers: boolean };
+export type CreateGame = {
+  name: string;
+  side: PlayerId;
+  faction: FactionId;
+  ships: ShipEntry[];
+  ramming: boolean;
+  boarding: boolean;
+  carriers: boolean;
+  forces?: Forces;
+  scoring?: Scoring;
+};
 
 export async function createGame(req: CreateGame): Promise<CreatedGame> {
   let res: Response;

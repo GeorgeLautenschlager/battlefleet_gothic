@@ -84,8 +84,8 @@ export function configProblem(options: NewGameOptions): string | null {
 }
 
 /** Why one side's fleet can't play, tried against a mirror of itself (as the server checks it), or null. */
-export const sideProblem = (side: Side, carriers: boolean): string | null =>
-  configProblem({ p1: side, p2: { ...side, ships: side.ships.map((_, i) => `mirror ${i}`) }, ramming: true, boarding: false, carriers });
+export const sideProblem = (side: Side, carriers: boolean, forces?: Forces): string | null =>
+  configProblem({ p1: side, p2: { ...side, ships: side.ships.map((_, i) => `mirror ${i}`) }, ramming: true, boarding: false, carriers, ...(forces ? { forces } : {}) });
 
 /** The app's fleets are the boxed game's two; anything else reads as Imperial. */
 export const asFleet = (faction: string | null): Fleet => (faction === "chaos" ? "chaos" : "imperial_navy");
