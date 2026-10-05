@@ -11,7 +11,7 @@ import type { FactionId, GameState, PlayerId, Ship, ShipTurnState, TurnState } f
 export type GameConfig = {
   seed: number;
   createdAt: string;
-  options?: { ramming?: boolean; boarding?: boolean };
+  options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean };
   players: {
     p1: { name: string; faction: FactionId };
     p2: { name: string; faction: FactionId };
@@ -33,6 +33,7 @@ export function emptyShipTurnState(): ShipTurnState {
     boarded: false,
     teleported: false,
     repaired: false,
+    turrets: null,
   };
 }
 
@@ -56,6 +57,8 @@ function validateConfig(config: GameConfig): void {
     throw new EngineError(`seed must be a uint32, got ${config.seed}`);
   }
   const counts = { p1: 0, p2: 0 };
+  const carriersOverCap = { p1: 0, p2: 0 };
+  const carriers = config.options?.carriers ?? false;
   for (const [i, ship] of config.ships.entries()) {
     const entry = CATALOGUE[ship.classId];
     if (entry === undefined) throw new EngineError(`ships[${i}]: unknown class "${ship.classId}"`);
@@ -67,7 +70,15 @@ function validateConfig(config: GameConfig): void {
       throw new EngineError(`ships[${i}]: Cruiser Clash allows cruisers only`);
     }
     if (entry.profile.points > CRUISER_CLASH.maxPoints) {
-      throw new EngineError(`ships[${i}]: ${entry.profile.points} pts exceeds the ${CRUISER_CLASH.maxPoints} pt cap`);
+      // "One carrier each" (p. 129): a ship with launch bays may go over the cap, one per side.
+      const carrier = entry.profile.weapons.some((w) => w.kind === "launch_bay");
+      if (!carriers || !carrier) {
+        throw new EngineError(`ships[${i}]: ${entry.profile.points} pts exceeds the ${CRUISER_CLASH.maxPoints} pt cap`);
+      }
+      carriersOverCap[ship.owner] += 1;
+      if (carriersOverCap[ship.owner] > 1) {
+        throw new EngineError(`ships[${i}]: only one carrier each may go over the ${CRUISER_CLASH.maxPoints} pt cap`);
+      }
     }
     counts[ship.owner] += 1;
   }
@@ -91,6 +102,7 @@ export function newGame(config: GameConfig): GameState {
     if (entry === undefined) throw new EngineError(`unknown class ${spec.classId}`); // checked above
     const profile = cloneJson(entry.profile);
     const hasTorpedoes = profile.weapons.some((w) => w.kind === "torpedoes");
+    const hasBays = profile.weapons.some((w) => w.kind === "launch_bay");
     return {
       id: `ship-${i + 1}`,
       owner: spec.owner,
@@ -103,7 +115,7 @@ export function newGame(config: GameConfig): GameState {
       damage: 0,
       criticals: [],
       specialOrder: null,
-      loaded: hasTorpedoes ? { torpedoes: true } : {},
+      loaded: { ...(hasTorpedoes ? { torpedoes: true } : {}), ...(hasBays ? { launchBays: true } : {}) },
       lastMove: null,
       grapple: null,
     };
@@ -122,6 +134,7 @@ export function newGame(config: GameConfig): GameState {
       options: {
         ramming: config.options?.ramming ?? true,
         boarding: config.options?.boarding ?? false,
+        carriers: config.options?.carriers ?? false,
       },
     },
     scenario: {

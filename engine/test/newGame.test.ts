@@ -43,7 +43,7 @@ describe("newGame", () => {
     expect(state.table).toEqual({ width: 180, height: 120 });
     expect(state.scenario.deploymentZones.A).toEqual({ x: 45, y: 90, width: 90, height: 30 });
     expect(state.scenario.deploymentFacing).toEqual({ A: 180, B: 0 });
-    expect(state.meta.options).toEqual({ ramming: true, boarding: false });
+    expect(state.meta.options).toEqual({ ramming: true, boarding: false, carriers: false });
     expect(state.players.p2.factionTraits.boardingModifier).toBe(1);
     expect(state.rng).toEqual({ algorithm: "mulberry32", seed: 1337, state: 1337, draws: 0 });
   });
@@ -69,5 +69,28 @@ describe("newGame", () => {
       ...Array.from({ length: 4 }, (_, i) => ({ owner: "p2" as const, name: `M${i}`, classId: "murder" })),
     ];
     expect(checkInvariants(newGame(withShips(ships)))).toEqual([]);
+  });
+
+  describe("carriers (p. 129)", () => {
+    const fleets = (p1: string[], p2: string[], carriers: boolean): GameConfig => ({
+      ...withShips([
+        ...p1.map((classId, i) => ({ owner: "p1" as const, name: `I${i}`, classId })),
+        ...p2.map((classId, i) => ({ owner: "p2" as const, name: `C${i}`, classId })),
+      ]),
+      options: { carriers },
+    });
+
+    test("one carrier each may go over the 185-point cap, with its bays loaded", () => {
+      const state = newGame(fleets(["dictator", "lunar"], ["devastation", "murder"], true));
+      expect(checkInvariants(state)).toEqual([]);
+      expect(state.meta.options.carriers).toBe(true);
+      expect(state.ships[0]!.loaded).toEqual({ torpedoes: true, launchBays: true });
+      expect(state.ships[2]!.loaded).toEqual({ launchBays: true });
+    });
+
+    test("not without the option, and not two a side", () => {
+      expect(() => newGame(fleets(["dictator"], ["murder"], false))).toThrow(/185 pt cap/);
+      expect(() => newGame(fleets(["dictator", "dictator"], ["murder", "murder"], true))).toThrow(/only one carrier each/);
+    });
   });
 });

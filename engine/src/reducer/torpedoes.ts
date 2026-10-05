@@ -2,13 +2,16 @@
 import { BM_RADIUS, EPS, TORPEDO_WIDTH } from "../geometry/constants";
 import { baseRadius, headingVector, norm } from "../geometry/basic";
 import { exitT, sweptSegmentVsCircle, sweptSegmentVsSegment } from "../geometry/sweep";
-import { armourFacing, bmsInContact, effectiveStrength, getShip, onTable, roundOf, turrets } from "../state/derived";
-import type { GameState, Point, TorpedoSalvo } from "../state/types";
+import { armourFacing, bmsInContact, effectiveStrength, getShip, onTable, roundOf } from "../state/derived";
+import { capOf, fighters, waveRadius } from "../rules/craft";
+import type { AttackCraftWave, GameState, Point, TorpedoSalvo } from "../state/types";
 import type { LaunchTorpedoes } from "../transforms/types";
 import type { Ctx } from "./context";
 import { inflict } from "./damage";
 import { salvoMayAttack } from "./movement";
 import { enqueueFront } from "./queue";
+import { turretDice } from "./turrets";
+import { intercept } from "./craft";
 
 // --- Launch (§9.1)
 
@@ -60,10 +63,11 @@ function markMoved(state: GameState, id: string): void {
 type SalvoEvent =
   | { kind: "exit"; t: number }
   | { kind: "salvo"; t: number; otherId: string }
+  | { kind: "wave"; t: number; waveId: string }
   | { kind: "ship"; t: number; shipId: string }
   | { kind: "blast_marker"; t: number };
 
-const ORDER: Record<SalvoEvent["kind"], number> = { exit: 0, salvo: 1, ship: 2, blast_marker: 3 };
+const ORDER: Record<SalvoEvent["kind"], number> = { exit: 0, salvo: 1, wave: 1, ship: 2, blast_marker: 3 };
 
 function earliest(events: SalvoEvent[]): SalvoEvent | null {
   let best: SalvoEvent | null = null;
@@ -80,8 +84,14 @@ function salvoEvents(state: GameState, salvo: TorpedoSalvo, length: number, bmTe
   if (exit !== null) events.push({ kind: "exit", t: exit });
   for (const other of state.ordnance) {
     if (other.id === salvo.id) continue;
-    const t = sweptSegmentVsSegment(position, heading, length, width, other.position, other.heading, other.width);
-    if (t !== null) events.push({ kind: "salvo", t, otherId: other.id });
+    if (other.kind === "torpedo_salvo") {
+      const t = sweptSegmentVsSegment(position, heading, length, width, other.position, other.heading, other.width);
+      if (t !== null) events.push({ kind: "salvo", t, otherId: other.id });
+    } else if (other.owner !== salvo.owner && other.cap === null && fighters(other) > 0) {
+      // An enemy wave with fighters stops torpedoes (p. 82); CAP is met at its ship (§9.3).
+      const t = sweptSegmentVsCircle(position, heading, length, width, other.position, waveRadius(other));
+      if (t !== null) events.push({ kind: "wave", t, waveId: other.id });
+    }
   }
   for (const ship of state.ships) {
     if (!onTable(ship) || ship.position === null || !salvoMayAttack(state, salvo, ship)) continue;
@@ -97,9 +107,12 @@ function salvoEvents(state: GameState, salvo: TorpedoSalvo, length: number, bmTe
   return events;
 }
 
+const findSalvo = (state: GameState, id: string): TorpedoSalvo | undefined =>
+  state.ordnance.find((o): o is TorpedoSalvo => o.id === id && o.kind === "torpedo_salvo");
+
 export function ordnanceMove(ctx: Ctx, ordnanceId: string, travelledSoFar: number, bmTestedSoFar: boolean): void {
   const { state } = ctx;
-  const salvo = state.ordnance.find((o) => o.id === ordnanceId);
+  const salvo = findSalvo(state, ordnanceId);
   if (salvo === undefined) {
     markMoved(state, ordnanceId);
     ctx.log("skipped", { item: "ordnance_move", ordnanceId });
@@ -124,6 +137,11 @@ export function ordnanceMove(ctx: Ctx, ordnanceId: string, travelledSoFar: numbe
       // Premature detonation: torpedo meets torpedo (p. 78).
       removeSalvo(ctx, salvo.id, "collision");
       removeSalvo(ctx, event.otherId, "collision");
+      break;
+    }
+    if (event.kind === "wave") {
+      const wave = state.ordnance.find((o): o is AttackCraftWave => o.id === event.waveId && o.kind === "attack_craft");
+      if (wave !== undefined) intercept(ctx, wave, salvo);
       break;
     }
     if (event.kind === "blast_marker") {
@@ -153,10 +171,19 @@ export function ordnanceMove(ctx: Ctx, ordnanceId: string, travelledSoFar: numbe
 
 export function torpedoAttack(ctx: Ctx, ordnanceId: string, targetId: string, bmTested: boolean): void {
   const { state } = ctx;
-  const salvo = state.ordnance.find((o) => o.id === ordnanceId);
+  const salvo = findSalvo(state, ordnanceId);
   const ship = state.ships.find((s) => s.id === targetId);
   if (salvo === undefined || ship === undefined || !onTable(ship)) {
     ctx.log("skipped", { item: "torpedo_attack", ordnanceId, targetId });
+    return;
+  }
+  // CAP screens enemy torpedoes: one CAP fighter and the whole salvo go (§9.3, p. 82).
+  const cap = salvo.owner !== ship.owner ? capOf(state, ship.id) : [];
+  const fighter = cap[cap.length - 1];
+  if (fighter !== undefined) {
+    removeSalvo(ctx, fighter.id, "intercepted");
+    removeSalvo(ctx, salvo.id, "cap");
+    ctx.log("cap_screen", { shipId: ship.id, ordnanceId: salvo.id, capIds: [fighter.id] });
     return;
   }
   // Ordnance attacking a ship with BMs in contact takes the BM test too (p. 75), once per move.
@@ -176,17 +203,18 @@ export function torpedoAttack(ctx: Ctx, ordnanceId: string, targetId: string, bm
 
 export function torpedoHit(ctx: Ctx, ordnanceId: string, targetId: string): void {
   const { state } = ctx;
-  const salvo = state.ordnance.find((o) => o.id === ordnanceId);
+  const salvo = findSalvo(state, ordnanceId);
   const ship = state.ships.find((s) => s.id === targetId);
   if (salvo === undefined || ship === undefined || !onTable(ship)) {
     ctx.log("skipped", { item: "torpedo_hit", ordnanceId, targetId });
     return;
   }
-  // Turrets fire after the brace decision (p. 66).
-  const turretRolls = ctx.nD6(turrets(ship));
+  // Turrets fire after the brace decision (p. 66), massed outside the Movement Phase (p. 80).
+  const { own, massed, dice } = turretDice(state, ship, "torpedoes");
+  const turretRolls = ctx.nD6(dice);
   const stopped = turretRolls.filter((r) => r >= 4).length;
   salvo.strength -= stopped;
-  ctx.log("turrets", { shipId: ship.id, ordnanceId: salvo.id, rolls: turretRolls, stopped });
+  if (dice > 0) ctx.log("turrets", { shipId: ship.id, ordnanceId: salvo.id, against: "torpedoes", own, massed, rolls: turretRolls, stopped });
   if (salvo.strength <= 0) {
     removeSalvo(ctx, salvo.id, "turrets");
     return;

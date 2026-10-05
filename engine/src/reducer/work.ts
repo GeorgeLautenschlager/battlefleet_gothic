@@ -10,6 +10,7 @@ import { resolveDirectFire } from "./gunnery";
 import { continueMove, hulkDrift, ram, zeroShieldBm } from "./movement";
 import { ordnanceMove, torpedoAttack, torpedoHit } from "./torpedoes";
 import { boardingCritical, boardingFight, teleportAttack } from "./boarding";
+import { craftAttack, craftMeetsShip, hitAndRun } from "./craft";
 
 export { enqueueFront } from "./queue";
 
@@ -60,6 +61,12 @@ export function runWorkItem(ctx: Ctx, item: WorkItem): void {
       return boardingCritical(ctx, item.shipId, item.need);
     case "teleport_attack":
       return teleportAttack(ctx, item.shipId, item.targetId);
+    case "craft_meets_ship":
+      return craftMeetsShip(ctx, item.ordnanceId, item.targetId, item.bmTested);
+    case "craft_attack":
+      return craftAttack(ctx, item.ordnanceId, item.targetId);
+    case "hit_and_run":
+      return hitAndRun(ctx, item.ordnanceId, item.targetId);
   }
 }
 

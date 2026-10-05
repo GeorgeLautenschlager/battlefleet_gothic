@@ -7,10 +7,11 @@
 import { bmTouchesBase } from "../geometry/basic";
 import { emptyTurnState } from "../state/newGame";
 import { activePlayer, isHulk, onTable, otherPlayer, score, weaponDisabled } from "../state/derived";
-import type { GameState, Phase, PlayerId, SetupStep, Step } from "../state/types";
+import type { GameState, Ordnance, Phase, PlayerId, SetupStep, Step } from "../state/types";
 import type { Ctx } from "./context";
 import { anyTeleport, boardingsToFight } from "../rules/boarding";
 import { grappledStayPut, grapplesFight } from "./boarding";
+import { canLaunchCraft } from "../rules/craft";
 
 const SETUP_ORDER: readonly SetupStep[] = [
   "roll_leadership",
@@ -42,6 +43,9 @@ export function removableBlastMarkers(state: GameState): string[] {
     .filter((bm) => !ships.some((s) => s.position !== null && bmTouchesBase(bm.position, s.position, s.profile.baseSize)))
     .map((bm) => bm.id);
 }
+
+/** Ordnance that must move in an Ordnance step: everything but CAP fighters, who stay with their ship (transform §2.3). */
+const toMove = (o: Ordnance): boolean => o.kind !== "attack_craft" || o.cap === null;
 
 /** Whether the current step has nothing left to do (transform spec §2.3, "Complete when"). */
 export function stepComplete(state: GameState): boolean {
@@ -93,15 +97,16 @@ export function stepComplete(state: GameState): boolean {
         (s) =>
           s.status === "active" &&
           canAct(s.id) &&
-          s.loaded.torpedoes === true &&
-          s.profile.weapons.some(
-            (w) => w.kind === "torpedoes" && !(shipTurn(s.id)?.weaponsFired.includes(w.id) ?? false) && !weaponDisabled(state, s, w),
-          ),
+          ((s.loaded.torpedoes === true &&
+            s.profile.weapons.some(
+              (w) => w.kind === "torpedoes" && !(shipTurn(s.id)?.weaponsFired.includes(w.id) ?? false) && !weaponDisabled(state, s, w),
+            )) ||
+            canLaunchCraft(state, s)),
       );
     case "active_ordnance":
-      return state.ordnance.filter((o) => o.owner === active).every((o) => turnState.ordnanceMoved.includes(o.id));
+      return state.ordnance.filter((o) => o.owner === active && toMove(o)).every((o) => turnState.ordnanceMoved.includes(o.id));
     case "inactive_ordnance":
-      return state.ordnance.filter((o) => o.owner !== active).every((o) => turnState.ordnanceMoved.includes(o.id));
+      return state.ordnance.filter((o) => o.owner !== active && toMove(o)).every((o) => turnState.ordnanceMoved.includes(o.id));
     case "boarding":
       // Reducer §10.4: nothing left to fight and no teleport to make (or the player ends the step).
       return !state.meta.options.boarding || (boardingsToFight(state).length === 0 && !anyTeleport(state));

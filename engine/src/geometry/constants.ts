@@ -13,3 +13,5 @@ export const TURN_DISTANCE = { battleship: 15, cruiser: 10, escort: 0 } as const
 export const BM_SLOWDOWN = 5; // p. 69
 export const TELEPORT_RANGE = 10; // teleport attacks, pp. 91–92
 export const MAX_LEADERSHIP = 10; // p. 48
+export const CRAFT_RADIUS = 1; // one attack craft marker's footprint (state N8)
+export const MAX_MASSED_TURRETS = 3; // p. 80

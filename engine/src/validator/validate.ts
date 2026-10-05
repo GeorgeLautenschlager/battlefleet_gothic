@@ -11,7 +11,8 @@ import { malformedField } from "./schema";
 import { OK, reject, type ValidationResult } from "./reasons";
 import { checkDeclareOrder, checkDriftHulk, checkMove } from "./movement";
 import { checkFire, checkLaunchTorpedoes } from "./shooting";
-import { checkAnswerBrace, checkDeployShip, checkMoveOrdnance, checkRemoveBlastMarkers, checkRepair } from "./other";
+import { checkAnswerBrace, checkDeployShip, checkRemoveBlastMarkers, checkRepair } from "./other";
+import { checkLaunchAttackCraft, checkMoveOrdnance, checkReleaseCap } from "./craft";
 import { checkBoard, checkEndStep, checkTeleport } from "./boarding";
 
 /** Where each transform is allowed (transform spec §3). answer_brace is gated by G3/G4 instead. */
@@ -25,8 +26,10 @@ const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" |
   drift_hulk: { stage: "battle", when: ["hulks_drift"] },
   declare_order: { stage: "battle", when: ["move_ships"] },
   move: { stage: "battle", when: ["move_ships"] },
+  release_cap: { stage: "battle", when: ["move_ships"] },
   fire: { stage: "battle", when: ["direct_fire"] },
   launch_torpedoes: { stage: "battle", when: ["launch_ordnance"] },
+  launch_attack_craft: { stage: "battle", when: ["launch_ordnance"] },
   end_step: { stage: "battle", when: ["direct_fire", "launch_ordnance", "boarding"] },
   move_ordnance: { stage: "battle", when: ["active_ordnance", "inactive_ordnance"] },
   repair: { stage: "battle", when: ["damage_control"] },
@@ -94,6 +97,10 @@ export function validate(state: GameState, input: unknown): ValidationResult {
       return checkFire(state, t);
     case "launch_torpedoes":
       return checkLaunchTorpedoes(state, t);
+    case "launch_attack_craft":
+      return checkLaunchAttackCraft(state, t);
+    case "release_cap":
+      return checkReleaseCap(state, t);
     case "move_ordnance":
       return checkMoveOrdnance(state, t);
     case "answer_brace":

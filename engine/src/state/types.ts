@@ -54,7 +54,8 @@ export type Meta = {
   schemaVersion: 1;
   ruleset: "bfg-remastered-1.10";
   createdAt: string;
-  options: { ramming: boolean; boarding: boolean };
+  /** `carriers`: one ship with launch bays each, above the 185-point cap (p. 129). Absent in older saves: read as false. */
+  options: { ramming: boolean; boarding: boolean; carriers?: boolean };
 };
 
 export type Rect = { x: number; y: number; width: number; height: number };
@@ -146,7 +147,7 @@ export type Ship = {
   damage: number;
   criticals: Critical[];
   specialOrder: SpecialOrder | null;
-  loaded: { torpedoes?: boolean };
+  loaded: { torpedoes?: boolean; launchBays?: boolean };
   lastMove: { playerTurn: number; distance: number } | null;
   grapple: Grapple | null;
 };
@@ -176,7 +177,7 @@ export type ShipProfile = {
   weapons: Weapon[];
 };
 
-export type WeaponKind = "battery" | "lance" | "torpedoes";
+export type WeaponKind = "battery" | "lance" | "torpedoes" | "launch_bay";
 export type WeaponLocation = "prow" | "port" | "starboard" | "dorsal" | "keel" | "aft";
 
 export type Weapon = {
@@ -187,8 +188,14 @@ export type Weapon = {
   arcs: Quadrant[];
   range: number | null;
   speed: number | null;
+  /** Firepower (batteries), strength (lances, torpedoes), squadrons (launch bays). */
   strength: number;
+  /** Launch bays only: the attack craft they carry (fleet rules). */
+  craft?: CraftOption[];
 };
+
+export type CraftRole = "fighter" | "bomber" | "assault_boat";
+export type CraftOption = { role: CraftRole; name: string; speed: number };
 
 // --- Criticals (§7.2)
 
@@ -239,7 +246,14 @@ export type ShipTurnState = {
   boarded: boolean;
   teleported: boolean;
   repaired: boolean;
+  /**
+   * What its turrets (own, or massed for a friend) fired at this phase: torpedoes
+   * or attack craft, never both (p. 80). Absent in older saves: read as null.
+   */
+  turrets?: { phase: Phase; against: TurretTarget } | null;
 };
+
+export type TurretTarget = "torpedoes" | "attack_craft";
 
 export type TurnState = {
   playerTurn: number;
@@ -308,7 +322,10 @@ export type WorkItem =
   | { kind: "fire_damage"; shipId: string }
   | { kind: "boarding_fight"; defenderId: string; attackerIds: string[] }
   | { kind: "boarding_critical"; shipId: string; need: number | "auto" | "none" }
-  | { kind: "teleport_attack"; shipId: string; targetId: string };
+  | { kind: "teleport_attack"; shipId: string; targetId: string }
+  | { kind: "craft_meets_ship"; ordnanceId: string; targetId: string; bmTested: boolean }
+  | { kind: "craft_attack"; ordnanceId: string; targetId: string }
+  | { kind: "hit_and_run"; ordnanceId: string; targetId: string };
 
 // --- Blast markers, ordnance, RNG, log (§10)
 
@@ -333,7 +350,25 @@ export type TorpedoSalvo = {
   attacks: { targetId: string; round: number }[];
 };
 
-export type Ordnance = TorpedoSalvo;
+/** One marker of a wave (state §10.2). */
+export type Squadron = { role: CraftRole; name: string; speed: number };
+
+/** An attack craft wave: one entity, however many markers (state §10.2, transform T17). */
+export type AttackCraftWave = {
+  id: string;
+  kind: "attack_craft";
+  owner: PlayerId;
+  launchedBy: string;
+  launched: number;
+  /** Centre of the wave's footprint. */
+  position: Point;
+  /** One per marker, in launch order; never empty while in play. */
+  squadrons: Squadron[];
+  /** The ship it flies Combat Air Patrol for (then a single fighter). */
+  cap: string | null;
+};
+
+export type Ordnance = TorpedoSalvo | AttackCraftWave;
 
 export type RngState = {
   algorithm: "mulberry32";

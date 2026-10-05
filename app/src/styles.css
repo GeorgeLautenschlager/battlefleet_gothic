@@ -103,6 +103,12 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .salvo.p2 line, .salvo.p2 path { stroke: var(--p2); }
 .salvo.p1 text { fill: var(--p1); }
 .salvo.p2 text { fill: var(--p2); }
+.wave circle { fill: none; stroke-width: 0.3; }
+.wave text { font-size: 1.4px; }
+.wave.p1 circle { stroke: var(--p1); }
+.wave.p2 circle { stroke: var(--p2); }
+.wave.p1 text { fill: var(--p1); }
+.wave.p2 text { fill: var(--p2); }
 
 /* --- Side panel */
 .hint { margin: 0; color: var(--muted); }

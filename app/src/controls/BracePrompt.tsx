@@ -1,13 +1,14 @@
 import { commandCheckLd, getShip, type GameState, type PendingDecision, type Transform } from "@bfg/engine";
+import { ordnanceLabel } from "../ordnance";
 import { playerClass, playerName } from "../players";
 import { Act } from "./Act";
 
 function sourceName(state: GameState, p: PendingDecision): string {
   const { source } = p;
   if (source.kind === "ordnance") {
-    const salvo = state.ordnance.find((o) => o.id === source.id);
-    const launcher = state.ships.find((s) => s.id === salvo?.launchedBy);
-    return salvo === undefined ? "torpedoes" : `${salvo.strength} torpedoes${launcher ? ` from ${launcher.name}` : ""}`;
+    const o = state.ordnance.find((x) => x.id === source.id);
+    const launcher = state.ships.find((s) => s.id === o?.launchedBy);
+    return o === undefined ? "ordnance" : `${ordnanceLabel(o)}${launcher ? ` from ${launcher.name}` : ""}`;
   }
   const ship = state.ships.find((s) => s.id === source.id);
   if (source.kind === "explosion") return `${ship?.name ?? "a ship"}'s explosion`;

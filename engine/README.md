@@ -14,6 +14,7 @@ The Battlefleet Gothic Remastered rules engine: pure TypeScript, no DOM or Node 
 | Reducer: damage pipeline, direct fire, fires | [reducer §3–7](../reducer/SPEC.md#3-the-damage-pipeline) | `src/reducer/` ✅ |
 | Reducer: movement, rams, hulks, torpedoes | [reducer §8–9](../reducer/SPEC.md#8-movement) | `src/reducer/` ✅ |
 | Boarding actions, grapples, teleport attacks (`options.boarding`) | [transforms §4.6](../transforms/SPEC.md#46-end-phase), [reducer §10.4–10.5](../reducer/SPEC.md#104-boarding) | `src/rules/boarding.ts`, `src/reducer/boarding.ts`, `src/validator/boarding.ts` ✅ |
+| Attack craft, CAP, massed turrets; carriers (`options.carriers`) | [transforms §4.3–4.4](../transforms/SPEC.md#44-ordnance-phase), [reducer §9](../reducer/SPEC.md#9-ordnance) | `src/rules/craft.ts`, `src/reducer/craft.ts`, `src/reducer/turrets.ts`, `src/reducer/cap.ts`, `src/validator/craft.ts` ✅ |
 
 ## Layout
 
@@ -24,7 +25,7 @@ src/
   state/invariants.ts  §13 invariants (+ plain-JSON and clock consistency)
   state/rng.ts         §10.3 mulberry32 dice
   state/newGame.ts     the newGame factory (transforms §5)
-  state/catalogue.ts   ship profiles (Phase 1: Lunar, Murder)
+  state/catalogue.ts   ship profiles: Lunar, Murder, and the carriers Dictator and Devastation
   state/json.ts        plain-JSON checks and cloning
   math/dmath.ts        fdlibm ports: sinDeg, cosDeg, asinDeg, atan2Deg
   geometry/basic.ts    bearings, quadrants, distance, contact, segments
@@ -40,6 +41,10 @@ src/
   reducer/blast.ts     Blast Marker placement: shield fans, explosion clusters, hulks
   reducer/movement.ts  moves and their events (table edge, rams, salvos, Blast Markers), disengaging, hulk drift
   reducer/torpedoes.ts launching, moving salvos, torpedo attacks
+  reducer/craft.ts     attack craft: launch, flight, intercepts, dogfights, bombers, assault boats
+  reducer/turrets.ts   turret dice, own and massed
+  reducer/cap.ts       CAP riding with its ship, and released when the ship goes
+  rules/craft.ts       wave helpers shared by validator, reducer and app (radius, speed, roles, canLaunchCraft)
 test/                  vitest; spec-examples.test.ts runs the JSON in game_state/SPEC.md;
                        reduceWithDice (test seam) scripts the dice and checks every one is drawn;
                        full-game.test.ts has a dumb bot play whole games, checking every transform

@@ -4,9 +4,10 @@
 import { EPS } from "./constants";
 import { approxLe, baseRadius, distance, quadrantsOfPoint, segmentTouchesCircle } from "./basic";
 import { EngineError, isHulk } from "../state/derived";
-import type { GameState, Point, Quadrant, Ship, TorpedoSalvo, Weapon } from "../state/types";
+import type { GameState, Ordnance, Point, Quadrant, Ship, Weapon } from "../state/types";
 
-export type Target = { kind: "ship"; ship: Ship } | { kind: "ordnance"; salvo: TorpedoSalvo };
+/** `salvo` is any ordnance: a torpedo salvo or an attack craft wave. */
+export type Target = { kind: "ship"; ship: Ship } | { kind: "ordnance"; salvo: Ordnance };
 
 export function targetPosition(target: Target): Point {
   if (target.kind === "ordnance") return target.salvo.position;
@@ -64,11 +65,15 @@ export function nearestShipTargets(state: GameState, ship: Ship, weapon: Weapon)
   return nearestOf(from, candidates, (s) => pose(s).position);
 }
 
-/** The nearest enemy torpedo salvoes this weapon could engage. */
-export function nearestOrdnanceTargets(state: GameState, ship: Ship, weapon: Weapon): TorpedoSalvo[] {
+/** Ordnance a ship may shoot at: the enemy's, and never CAP fighters (T27). */
+export const shootableOrdnance = (o: Ordnance, ship: Ship): boolean =>
+  o.owner !== ship.owner && !(o.kind === "attack_craft" && o.cap !== null);
+
+/** The nearest enemy torpedo salvoes and attack craft waves (not on CAP) this weapon could engage. */
+export function nearestOrdnanceTargets(state: GameState, ship: Ship, weapon: Weapon): Ordnance[] {
   const from = pose(ship).position;
   const candidates = state.ordnance.filter(
-    (o) => o.owner !== ship.owner && canEngage(state, ship, weapon, { kind: "ordnance", salvo: o }),
+    (o) => shootableOrdnance(o, ship) && canEngage(state, ship, weapon, { kind: "ordnance", salvo: o }),
   );
   return nearestOf(from, candidates, (o) => o.position);
 }

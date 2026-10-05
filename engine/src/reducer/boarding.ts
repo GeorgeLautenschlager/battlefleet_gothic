@@ -10,6 +10,7 @@ import type { Ctx } from "./context";
 import { applyCritical, catastrophic, critical, damagePoint } from "./damage";
 import { placeAtStem } from "./blast";
 import { leaveGrapple } from "./grapple";
+import { releaseCap } from "./cap";
 import { enqueueFront } from "./queue";
 
 type Need = number | "auto" | "none";
@@ -145,6 +146,7 @@ function boardingDamage(ctx: Ctx, ships: Ship[], points: number): void {
       ship.specialOrder = null;
       const blastMarkerIds = [placeAtStem(ctx, ship)];
       leaveGrapple(ctx, ship);
+      releaseCap(ctx, ship);
       ctx.log("boarded_hulk", { shipId: ship.id, blastMarkerIds });
     }
     if (n === 0) return;

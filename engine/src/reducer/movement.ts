@@ -23,6 +23,8 @@ import { sum, type Ctx } from "./context";
 import { placeTrailing } from "./blast";
 import { inflict, rerollHulk } from "./damage";
 import { enqueueFront } from "./queue";
+import { releaseCap, syncCap } from "./cap";
+import { capOf, strikers, waveRadius } from "../rules/craft";
 
 // --- The move transform (§8.1)
 
@@ -69,9 +71,10 @@ type Event =
   | { kind: "exit"; t: number }
   | { kind: "ram"; t: number; targetId: string }
   | { kind: "salvo"; t: number; ordnanceId: string }
+  | { kind: "wave"; t: number; ordnanceId: string }
   | { kind: "blast_marker"; t: number };
 
-const EVENT_ORDER: Record<Event["kind"], number> = { exit: 0, ram: 1, salvo: 2, blast_marker: 3 };
+const EVENT_ORDER: Record<Event["kind"], number> = { exit: 0, ram: 1, salvo: 2, wave: 2, blast_marker: 3 };
 
 /** The earliest event; ties (within EPS) go by kind in spec order, then by creation order. */
 function earliest(events: Event[]): Event | null {
@@ -109,10 +112,32 @@ function salvoEvents(state: GameState, ship: Ship, position: Point, heading: num
   const radius = baseRadius(ship.profile.baseSize);
   const out: Event[] = [];
   for (const salvo of state.ordnance) {
-    if (!salvoMayAttack(state, salvo, ship)) continue;
+    if (salvo.kind !== "torpedo_salvo" || !salvoMayAttack(state, salvo, ship)) continue;
     const [a, b] = salvoEnds(salvo);
     const t = sweptCircleVsSegment(position, heading, length, radius, a, b);
     if (t !== null) out.push({ kind: "salvo", t, ordnanceId: salvo.id });
+  }
+  return out;
+}
+
+/**
+ * Salvoes, and enemy attack craft waves that would do something here: one with
+ * bombers or assault boats, or any wave when the ship has CAP to fight it (§8.2).
+ * In `ordnance` order, so ties go by creation order.
+ */
+function ordnanceEvents(state: GameState, ship: Ship, position: Point, heading: number, length: number): Event[] {
+  const salvoes = salvoEvents(state, ship, position, heading, length);
+  const radius = baseRadius(ship.profile.baseSize);
+  const hasCap = capOf(state, ship.id).length > 0;
+  const out: Event[] = [];
+  for (const o of state.ordnance) {
+    if (o.kind === "torpedo_salvo") {
+      out.push(...salvoes.filter((e) => e.kind === "salvo" && e.ordnanceId === o.id));
+      continue;
+    }
+    if (o.owner === ship.owner || o.cap !== null || (strikers(o) === 0 && !hasCap)) continue;
+    const t = sweptCircleVsCircle(position, heading, length, radius, o.position, waveRadius(o));
+    if (t !== null) out.push({ kind: "wave", t, ordnanceId: o.id });
   }
   return out;
 }
@@ -134,7 +159,7 @@ function shipEvents(state: GameState, ship: Ship, a: Activation, length: number)
     }
   }
 
-  events.push(...salvoEvents(state, ship, position, heading, length));
+  events.push(...ordnanceEvents(state, ship, position, heading, length));
 
   if (!a.slowedByBlastMarkers) {
     for (const bm of state.blastMarkers) {
@@ -198,7 +223,7 @@ export function continueMove(ctx: Ctx): void {
     const event = earliest(shipEvents(state, ship, a, length));
 
     if (event === null) {
-      travel(ship, a, length);
+      travel(state, ship, a, length);
       step.distance -= length;
       if (step.distance <= EPS) a.remainingPath.shift();
       else {
@@ -208,7 +233,7 @@ export function continueMove(ctx: Ctx): void {
       continue;
     }
 
-    travel(ship, a, event.t);
+    travel(state, ship, a, event.t);
     step.distance -= event.t;
     if (step.distance <= EPS) a.remainingPath.shift();
     const items = handleEvent(ctx, ship, a, event);
@@ -220,16 +245,18 @@ export function continueMove(ctx: Ctx): void {
   finishMove(ctx, ship, a);
 }
 
-function travel(ship: Ship, a: Activation, d: number): void {
+function travel(state: GameState, ship: Ship, a: Activation, d: number): void {
   advance(ship, d);
   a.distanceMoved += d;
   a.distanceSinceTurn += d;
+  syncCap(state, ship); // CAP rides along (R21)
 }
 
 /** Resolve an event in place, or return the work items it needs. */
 function handleEvent(ctx: Ctx, ship: Ship, a: Activation, event: Event): WorkItem[] {
   switch (event.kind) {
     case "exit":
+      releaseCap(ctx, ship);
       ship.status = "disengaged";
       ship.position = null;
       ship.heading = null;
@@ -244,6 +271,8 @@ function handleEvent(ctx: Ctx, ship: Ship, a: Activation, event: Event): WorkIte
       ];
     case "salvo":
       return [{ kind: "torpedo_attack", ordnanceId: event.ordnanceId, targetId: ship.id, bmTested: false }];
+    case "wave":
+      return [{ kind: "craft_meets_ship", ordnanceId: event.ordnanceId, targetId: ship.id, bmTested: false }];
     case "blast_marker": {
       a.slowedByBlastMarkers = true;
       a.maxDistance -= BM_SLOWDOWN; // p. 69, once per move
@@ -314,6 +343,7 @@ function disengageTest(ctx: Ctx, ship: Ship): void {
   const test = ctx.test(2, target);
   ctx.log("disengage_test", { shipId: ship.id, target, rolls: test.rolls, passed: test.passed });
   if (test.passed) {
+    releaseCap(ctx, ship);
     ship.status = "disengaged";
     ship.position = null;
     ship.heading = null;

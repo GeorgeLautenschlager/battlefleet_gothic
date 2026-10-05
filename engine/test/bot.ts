@@ -4,13 +4,14 @@
  * Shared by the engine's full-game test and the server's fuzz test, and it
  * only ever *validates*, so it works on a redacted state too.
  */
-import { actor, onTable, weaponDisabled } from "../src/state/derived";
+import { actor, isWave, launchCapacity, onTable, weaponDisabled } from "../src/state/derived";
+import { rolesCarried, waveSpeed } from "../src/rules/craft";
 import { removableBlastMarkers } from "../src/reducer/steps";
 import { baseRadius, distance, headingVector, quadrantsOfPoint } from "../src/geometry/basic";
 import { boardingsToFight } from "../src/rules/boarding";
 import { exitDistance, walkShipPath } from "../src/geometry/path";
 import { allAheadFullEnd, moveParameters } from "../src/rules/move";
-import type { GameState, PathStep, PlayerId } from "../src/state/types";
+import type { AttackCraftWave, CraftRole, GameState, PathStep, PlayerId, Point } from "../src/state/types";
 import type { Transform } from "../src/transforms/types";
 
 const a = (distance: number): PathStep => ({ kind: "advance", distance });
@@ -61,6 +62,10 @@ export function candidates(s: GameState, n: number): Transform[] {
       }
       break;
     case "move_ships":
+      // Now and then, release CAP at the start of the phase.
+      if (n % 3 === 0) {
+        for (const o of s.ordnance) if (isWave(o) && o.owner === p && o.cap !== null) out.push({ type: "release_cap", player: p, ordnanceId: o.id });
+      }
       for (const ship of mine.filter((x) => x.status === "active" && !s.turnState.ships[x.id]?.moved)) {
         if (s.activation === null && ship.specialOrder === null && !s.turnState.commandCheckFailed) {
           const { x, y } = ship.position!;
@@ -95,6 +100,12 @@ export function candidates(s: GameState, n: number): Transform[] {
       for (const ship of mine.filter((x) => x.status === "active")) {
         for (const w of ship.profile.weapons.filter((x) => (x.kind === "battery" || x.kind === "lance") && !done(ship.id, x.id))) {
           if (weaponDisabled(s, ship, w)) continue;
+          // Enemy attack craft first, now and then.
+          if (n % 4 === 0) {
+            for (const o of s.ordnance.filter((x) => x.owner !== p)) {
+              for (const arc of ARCS) out.push({ type: "fire", player: p, shipId: ship.id, weaponId: w.id, target: { kind: "ordnance", id: o.id }, ...(arc === undefined ? {} : { arc }) });
+            }
+          }
           for (const e of enemies) for (const arc of ARCS) for (const aspect of ARCS) {
             out.push({
               type: "fire", player: p, shipId: ship.id, weaponId: w.id, target: { kind: "ship", id: e.id },
@@ -106,6 +117,17 @@ export function candidates(s: GameState, n: number): Transform[] {
       out.push({ type: "end_step", player: p });
       break;
     case "launch_ordnance":
+      for (const ship of mine.filter((x) => x.status === "active" && x.loaded.launchBays === true)) {
+        const roles = rolesCarried(ship);
+        const cap = launchCapacity(ship);
+        const pick = (k: number): CraftRole[] => Array.from({ length: k }, (_, i) => roles[(n + i) % roles.length]!);
+        const free = s.ordnance.filter((o) => isWave(o) && o.owner === p && o.cap === null).map((o) => o.id);
+        for (let k = cap; k >= 1; k--) {
+          const waves = n % 3 === 0 && k >= 2 ? [{ roles: pick(k - 1), cap: false }, { roles: ["fighter" as const], cap: true }] : [{ roles: pick(k), cap: false }];
+          out.push({ type: "launch_attack_craft", player: p, shipId: ship.id, waves, recall: [] });
+          out.push({ type: "launch_attack_craft", player: p, shipId: ship.id, waves, recall: free });
+        }
+      }
       for (const ship of mine.filter((x) => x.status === "active")) {
         for (const w of ship.profile.weapons.filter((x) => x.kind === "torpedoes" && !done(ship.id, x.id))) {
           out.push({ type: "launch_torpedoes", player: p, shipId: ship.id, weaponId: w.id, bearing: (n * 7) % 90 < 45 ? (n * 7) % 45 : 315 + ((n * 7) % 45) });
@@ -115,7 +137,22 @@ export function candidates(s: GameState, n: number): Transform[] {
       break;
     case "active_ordnance":
     case "inactive_ordnance":
-      for (const o of s.ordnance) out.push({ type: "move_ordnance", player: o.owner, ordnanceId: o.id });
+      for (const o of s.ordnance) {
+        if (!isWave(o)) {
+          out.push({ type: "move_ordnance", player: o.owner, ordnanceId: o.id });
+          continue;
+        }
+        if (o.cap !== null && n % 4 !== 0) continue; // CAP usually stays
+        const friend = s.ships.find((x) => x.owner === o.owner && x.status === "active" && x.position !== null);
+        if (friend !== undefined && o.squadrons.every((q) => q.role === "fighter") && n % 5 === 0) {
+          out.push({ type: "move_ordnance", player: o.owner, ordnanceId: o.id, path: [toward(s, o, friend.position!, 2)], cap: friend.id });
+        }
+        const foe = s.ships
+          .filter((x) => x.owner !== o.owner && onTable(x))
+          .sort((x, y) => distance(x.position!, o.position) - distance(y.position!, o.position))[0];
+        if (foe !== undefined) out.push({ type: "move_ordnance", player: o.owner, ordnanceId: o.id, path: [toward(s, o, foe.position!, 0)] });
+        out.push({ type: "move_ordnance", player: o.owner, ordnanceId: o.id, path: [] });
+      }
       break;
     case "boarding":
       for (const g of boardingsToFight(s)) {
@@ -138,6 +175,18 @@ export function candidates(s: GameState, n: number): Transform[] {
       break;
   }
   return out;
+}
+
+/** A waypoint as far toward `target` as the wave flies, stopping `short` cm before it, kept on the table. */
+function toward(s: GameState, wave: AttackCraftWave, target: Point, short: number): Point {
+  const d = distance(wave.position, target);
+  const go = Math.max(0, Math.min(waveSpeed(wave) - 0.01, d - short));
+  const f = d === 0 ? 0 : go / d;
+  const clamp = (v: number, max: number) => Math.min(max, Math.max(0, v));
+  return {
+    x: clamp(wave.position.x + f * (target.x - wave.position.x), s.table.width),
+    y: clamp(wave.position.y + f * (target.y - wave.position.y), s.table.height),
+  };
 }
 
 /**

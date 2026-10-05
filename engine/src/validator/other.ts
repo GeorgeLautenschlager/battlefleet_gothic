@@ -3,7 +3,7 @@ import { EPS } from "../geometry/constants";
 import { baseRadius, bmTouchesBase, distance } from "../geometry/basic";
 import { onTable } from "../state/derived";
 import type { GameState } from "../state/types";
-import type { AnswerBrace, DeployShip, MoveOrdnance, RemoveBlastMarkers, Repair } from "../transforms/types";
+import type { AnswerBrace, DeployShip, RemoveBlastMarkers, Repair } from "../transforms/types";
 import { isResult, ownActiveShip, ownShip } from "./movement";
 import { OK, reject, type ValidationResult } from "./reasons";
 
@@ -32,16 +32,6 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
     if (distance(t.position, other.position) <= touching - EPS) {
       return reject("BASES_OVERLAP", `${ship.name} would overlap ${other.name}`, { shipId: other.id });
     }
-  }
-  return OK;
-}
-
-export function checkMoveOrdnance(state: GameState, t: MoveOrdnance): ValidationResult {
-  const salvo = state.ordnance.find((o) => o.id === t.ordnanceId);
-  if (salvo === undefined) return reject("UNKNOWN_ORDNANCE", `No salvo ${t.ordnanceId}`, { ordnanceId: t.ordnanceId });
-  if (salvo.owner !== t.player) return reject("NOT_YOUR_ORDNANCE", "That salvo isn't yours", { ordnanceId: salvo.id });
-  if (state.turnState.ordnanceMoved.includes(salvo.id)) {
-    return reject("ORDNANCE_ALREADY_MOVED", "That salvo has already moved this step", { ordnanceId: salvo.id });
   }
   return OK;
 }

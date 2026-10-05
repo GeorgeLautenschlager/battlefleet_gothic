@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { activePlayer, actor, isHulk, removableBlastMarkers, type GameState, type Transform } from "@bfg/engine";
+import { ordnanceLabel } from "../ordnance";
 import { playerName } from "../players";
 import { Act } from "./Act";
 import { MoveControls, needsToMove } from "./MoveControls";
@@ -61,16 +62,25 @@ export function StepControls({ state, onApply, onHighlight, plot = null, seat = 
     case "inactive_ordnance": {
       const mover = actor(state);
       if (mover !== "p1" && mover !== "p2") return null;
-      const salvos = state.ordnance.filter((o) => o.owner === mover && !state.turnState.ordnanceMoved.includes(o.id));
+      // CAP fighters stay with their ship; attack craft only get "stay put" until the wave plotter lands.
+      const salvos = state.ordnance.filter(
+        (o) => o.owner === mover && !state.turnState.ordnanceMoved.includes(o.id) && (o.kind === "torpedo_salvo" || o.cap === null),
+      );
       return (
         <div className="buttons">
           {salvos.map((o) => {
             const from = state.ships.find((s) => s.id === o.launchedBy)?.name ?? "torpedoes";
             return (
               <span key={o.id} onPointerEnter={() => onHighlight([o.id])} onPointerLeave={() => onHighlight([])}>
-                <Act state={state} transform={{ type: "move_ordnance", player: mover, ordnanceId: o.id }} onApply={onApply} primary>
-                  Move {from}'s torpedoes ({o.strength})
-                </Act>
+                {o.kind === "torpedo_salvo" ? (
+                  <Act state={state} transform={{ type: "move_ordnance", player: mover, ordnanceId: o.id }} onApply={onApply} primary>
+                    Move {from}'s torpedoes ({o.strength})
+                  </Act>
+                ) : (
+                  <Act state={state} transform={{ type: "move_ordnance", player: mover, ordnanceId: o.id, path: [] }} onApply={onApply} primary>
+                    {from}'s {ordnanceLabel(o)} stay put
+                  </Act>
+                )}
               </span>
             );
           })}
