@@ -1,6 +1,6 @@
 # Network Play Specification
 
-**Status:** v0.3, accepted ([ADR 0003](../docs/adr/0003-network-play.md)). Implemented: the server in [`server/`](../server/README.md) (live on Cloudflare) and the online app in [`app/src/online/`](../app/README.md). **Scope:** two players on two devices playing the Phase 1 game (Cruiser Clash, Lunar vs Murder), live or turn-by-turn. Builds on [Game State](../game_state/SPEC.md), [Transforms](../transforms/SPEC.md), the [engine](../engine/README.md) and the [browser app](../app/README.md) ([ADR 0002](../docs/adr/0002-browser-app.md)).
+**Status:** v0.4, accepted ([ADR 0003](../docs/adr/0003-network-play.md)). Implemented: the server in [`server/`](../server/README.md) (live on Cloudflare) and the online app in [`app/src/online/`](../app/README.md). **Scope:** two players on two devices playing Cruiser Clash (1–4 cruisers a side, each player's own fleet), live or turn-by-turn. v0.4 (protocol 2) added fleets: v0.3 was one Lunar vs one Murder. Builds on [Game State](../game_state/SPEC.md), [Transforms](../transforms/SPEC.md), the [engine](../engine/README.md) and the [browser app](../app/README.md) ([ADR 0002](../docs/adr/0002-browser-app.md)).
 
 Hot-seat stays exactly as it is. Network play is a second way to drive the same UI.
 
@@ -55,9 +55,9 @@ Why not peer-to-peer? WebRTC still needs a signalling server, NAT traversal some
 
 No accounts. A player is whoever holds that seat's **token**.
 
-1. **Create.** The host picks *New online game*, enters their name and ship name, and picks a side (Imperial or Chaos; D3). The server creates the game and returns `gameId` plus two secret tokens, one per seat.
+1. **Create.** The host picks *New online game* and brings their fleet: their name, a faction, and 1–4 named cruisers. That number sets the size of the battle, and the host also chooses the optional rules (ramming). The host is Player 1 in the app (the server takes either side; D3). The server checks the fleet (D10) and returns `gameId` plus two secret tokens, one per seat.
 2. **Invite.** The app shows an invite link for the other seat: `https://…/battlefleet_gothic/#join=<gameId>.<token>`. The host sends it however they like.
-3. **Join.** The guest opens the link, enters their name and ship name, and the seat is theirs. When both seats are filled, the server builds the config (with a server-side random seed, §5) and creates the game. Setup then proceeds as today: leadership, zones, deployment.
+3. **Join.** The guest opens the link, sees the host's fleet, and brings their own: their name, any faction (mirror matches are fine), and the same number of cruisers. Ship names must differ from the host's. The seat is then theirs. When both seats are filled, the server builds the config (with a server-side random seed, §5) and creates the game. Setup then proceeds as today: leadership, zones, deployment.
 4. **Return.** Each browser remembers its games in `localStorage` (`gameId`, seat and token). A *My games* list on the start screen resumes any of them, live or days later.
 
 Tokens live in the URL **fragment**, which browsers never send to servers, so they don't appear in Pages or Cloudflare request logs. They are 128-bit random values; the DO stores only their SHA-256 hashes.
@@ -73,7 +73,7 @@ One WebSocket per open game: `wss://<server>/games/<gameId>/ws`. Messages are JS
 | type | payload | when |
 |---|---|---|
 | `hello` | `token, protocol, engine` | first message on a connection. `protocol` is the protocol version, `engine` the client's engine build id. |
-| `join` | `token, name, shipName` | lobby only: claim the seat this token belongs to |
+| `join` | `token, name, faction, ships` | lobby only: claim the seat this token belongs to, with a fleet. `ships` is `{ name, classId }[]`, `classId` from the engine catalogue. |
 | `propose` | `id, base, transform` | a transform for the player's own seat. `id` is a client-chosen message id; `base` is the `seq` of the state it was built on. |
 | `undo` | `id, seq` | take back transform `seq` (§6) |
 | `ping` | — | keep-alive; the server answers `pong` |
@@ -83,7 +83,7 @@ One WebSocket per open game: `wss://<server>/games/<gameId>/ws`. Messages are JS
 | type | payload | when |
 |---|---|---|
 | `welcome` | `seat, status, seq, state, lobby, presence, engine` | reply to `hello`: the full current (redacted) state, or `state: null` in the lobby. Sent again to every seat when the game starts. |
-| `lobby` | `seats: { p1, p2 }` with names and joined flags | the lobby changed |
+| `lobby` | `seats: { p1, p2 }` (each `name, faction, ships, joined`), `count` (ships a side), `options` (`ramming`) | the lobby changed |
 | `applied` | `seq, by, transform, state, rolled` | a transform was accepted. Sent to **both** seats, the proposer included, with `id` echoed to the proposer. |
 | `rejected` | `id, reason` | a proposal, undo or join was refused (a join's `id` is `""`). `reason` is the validator's `{ code, message, details }`, or a room code (§4.4). |
 | `undone` | `seq, state` | the latest transform was taken back; `seq` is the new current `seq` and `state` the state there |
@@ -106,7 +106,7 @@ Each `applied` carries the whole redacted state. A Phase 1 state is a few tens o
   - `NOT_STARTED` / `GAME_OVER`;
   - any validator rejection, passed through unchanged.
 - Proposals are idempotent by `id` (per seat). Resending one that was already applied is rejected as `ALREADY_APPLIED` with its `seq`, so a retry after a dropped connection can't apply a transform twice; the client already has the state from `welcome` or `applied`.
-- Undo rejections: `NOT_LATEST`, `NOT_YOURS`, `ROLLED_DICE`. Join rejections: `ALREADY_STARTED`, `INVALID_NAME`.
+- Undo rejections: `NOT_LATEST`, `NOT_YOURS`, `ROLLED_DICE`. Join rejections: `ALREADY_STARTED`, `INVALID_NAME` (including a ship name the other fleet already uses), `INVALID_FLEET`.
 
 ### 4.5 Reconnecting
 
@@ -179,7 +179,7 @@ A new `server/` package: a Cloudflare Worker plus a Durable Object class, import
 
 | route | does |
 |---|---|
-| `POST /games` | body `{ name, shipName, side }`. Creates a DO with a random `gameId` and returns `{ gameId, seat, token, inviteToken }`. |
+| `POST /games` | body `{ name, side, faction, ships, ramming }`. Creates a DO with a random `gameId` and returns `{ gameId, seat, token, inviteToken }`, or `400 { error, message? }` (`INVALID_NAME`, `INVALID_SIDE`, `INVALID_FLEET`). |
 | `GET /games/:id/ws` | upgrades to a WebSocket, forwarded to that game's DO |
 | `GET /health` | `{ ok, engine, protocol }` |
 
@@ -208,7 +208,7 @@ Stored per game:
 - **Versions:** each build stamps an `engine` id (the commit SHA of `engine/src`).
   - The client sends it in `hello`. On a mismatch the server answers with an error asking the client to reload, so the client never validates against different rules from the server's.
   - A game in progress keeps running on whatever engine the server has after a deploy. A rules change mid-game is accepted as a risk for Phase 1, since the rules are stable now.
-  - The `protocol` version follows the same pattern.
+  - The `protocol` version follows the same pattern. Protocol 2 (fleets) replaced 1; rooms stored by protocol 1 are read as one Lunar vs one Murder.
 - **Limits:** messages up to 16 KB; at most 20 messages a second per socket; 2 sockets per seat (a second tab is allowed). Anything over a limit gets `error` and the socket is closed.
 - **Logs:** request metadata only, never tokens. Fragments never reach the server anyway, and tokens travel only inside the WebSocket.
 
@@ -270,10 +270,11 @@ Steps 1 and 3 don't need a Cloudflare account, so they can start straight away.
 |---|---|---|
 | D1 | Server-authoritative engine, or a dumb relay with per-roll commit-reveal between peers? | **Server-authoritative** (W1). |
 | D2 | Online undo? | As §6 (W4): your own latest, dice-free transform only; repeatable; no consent. |
-| D3 | Sides and names? | The host picks their side; the guest gets the other. Each player names their own admiral and ship. |
+| D3 | Sides and names? | The host's seat is their choice in the protocol; the app makes the host Player 1. Each player names their own admiral and ships. |
 | D4 | How long do games live? | Deleted after 30 days idle; ended games kept 7 days for export. |
 | D8 | Whole states or deltas on the wire? | Whole redacted states until size hurts (§4.3). |
 | D9 | Turn timeouts or a clock? | None. |
+| D10 | Who decides fleets? | Each player brings their own, any faction. The host sets the number of ships a side and the optional rules. Each fleet is checked when it's offered (by trying it in `newGame` against a mirror of itself), so the game can always start. |
 
 ## 14. Later
 

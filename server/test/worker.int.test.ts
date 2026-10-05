@@ -68,6 +68,8 @@ class Client {
 const post = (path: string, body: unknown, headers: Record<string, string> = {}) =>
   fetch(new URL(path, base), { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json", ...headers } });
 
+const HOST = { name: "Ann", side: "p1", faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }] };
+
 describe("the Worker", () => {
   test("health", async () => {
     const res = await fetch(new URL("/health", base));
@@ -75,15 +77,18 @@ describe("the Worker", () => {
   });
 
   test("CORS: allowed origins get headers, others are refused", async () => {
-    const ok = await post("/games", { name: "Ann", shipName: "Agrippa", side: "p1" }, { Origin: "http://localhost:5173" });
+    const ok = await post("/games", HOST, { Origin: "http://localhost:5173" });
     expect(ok.status).toBe(201);
     expect(ok.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:5173");
-    const no = await post("/games", { name: "Ann", shipName: "Agrippa", side: "p1" }, { Origin: "https://evil.example" });
+    const no = await post("/games", HOST, { Origin: "https://evil.example" });
     expect(no.status).toBe(403);
   });
 
   test("bad requests", async () => {
-    expect((await post("/games", { name: "", shipName: "x", side: "p1" })).status).toBe(400);
+    expect((await post("/games", { ...HOST, name: "" })).status).toBe(400);
+    const v1 = await post("/games", { name: "Ann", shipName: "Agrippa", side: "p1" }); // a page from before fleets
+    expect(v1.status).toBe(400);
+    expect(await v1.json()).toMatchObject({ error: "INVALID_FLEET" });
     expect((await fetch(new URL("/games/not-a-game/ws", base))).status).toBe(404);
     await expect(Client.open("AAAAAAAAAAAAAAAA")).rejects.toThrow("socket failed"); // no such game: the handshake is refused
   });
@@ -91,7 +96,7 @@ describe("the Worker", () => {
 
 describe("a game over WebSockets", () => {
   test("create, join, setup rolls, deploy, undo; dice hidden; state survives reconnects", async () => {
-    const res = await post("/games", { name: "Ann", shipName: "Agrippa", side: "p1" });
+    const res = await post("/games", HOST);
     const { gameId, token, inviteToken } = (await res.json()) as { gameId: string; token: string; inviteToken: string };
 
     const ann = await Client.open(gameId);
@@ -101,7 +106,7 @@ describe("a game over WebSockets", () => {
     const bo = await Client.open(gameId);
     bo.send({ type: "hello", token: inviteToken, protocol: PROTOCOL, engine: "dev" });
     expect(await bo.next("welcome")).toMatchObject({ seat: "p2", status: "lobby" });
-    bo.send({ type: "join", token: inviteToken, name: "Bo", shipName: "Unclean" });
+    bo.send({ type: "join", token: inviteToken, name: "Bo", faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }] });
     const started = await ann.next("welcome");
     expect(started).toMatchObject({ status: "active", seq: 0 });
     expect(started.state!.rng).toMatchObject({ seed: 0, state: 0 });
@@ -151,7 +156,7 @@ describe("a game over WebSockets", () => {
   }, 60_000);
 
   test("unknown tokens and stale engines are turned away", async () => {
-    const { gameId } = (await (await post("/games", { name: "Ann", shipName: "Agrippa", side: "p2" })).json()) as { gameId: string };
+    const { gameId } = (await (await post("/games", { ...HOST, side: "p2" })).json()) as { gameId: string };
     const c = await Client.open(gameId);
     c.send({ type: "hello", token: "nope", protocol: PROTOCOL, engine: "dev" });
     expect((await c.next("error")).code).toBe("UNKNOWN_TOKEN");

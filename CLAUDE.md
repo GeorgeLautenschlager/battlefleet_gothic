@@ -44,6 +44,6 @@ Recorded in [`docs/adr/`](docs/adr/). Current:
 - **Network play** ([`network/SPEC.md`](network/SPEC.md)): done. Server in [`server/`](server/README.md) (`npm run check` there), live on Cloudflare; the app's online play (start screen, invite links, lobby, remote source, reconnect, end-of-game verification) in `app/src/online/`.
 - **Original boxed fleets** (Imperial Navy and Chaos), in slices:
   1. Fleet composition, hot-seat: a fleet per side, 1–4 cruisers (Cruiser Clash's limits), mirror matches, picking which ship acts next. Done.
-  2. Fleet composition online: lobby fleet picker, protocol v2.
+  2. Fleet composition online: lobby fleet picker, protocol 2. Done.
   3. Boarding (pp. 89–91): specs first, then engine and UI.
   4. More ship classes from the box.

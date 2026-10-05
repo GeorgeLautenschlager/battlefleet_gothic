@@ -2,21 +2,26 @@
  * The network protocol (network/SPEC.md §4): every message between a client
  * and a game room. Plain JSON, one `type` per message.
  */
-import type { GameConfig, GameState, PlayerId, Transform } from "@bfg/engine";
+import type { FactionId, GameConfig, GameState, PlayerId, Transform } from "@bfg/engine";
 
-/** Bumped on any incompatible change to these messages. */
-export const PROTOCOL = 1;
+/** Bumped on any incompatible change to these messages. 2: fleets (several ships a side, any faction). */
+export const PROTOCOL = 2;
 
 /** Limits (spec §9). */
 export const MAX_MESSAGE_BYTES = 16 * 1024;
 export const MAX_MESSAGES_PER_SECOND = 20;
 export const MAX_SOCKETS_PER_SEAT = 2;
 export const MAX_NAME_LENGTH = 40;
+/** Cruiser Clash (p. 128): 1–4 cruisers a side. */
+export const MAX_SHIPS = 4;
+
+/** One ship a player brings: its name and its class in the engine catalogue. */
+export type ShipEntry = { name: string; classId: string };
 
 // --- Client → server (§4.1)
 
 export type Hello = { type: "hello"; token: string; protocol: number; engine: string };
-export type Join = { type: "join"; token: string; name: string; shipName: string };
+export type Join = { type: "join"; token: string; name: string; faction: FactionId; ships: ShipEntry[] };
 export type Propose = { type: "propose"; id: string; base: number; transform: Transform };
 export type Undo = { type: "undo"; id: string; seq: number };
 export type Ping = { type: "ping" };
@@ -25,8 +30,9 @@ export type ClientMessage = Hello | Join | Propose | Undo | Ping;
 
 // --- Server → client (§4.2)
 
-export type SeatInfo = { name: string | null; shipName: string | null; joined: boolean };
-export type Lobby = { seats: Record<PlayerId, SeatInfo> };
+export type SeatInfo = { name: string | null; faction: FactionId | null; ships: ShipEntry[]; joined: boolean };
+/** `count`: ships a side, set by the host; `options`: the game's optional rules. */
+export type Lobby = { seats: Record<PlayerId, SeatInfo>; count: number; options: { ramming: boolean } };
 export type Presence = Record<PlayerId, boolean>;
 export type RoomStatus = "lobby" | "active" | "ended";
 
@@ -86,6 +92,7 @@ export type RejectCode =
   | "ROLLED_DICE"
   | "ALREADY_STARTED"
   | "INVALID_NAME"
+  | "INVALID_FLEET"
   | "ENGINE_ERROR";
 
 // --- Shape checks. Transforms themselves are checked by the engine's validator (G1, MALFORMED).
@@ -93,6 +100,11 @@ export type RejectCode =
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isString = (v: unknown, max = 200): v is string => typeof v === "string" && v.length <= max;
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
+
+/** A list of ships, shape only: names and classes are checked by the room. */
+export function isShipList(v: unknown): v is ShipEntry[] {
+  return Array.isArray(v) && v.length <= MAX_SHIPS * 2 && v.every((s) => isObject(s) && isString(s["name"]) && isString(s["classId"], 40));
+}
 
 /** Parse one raw client message, or say why not. */
 export function parseClientMessage(raw: string): ClientMessage | { error: ErrorCode } {
@@ -110,8 +122,14 @@ export function parseClientMessage(raw: string): ClientMessage | { error: ErrorC
         ? { type: "hello", token: v["token"], protocol: v["protocol"], engine: v["engine"] }
         : { error: "MALFORMED_MESSAGE" };
     case "join":
-      return isString(v["token"]) && isString(v["name"]) && isString(v["shipName"])
-        ? { type: "join", token: v["token"], name: v["name"], shipName: v["shipName"] }
+      return isString(v["token"]) && isString(v["name"]) && isString(v["faction"], 40) && isShipList(v["ships"])
+        ? {
+            type: "join",
+            token: v["token"],
+            name: v["name"],
+            faction: v["faction"] as FactionId,
+            ships: v["ships"].map((s) => ({ name: s.name, classId: s.classId })),
+          }
         : { error: "MALFORMED_MESSAGE" };
     case "propose":
       return isString(v["id"], 64) && isCount(v["base"]) && isObject(v["transform"])

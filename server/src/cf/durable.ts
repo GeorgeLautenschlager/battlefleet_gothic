@@ -8,7 +8,7 @@
  */
 import { DurableObject } from "cloudflare:workers";
 import type { GameState, PlayerId } from "@bfg/engine";
-import { GameRoom, type Outgoing, type RoomData, type TransformRecord } from "../room";
+import { GameRoom, upgradeRoomData, type Outgoing, type RoomData, type TransformRecord } from "../room";
 import { isWebSocketUpgrade, workerDeps } from "./deps";
 import type { Env } from "./env";
 
@@ -30,7 +30,7 @@ export class GameDO extends DurableObject<Env> {
     if (meta === undefined) return;
     const transforms = [...(await this.ctx.storage.list<TransformRecord>({ prefix: "t:" })).values()];
     const snapshot = (await this.ctx.storage.get<GameState>("snapshot")) ?? null;
-    this.room = new GameRoom({ ...meta, transforms, snapshot }, workerDeps(this.env.ENGINE_BUILD));
+    this.room = new GameRoom(upgradeRoomData({ ...meta, transforms, snapshot }), workerDeps(this.env.ENGINE_BUILD));
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment() as Attachment | null;
       if (a !== null) this.room.restore(a.conn, a.seat);

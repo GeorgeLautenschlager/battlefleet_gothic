@@ -11,7 +11,8 @@ export function MyGames({ games, onResume, onForget }: { games: MyGame[]; onResu
             <span>
               {g.name || "Joining…"}{" "}
               <span className={`muted ${g.seat ?? ""}`}>
-                {g.seat === "p1" ? "Imperial" : g.seat === "p2" ? "Chaos" : ""} · {new Date(g.joinedAt).toLocaleDateString()}
+                {g.seat === "p1" ? "Player 1 · " : g.seat === "p2" ? "Player 2 · " : ""}
+                {new Date(g.joinedAt).toLocaleDateString()}
               </span>
             </span>
             <span className="buttons">

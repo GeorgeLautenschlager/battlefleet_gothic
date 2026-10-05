@@ -37,6 +37,13 @@ export function shipClass(fleet: Fleet) {
   return entry.profile;
 }
 
+/** A side's ships as `{ name, classId }`: the online protocol's shape. */
+export const shipEntries = (side: Side): { name: string; classId: string }[] =>
+  side.ships.map((name) => ({ name: name.trim(), classId: FLEETS[side.fleet].classId }));
+
+/** The app's fleets are the boxed game's two; anything else reads as Imperial. */
+export const asFleet = (faction: string | null): Fleet => (faction === "chaos" ? "chaos" : "imperial_navy");
+
 export function cruiserClash(options: NewGameOptions, now = new Date()): GameConfig {
   const ships = (owner: PlayerId) => options[owner].ships.map((name) => ({ owner, name: name.trim(), classId: FLEETS[options[owner].fleet].classId }));
   return {

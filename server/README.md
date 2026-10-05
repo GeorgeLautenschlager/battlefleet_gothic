@@ -12,7 +12,8 @@ Network play's server side ([network/SPEC.md](../network/SPEC.md), [ADR 0003](..
 | Cloudflare Worker (routes, CORS, create-game rate limit) and the `GameDO` Durable Object (hibernating WebSockets, storage, expiry alarm) | ✅ |
 | Integration tests in workerd: HTTP, CORS, a game over real WebSockets, reconnect | ✅ |
 | Deploy from `main` (`.github/workflows/server.yml`) | ✅ |
-| The app talking to it | next (spec §11 steps 3–4) |
+| The app talking to it | ✅ |
+| Fleets (protocol 2): each seat brings 1–4 cruisers of any faction, checked on offer; protocol 1 rooms migrate on load | ✅ |
 
 ## Layout
 
@@ -22,7 +23,7 @@ src/
   room.ts       createRoom and GameRoom: messages in, addressed messages out, `data` to persist
   redact.ts     hide the seed and RNG state (W2)
   verify.ts     replay a revealed game and compare (W5); used by the client at the end
-  config.ts     the Cruiser Clash config the room builds when both seats are named
+  config.ts     the Cruiser Clash config the room builds from both fleets, and the check each fleet passes on offer
   cf/worker.ts  the Worker: POST /games, GET /games/:id/ws, GET /health, CORS
   cf/durable.ts GameDO: a thin Durable Object around GameRoom (hibernation, storage, alarm)
   cf/deps.ts    Deps from Web Crypto and the clock
