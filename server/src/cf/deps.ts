@@ -12,3 +12,8 @@ export function workerDeps(engine: string): Deps {
     engine,
   };
 }
+
+/** RFC 6455 §4.2.1: the Upgrade value "websocket" is matched case-insensitively (proxies may recase it). */
+export function isWebSocketUpgrade(request: Request): boolean {
+  return (request.headers.get("Upgrade") ?? "").toLowerCase() === "websocket";
+}

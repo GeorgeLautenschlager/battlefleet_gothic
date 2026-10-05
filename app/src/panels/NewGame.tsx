@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { NewGameOptions } from "../game/config";
 
-export function NewGame({ onStart, onCancel }: { onStart: (o: NewGameOptions) => void; onCancel?: () => void }) {
+export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart: (o: NewGameOptions) => void; onCancel?: () => void; cancelLabel?: string }) {
   const [o, setO] = useState<NewGameOptions>({ p1Name: "Player 1", p2Name: "Player 2", p1Ship: "Agrippa", p2Ship: "Unclean" });
   const field = (key: keyof NewGameOptions, label: string) => (
     <label>
@@ -17,8 +17,8 @@ export function NewGame({ onStart, onCancel }: { onStart: (o: NewGameOptions) =>
         onStart(o);
       }}
     >
-      <h2>Cruiser Clash</h2>
-      <p className="muted">One Lunar against one Murder. Hot-seat: pass the device when it says so.</p>
+      <h2>Hot-seat</h2>
+      <p className="muted">Cruiser Clash: one Lunar against one Murder, on this device. Pass it over when it says so.</p>
       <fieldset className="p1">
         <legend>Imperial Navy · Lunar class cruiser</legend>
         {field("p1Name", "Admiral")}
@@ -35,7 +35,7 @@ export function NewGame({ onStart, onCancel }: { onStart: (o: NewGameOptions) =>
         </button>
         {onCancel && (
           <button type="button" onClick={onCancel}>
-            Cancel
+            {cancelLabel}
           </button>
         )}
       </div>

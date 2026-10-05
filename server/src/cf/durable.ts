@@ -9,7 +9,7 @@
 import { DurableObject } from "cloudflare:workers";
 import type { GameState, PlayerId } from "@bfg/engine";
 import { GameRoom, type Outgoing, type RoomData, type TransformRecord } from "../room";
-import { workerDeps } from "./deps";
+import { isWebSocketUpgrade, workerDeps } from "./deps";
 import type { Env } from "./env";
 
 type Attachment = { conn: string; seat: PlayerId | null };
@@ -48,7 +48,7 @@ export class GameDO extends DurableObject<Env> {
   /** The Worker forwards WebSocket upgrades here. */
   override async fetch(request: Request): Promise<Response> {
     if (this.room === null) return new Response("No such game", { status: 404 });
-    if (request.headers.get("Upgrade") !== "websocket") return new Response("Expected a WebSocket", { status: 426 });
+    if (!isWebSocketUpgrade(request)) return new Response("Expected a WebSocket", { status: 426 });
     const { 0: client, 1: server } = new WebSocketPair();
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ conn: crypto.randomUUID(), seat: null } satisfies Attachment);

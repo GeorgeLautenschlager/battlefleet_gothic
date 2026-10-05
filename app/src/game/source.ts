@@ -3,12 +3,15 @@
  * calls `run`; it doesn't care whether that's this browser's history
  * (hot-seat) or a server (online, coming next).
  */
-import { actor, type GameState, type PlayerId, type Reason, type Transform } from "@bfg/engine";
+import { actor, type GameState, type PlayerId, type Transform } from "@bfg/engine";
 
 /** The player(s) this screen drives: both in hot-seat, one online. */
 export type Seat = PlayerId | "both";
 
 export type SourceStatus = "ready" | "waiting" | "offline";
+
+/** Why something was refused: the engine's reasons, or the server's. */
+export type Notice = { code: string; message: string };
 
 export interface GameSource {
   kind: "local" | "remote";
@@ -21,7 +24,7 @@ export interface GameSource {
   /** Online: a proposal in flight ("waiting") or no connection ("offline"). Hot-seat: always "ready". */
   status: SourceStatus;
   /** Why the last action was refused, if it was. */
-  rejection: Reason | null;
+  rejection: Notice | null;
 }
 
 /** Whether this screen drives `player`. */

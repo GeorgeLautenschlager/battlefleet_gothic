@@ -14,6 +14,7 @@ Battlefleet Gothic in the browser: hot-seat Cruiser Clash (one Lunar vs one Murd
 | Battle controls: turn banner, orders, brace prompts, hulk drift, salvo moves, repairs, BM removal, end step | ✅ |
 | Movement plotter: click-to-plot with turn limits, exact turns at the turn point, typed steps, live verdict, guides, keyboard | ✅ |
 | Shooting: weapon picker, arc/range overlay, target list with the engine's reasons, click-to-fire, arc/aspect choices, torpedo aiming and launch | ✅ |
+| Online play: start screen (hot-seat / online / My games), invite links, lobby, `RemoteSource` over WebSocket, waiting and presence, reconnect, online undo, end-of-game dice verification, export | ✅ |
 | Zoom and pan, dice presentation, polish | next |
 
 ## Layout
@@ -23,6 +24,8 @@ src/
   game/history.ts   config + initial state + applied transforms; apply, undo, saves
   game/source.ts    GameSource: where the game comes from (hot-seat now, online next); seats
   game/useLocalSource.ts  hot-seat: the history behind the GameSource interface
+  online/           network play: config, HTTP api, My games, useRemoteSource, start/lobby/banner screens
+  GameView.tsx      the battle UI, driven by any GameSource
   game/storage.ts   localStorage autosave
   game/config.ts    the Cruiser Clash config (Lunar vs Murder)
   table/            the SVG table: view maths, ship glyphs, ghosts
@@ -44,4 +47,8 @@ npm run check      # typecheck + lint + unit tests
 npm run e2e        # builds, serves, and drives the app in Chromium
 ```
 
-In a cloud session with a preinstalled Chromium, run `CHROMIUM_PATH=/opt/pw-browsers/chromium npm run e2e`.
+`npm run e2e` starts the game server locally (`wrangler dev` in `../server`, so run `npm ci` there first) and builds the app against it; `online.spec.ts` plays two browsers against it. To smoke-test a deployed server instead: `E2E_SERVER_URL=https://… E2E_ENGINE_BUILD=<its /health engine> npm run e2e`.
+
+In a cloud session with a preinstalled Chromium, add `CHROMIUM_PATH=/opt/pw-browsers/chromium`.
+
+Online play appears only when the build has `VITE_SERVER_URL` (and `VITE_ENGINE_BUILD`, matching the server's). CI builds Pages with the live server and the last commit that touched `engine/src`.

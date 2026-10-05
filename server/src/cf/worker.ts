@@ -5,7 +5,7 @@
  */
 import { createRoom, type CreateRequest } from "../room";
 import { PROTOCOL } from "../protocol";
-import { workerDeps } from "./deps";
+import { isWebSocketUpgrade, workerDeps } from "./deps";
 import type { Env } from "./env";
 
 export { GameDO } from "./durable";
@@ -76,7 +76,7 @@ export default {
     if (request.method === "GET" && ws !== null) {
       const id = ws[1] ?? "";
       if (!GAME_ID.test(id)) return new Response("No such game", { status: 404 });
-      if (request.headers.get("Upgrade") !== "websocket") return new Response("Expected a WebSocket", { status: 426 });
+      if (!isWebSocketUpgrade(request)) return new Response("Expected a WebSocket", { status: 426 });
       return env.GAMES.get(env.GAMES.idFromName(id)).fetch(request);
     }
 

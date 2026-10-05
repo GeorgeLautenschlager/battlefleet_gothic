@@ -49,7 +49,10 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .p1 .actor, .actor.p1 { color: var(--p1); }
 .actor.p2 { color: var(--p2); }
 
-main.center { display: grid; place-items: center; padding: 32px 16px; }
+main.center { display: grid; place-items: center; padding: 32px 16px; gap: 16px; }
+main.center.menu { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 480px)); justify-content: center; align-items: start; }
+main.center.menu > .rejection { grid-column: 1 / -1; }
+.center-note { margin: 0; }
 main.play { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 0; flex: 1; min-height: 0; }
 @media (max-width: 900px) { main.play { grid-template-columns: 1fr; } }
 
@@ -207,3 +210,25 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .waiting { margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--panel-2); border-left: 4px solid var(--muted); color: var(--muted); }
 .waiting.p1 { border-left-color: var(--p1); }
 .waiting.p2 { border-left-color: var(--p2); }
+
+/* --- Online */
+.sides { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
+.sides label { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 1em; }
+.sides label.chosen.p1 { color: var(--p1); }
+.sides label.chosen.p2 { color: var(--p2); }
+.my-games ul, .seats { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.my-games li { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.seats li { padding: 6px 10px; border-left: 4px solid var(--line); background: var(--panel-2); border-radius: 6px; }
+.seats li.p1 { border-left-color: var(--p1); }
+.seats li.p2 { border-left-color: var(--p2); }
+.invite { display: flex; gap: 8px; }
+.invite input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-family: ui-monospace, monospace; font-size: 0.85em; }
+strong.p1 { color: var(--p1); }
+strong.p2 { color: var(--p2); }
+.online-banner { display: grid; gap: 6px; }
+.presences { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.9em; }
+.presence::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
+.presence.online::before { background: var(--ok); }
+.presence.p1 { color: var(--p1); }
+.presence.p2 { color: var(--p2); }
+.verified { margin: 0; color: var(--ok); }
