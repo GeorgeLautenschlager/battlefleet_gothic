@@ -1,5 +1,7 @@
 import { actor, type GameState, type Transform } from "@bfg/engine";
 import { sendAs, type Seat } from "../game/source";
+import { pick, undeployed } from "../game/pick";
+import { ShipPicker } from "../controls/ShipPicker";
 import { playerName } from "../players";
 
 const ROLLS = {
@@ -10,18 +12,23 @@ const ROLLS = {
 } as const;
 
 /** The setup steps: four dice rolls, deployment, and the first-turn choice. */
-export function SetupControls({ state, seat, onApply }: { state: GameState; seat: Seat; onApply: (t: Transform) => void }) {
+/** `focus`: the ship picked to deploy next. */
+export function SetupControls({ state, seat, onApply, focus, onFocus }: { state: GameState; seat: Seat; onApply: (t: Transform) => void; focus: string | null; onFocus: (id: string) => void }) {
   const step = state.clock.setupStep;
   if (step === null) return null;
   if (step === "deploy") {
     const who = actor(state);
     if (who !== "p1" && who !== "p2") return null;
-    const ship = state.ships.find((s) => s.owner === who && s.status === "undeployed");
+    const waiting = undeployed(state, who);
+    const ship = pick(waiting, focus);
     const zone = state.setup.zones?.[who];
     return (
-      <p className="hint">
-        {playerName(state, who)}: click inside zone {zone} to deploy <strong>{ship?.name}</strong>.
-      </p>
+      <>
+        <p className="hint">
+          {playerName(state, who)}: click inside zone {zone} to deploy <strong>{ship?.name}</strong>.
+        </p>
+        <ShipPicker ships={waiting} current={ship?.id} verb="Deploy" onPick={onFocus} />
+      </>
     );
   }
   if (step === "choose_first_turn") {

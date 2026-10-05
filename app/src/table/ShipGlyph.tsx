@@ -11,7 +11,8 @@ type Props = {
   selected?: boolean;
   /** A legal target for the weapon being aimed. */
   targeted?: boolean;
-  onSelect?: (id: string) => void;
+  /** Return true if the click was used up here, so it doesn't also count as a click on the table. */
+  onSelect?: (id: string) => boolean;
 };
 
 export function ShipGlyph({ ship, view, ghost, selected = false, targeted = false, onSelect }: Props) {
@@ -23,7 +24,13 @@ export function ShipGlyph({ ship, view, ghost, selected = false, targeted = fals
     <g
       className={classes.filter(Boolean).join(" ")}
       transform={`translate(${p.x} ${p.y})`}
-      onClick={onSelect ? () => onSelect(ship.id) : undefined}
+      onClick={
+        onSelect
+          ? (e) => {
+              if (onSelect(ship.id)) e.stopPropagation();
+            }
+          : undefined
+      }
       data-ship={ship.id}
     >
       <circle className="base" r={r} />

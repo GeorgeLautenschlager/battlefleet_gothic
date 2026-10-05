@@ -40,4 +40,14 @@ export const LUNAR_VS_MURDER: GameConfig = {
   ],
 };
 
+/** Cruiser Clash at full size, and mirror matches: the same engine paths with several ships a side. */
+export function fleets(p1: { faction: "imperial_navy" | "chaos"; classId: string; n: number }, p2: { faction: "imperial_navy" | "chaos"; classId: string; n: number }): GameConfig {
+  const ships = (owner: "p1" | "p2", f: typeof p1) => Array.from({ length: f.n }, (_, i) => ({ owner, name: `${owner} ${f.classId} ${i + 1}`, classId: f.classId }));
+  return {
+    ...cloneJson(LUNAR_VS_MURDER),
+    players: { p1: { name: "George", faction: p1.faction }, p2: { name: "Also George", faction: p2.faction } },
+    ships: [...ships("p1", p1), ...ships("p2", p2)],
+  };
+}
+
 export const freshGame = (): GameState => newGame(cloneJson(LUNAR_VS_MURDER));

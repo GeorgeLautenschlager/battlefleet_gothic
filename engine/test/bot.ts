@@ -35,8 +35,12 @@ export function candidates(s: GameState, n: number): Transform[] {
     const p: PlayerId = who === "p2" ? "p2" : "p1";
     switch (clock.setupStep) {
       case "deploy": {
-        const ship = s.ships.find((x) => x.owner === p && x.status === "undeployed")!;
-        return [15, 30, 90, 105].flatMap((y) => [{ type: "deploy_ship", player: p, shipId: ship.id, position: { x: 80 + (n % 20), y } }]);
+        // Any undeployed ship, spread along the zone so a fleet's bases don't overlap.
+        const waiting = s.ships.filter((x) => x.owner === p && x.status === "undeployed");
+        const ship = waiting[n % 2 === 0 ? 0 : waiting.length - 1]!;
+        return [0, 1, 2, 3, 4, 5, 6].flatMap((k) =>
+          [15, 30, 90, 105].map((y): Transform => ({ type: "deploy_ship", player: p, shipId: ship.id, position: { x: 50 + ((k * 13 + n) % 80), y } })),
+        );
       }
       case "choose_first_turn":
         return [{ type: "choose_first_turn", player: p, goFirst: n % 2 === 0 }];
@@ -64,7 +68,7 @@ export function candidates(s: GameState, n: number): Transform[] {
           if (order !== null) out.push({ type: "declare_order", player: p, shipId: ship.id, order });
         }
         // Stay on the table and close to about 20 cm of the nearest enemy; a little noise to vary the games.
-        const foe = enemies[0];
+        const foe = [...enemies].sort((x, y) => distance(x.position!, ship.position!) - distance(y.position!, ship.position!))[0];
         const score = (path: PathStep[]) => {
           const walk = walkShipPath(ship, path);
           const off = exitDistance(walk, s.table) === null ? 0 : 1000;
