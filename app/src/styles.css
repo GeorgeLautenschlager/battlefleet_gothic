@@ -251,4 +251,10 @@ strong.p2 { color: var(--p2); }
 .presence.p1 { color: var(--p1); }
 .presence.p2 { color: var(--p2); }
 .verified { margin: 0; color: var(--ok); }
-.ship-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.ship-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0.5rem; }
+.ship-row input, .ship-row select { min-width: 0; width: 100%; box-sizing: border-box; }
+.result-panel { display: grid; gap: 0.25rem; }
+.vp-breakdown { margin: 0; padding-left: 1rem; font-size: 0.85rem; }
+.vp-breakdown ul { margin: 0; padding-left: 1rem; color: var(--muted); }
+.battle-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+.battle-fields select { min-width: 0; width: 100%; box-sizing: border-box; }

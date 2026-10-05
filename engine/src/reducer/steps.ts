@@ -6,7 +6,7 @@
  */
 import { bmTouchesBase } from "../geometry/basic";
 import { emptyTurnState } from "../state/newGame";
-import { activePlayer, isHulk, onTable, otherPlayer, score, weaponDisabled } from "../state/derived";
+import { activePlayer, isHulk, onTable, otherPlayer, score, victoryPoints, weaponDisabled } from "../state/derived";
 import type { GameState, Ordnance, Phase, PlayerId, SetupStep, Step } from "../state/types";
 import type { Ctx } from "./context";
 import { anyTeleport, boardingsToFight } from "../rules/boarding";
@@ -230,6 +230,12 @@ export function endGame(ctx: Ctx, reason: "rounds_complete" | "fleet_eliminated"
     state.result = { reason, scores, winner };
     state.activation = null;
     state.clock = { ...state.clock, stage: "ended", setupStep: null, phase: null, step: null };
-    ctx.log("game_end", { reason, scores, winner });
+    if (state.scenario.scoring === "victory_points") {
+      const breakdown = { p1: victoryPoints(state, "p1"), p2: victoryPoints(state, "p2") };
+      const plain = (v: ReturnType<typeof victoryPoints>) => ({ ships: v.ships.map((x) => ({ ...x })), field: v.field });
+      ctx.log("game_end", { reason, scores, winner, scoring: "victory_points", breakdown: { p1: plain(breakdown.p1), p2: plain(breakdown.p2) } });
+    } else {
+      ctx.log("game_end", { reason, scores, winner });
+    }
   });
 }

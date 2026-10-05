@@ -45,4 +45,11 @@ group("log prose", () => {
     );
     expect(line("boarding_critical", { shipId: "ship-1", need: "auto", rolls: [], critical: true })).toBe("Agrippa suffers a critical from the boarding action");
   });
+
+  test("game end reads the score, and says when it's victory points", () => {
+    const s = current(start(config));
+    const end = (data: Record<string, unknown>) => describe(s, { id: "log-1", playerTurn: 16, phase: null, kind: "game_end", actor: null, data: data as never });
+    expect(end({ reason: "rounds_complete", scores: { p1: 9, p2: 4 }, winner: "p1" })).toBe("Game over (rounds complete): Ann wins, 9–4");
+    expect(end({ reason: "fleet_eliminated", scores: { p1: 255, p2: 180 }, winner: "p1", scoring: "victory_points" })).toBe("Game over (fleet eliminated): Ann wins, 255–180 victory points");
+  });
 });

@@ -18,6 +18,7 @@ Battlefleet Gothic in the browser: hot-seat Cruiser Clash (1–4 cruisers a side
 | Boarding (rules option, on by default): "Board X" in the plotter when a path ends touching an enemy, the End Phase boarding panel (together / separately, damage order, teleport attacks), grapple lines on the table, boarding and grapple status on the ship cards, log prose | ✅ |
 | Attack craft (carriers option, off by default): a carrier per side in the fleet forms (Dictator, Devastation); the launch panel (squadrons by kind, CAP fighters, recall, fleet limit); waves flown by clicking waypoints, with CAP over a friendly ship at the end; releasing CAP at the start of the Movement Phase; waves and CAP on the table; bays and CAP on the ship cards; log prose | ✅ |
 | Ship classes: a class per ship in the fleet forms (Lunar, Gothic, Tyrant; Murder, Murder lance variant, Carnage, Inferno, Slaughter; carriers with the option), the engine's reason shown when a fleet can't play; combined battery volleys offered first in the target list (a table click fires the volley) | ✅ |
+| Points battles (hot-seat): Cruiser Clash or 500 / 750 / 1,000 / 1,500 points a side, any number of ships within the limit (carriers included), Cruiser Clash or victory points scoring, and a result panel with each side's VP breakdown | ✅ |
 | Online play: start screen (hot-seat / online / My games), invite links, lobby, `RemoteSource` over WebSocket, waiting and presence, reconnect, online undo, end-of-game dice verification, export | ✅ |
 | Zoom and pan, dice presentation, polish | next |
 

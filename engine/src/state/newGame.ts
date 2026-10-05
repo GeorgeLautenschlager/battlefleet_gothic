@@ -6,12 +6,16 @@ import { boardingModifier, CATALOGUE } from "./catalogue";
 import { EngineError } from "./derived";
 import { cloneJson } from "./json";
 import { createRng } from "./rng";
-import type { FactionId, GameState, PlayerId, Ship, ShipTurnState, TurnState } from "./types";
+import type { FactionId, Forces, GameState, PlayerId, Scoring, Ship, ShipTurnState, TurnState } from "./types";
 
 export type GameConfig = {
   seed: number;
   createdAt: string;
   options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean };
+  /** Default: Cruiser Clash forces (state §4). */
+  forces?: Forces;
+  /** Default: Cruiser Clash scoring. */
+  scoring?: Scoring;
   players: {
     p1: { name: string; faction: FactionId };
     p2: { name: string; faction: FactionId };
@@ -56,7 +60,12 @@ function validateConfig(config: GameConfig): void {
   if (!Number.isInteger(config.seed) || config.seed < 0 || config.seed > 0xffffffff) {
     throw new EngineError(`seed must be a uint32, got ${config.seed}`);
   }
+  const forces = config.forces ?? { kind: "cruiser_clash" };
+  if (forces.kind === "points" && (!Number.isInteger(forces.limit) || forces.limit <= 0)) {
+    throw new EngineError(`a points limit must be a positive whole number, got ${forces.limit}`);
+  }
   const counts = { p1: 0, p2: 0 };
+  const points = { p1: 0, p2: 0 };
   const carriersOverCap = { p1: 0, p2: 0 };
   const carriers = config.options?.carriers ?? false;
   for (const [i, ship] of config.ships.entries()) {
@@ -69,7 +78,9 @@ function validateConfig(config: GameConfig): void {
     if (entry.profile.type !== "cruiser") {
       throw new EngineError(`ships[${i}]: Cruiser Clash allows cruisers only`);
     }
-    if (entry.profile.points > CRUISER_CLASH.maxPoints) {
+    points[ship.owner] += entry.profile.points;
+    // A points battle has no per-ship cap (T36): only the side's total counts.
+    if (forces.kind === "cruiser_clash" && entry.profile.points > CRUISER_CLASH.maxPoints) {
       // "One carrier each" (p. 129): a ship with launch bays may go over the cap, one per side.
       const carrier = entry.profile.weapons.some((w) => w.kind === "launch_bay");
       if (!carriers || !carrier) {
@@ -92,6 +103,13 @@ function validateConfig(config: GameConfig): void {
       const n = side.filter((e) => e === entry).length;
       if (n > allowed) throw new EngineError(`${player} may field at most ${allowed} × ${entry.profile.className} in ${points} pts`);
     }
+  }
+  if (forces.kind === "points") {
+    for (const player of ["p1", "p2"] as const) {
+      if (counts[player] < 1) throw new EngineError(`${player} must field at least one ship`);
+      if (points[player] > forces.limit) throw new EngineError(`${player}'s fleet is ${points[player]} pts, over the ${forces.limit} pt limit`);
+    }
+    return;
   }
   for (const player of ["p1", "p2"] as const) {
     const n = counts[player];
@@ -151,7 +169,8 @@ export function newGame(config: GameConfig): GameState {
     scenario: {
       id: "cruiser_clash",
       maxRounds: 8,
-      scoring: "cruiser_clash",
+      forces: config.forces ?? { kind: "cruiser_clash" },
+      scoring: config.scoring ?? "cruiser_clash",
       // Interpretation #6: 180 × 120 table, 90 × 30 zones centred on the long edges.
       deploymentZones: {
         A: { x: 45, y: 90, width: 90, height: 30 },

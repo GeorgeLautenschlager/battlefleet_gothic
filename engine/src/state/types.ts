@@ -60,10 +60,16 @@ export type Meta = {
 
 export type Rect = { x: number; y: number; width: number; height: number };
 
+/** How the fleets were chosen (state §4). */
+export type Forces = { kind: "cruiser_clash" } | { kind: "points"; limit: number };
+export type Scoring = "cruiser_clash" | "victory_points";
+
 export type Scenario = {
   id: "cruiser_clash";
   maxRounds: number;
-  scoring: "cruiser_clash";
+  /** Absent in older saves: Cruiser Clash forces. */
+  forces?: Forces;
+  scoring: Scoring;
   deploymentZones: { A: Rect; B: Rect };
   deploymentFacing: { A: number; B: number };
 };

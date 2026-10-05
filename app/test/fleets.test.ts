@@ -37,6 +37,23 @@ describe("cruiserClash config", () => {
     expect(off.ships.map((s) => s.classId)).toEqual(["lunar", "gothic", "tyrant", "murder", "carnage", "slaughter"]);
   });
 
+  test("points battles: any number a side within the limit, carriers with no option, victory points", () => {
+    const o: NewGameOptions = {
+      ...options(
+        { name: "A", fleet: "imperial_navy", ships: ["Fortitude", "Invincible", "Agrippa"], classes: ["dictator", "gothic", "lunar"] },
+        { name: "B", fleet: "chaos", ships: ["Deathbane", "Killfrenzy"], classes: ["devastation", "slaughter"] },
+      ),
+      forces: { kind: "points", limit: 750 },
+      scoring: "victory_points",
+    };
+    const c = cruiserClash(o, when);
+    expect(c.forces).toEqual({ kind: "points", limit: 750 });
+    expect(c.scoring).toBe("victory_points");
+    expect(c.ships.map((s) => s.classId)).toEqual(["dictator", "gothic", "lunar", "devastation", "slaughter"]);
+    expect(configProblem(o)).toBeNull();
+    expect(configProblem({ ...o, forces: { kind: "points", limit: 500 } })).toMatch(/580 pts, over the 500 pt limit/);
+  });
+
   test("the engine's reason a fleet can't play shows in the form", () => {
     const lances = (n: number): NewGameOptions["p2"] => ({ name: "B", fleet: "chaos", ships: defaultNames("chaos", n), classes: Array<string>(n).fill("murder_lances") });
     const imperial = (n: number): NewGameOptions["p1"] => ({ name: "A", fleet: "imperial_navy", ships: defaultNames("imperial_navy", n) });

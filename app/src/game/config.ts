@@ -4,7 +4,7 @@
  * classes. Mirror matches are fine. With the carriers option (p. 129), a
  * side may also field its fleet's carrier.
  */
-import { CATALOGUE, newGame, type FactionId, type GameConfig, type PlayerId } from "@bfg/engine";
+import { CATALOGUE, newGame, type FactionId, type Forces, type GameConfig, type PlayerId, type Scoring } from "@bfg/engine";
 
 export type Fleet = "imperial_navy" | "chaos";
 
@@ -27,10 +27,17 @@ export const FLEETS: Record<Fleet, { name: string; classId: string; classes: str
 };
 
 export const MAX_SHIPS = 4;
+/** Ships a side in a points battle: the app's limit (the engine has none). */
+export const MAX_POINTS_SHIPS = 8;
+export const POINTS_LIMITS = [500, 750, 1000, 1500] as const;
 
 /** `classes[i]`: ship i's class; missing means the fleet's standard cruiser. */
 export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[] };
-export type NewGameOptions = { p1: Side; p2: Side; ramming: boolean; boarding: boolean; carriers?: boolean; seed?: number };
+/** `forces`/`scoring`: absent means classic Cruiser Clash (transform §5). */
+export type NewGameOptions = { p1: Side; p2: Side; ramming: boolean; boarding: boolean; carriers?: boolean; forces?: Forces; scoring?: Scoring; seed?: number };
+
+/** A points battle has no per-ship cap, so carriers are always allowed there (T36). */
+export const carriersAllowed = (o: Pick<NewGameOptions, "carriers" | "forces">): boolean => o.forces?.kind === "points" || o.carriers === true;
 
 /** Default ship names. In a mirror match p2 takes the second half of the list, so no name repeats. */
 export function defaultNames(fleet: Fleet, n: number, mirrorP2 = false): string[] {
@@ -85,11 +92,13 @@ export const asFleet = (faction: string | null): Fleet => (faction === "chaos" ?
 
 export function cruiserClash(options: NewGameOptions, now = new Date()): GameConfig {
   const carriers = options.carriers ?? false;
-  const ships = (owner: PlayerId) => shipEntries(options[owner], carriers).map((s) => ({ owner, ...s }));
+  const ships = (owner: PlayerId) => shipEntries(options[owner], carriersAllowed(options)).map((s) => ({ owner, ...s }));
   return {
     seed: options.seed ?? randomSeed(),
     createdAt: now.toISOString(),
     options: { ramming: options.ramming, boarding: options.boarding, carriers },
+    ...(options.forces !== undefined ? { forces: options.forces } : {}),
+    ...(options.scoring !== undefined ? { scoring: options.scoring } : {}),
     players: {
       p1: { name: options.p1.name.trim(), faction: options.p1.fleet satisfies FactionId },
       p2: { name: options.p2.name.trim(), faction: options.p2.fleet satisfies FactionId },
