@@ -16,4 +16,5 @@ export type * from "./transforms/types";
 export * from "./validator";
 export { moveParameters, allAheadFullEnd, type MoveParameters } from "./rules/move";
 export { boardingsToFight, type BoardingGroup } from "./rules/boarding";
+export * as craft from "./rules/craft";
 export * from "./reducer";

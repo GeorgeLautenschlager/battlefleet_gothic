@@ -7,14 +7,17 @@
 import { DEFENCES_MOVE, EPS, MAX_LEADERSHIP } from "../geometry/constants";
 import { bmTouchesBase, quadrantsOfPoint } from "../geometry/basic";
 import type {
+  AttackCraftWave,
   BlastMarker,
   CriticalKind,
+  Ordnance,
   GameState,
   OrderKind,
   PlayerId,
   Point,
   Quadrant,
   Ship,
+  TorpedoSalvo,
   Weapon,
 } from "./types";
 
@@ -157,6 +160,45 @@ export function weaponDisabled(state: GameState, ship: Ship, weapon: Weapon): bo
   // Grappled ships and ships attempting to board can't fire or launch (p. 89; drawn combats, pp. 90–91).
   return turn?.disengage === "failed" || isGrappled(ship) || (turn?.boardingDeclared ?? null) !== null;
 }
+
+// --- Attack craft (state §10.2, §11)
+
+/** Disabled by its location's armament critical (T31). Launch bays don't care about orders or grapples here. */
+function bayLost(ship: Ship, weapon: Weapon): boolean {
+  const critical = ARMAMENT_CRITICAL[weapon.location];
+  return critical !== undefined && hasCritical(ship, critical);
+}
+
+export const launchBays = (ship: Ship): Weapon[] => ship.profile.weapons.filter((w) => w.kind === "launch_bay");
+
+/**
+ * Squadrons the ship can launch: its launch bays not lost to a critical, the
+ * total halved (rounding up) for crippled and again for braced (p. 73, state N9).
+ */
+export function launchCapacity(ship: Ship): number {
+  let total = launchBays(ship)
+    .filter((w) => !bayLost(ship, w))
+    .reduce((n, w) => n + w.strength, 0);
+  if (total === 0) return 0;
+  if (isCrippled(ship)) total = halveUp(total);
+  if (isBraced(ship)) total = halveUp(total);
+  return total;
+}
+
+export const isWave = (o: Ordnance): o is AttackCraftWave => o.kind === "attack_craft";
+export const isSalvo = (o: Ordnance): o is TorpedoSalvo => o.kind === "torpedo_salvo";
+
+export const waves = (state: GameState): AttackCraftWave[] => state.ordnance.filter(isWave);
+
+/** Squadrons in the player's attack craft waves, CAP included. */
+export const craftInPlay = (state: GameState, player: PlayerId): number =>
+  waves(state)
+    .filter((w) => w.owner === player)
+    .reduce((n, w) => n + w.squadrons.length, 0);
+
+/** The fleet's ordnance limit: launch capacity over its active ships (p. 73). */
+export const fleetBays = (state: GameState, player: PlayerId): number =>
+  state.ships.filter((s) => s.owner === player && s.status === "active").reduce((n, s) => n + launchCapacity(s), 0);
 
 // --- Boarding (state §7, §11)
 

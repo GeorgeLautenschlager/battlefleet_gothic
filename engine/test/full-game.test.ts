@@ -56,6 +56,34 @@ describe("full games with fleets", () => {
   }
 });
 
+describe("full games with carriers", () => {
+  const carriers = (p1: string[], p2: string[]): GameConfig => ({
+    ...cloneJson(LUNAR_VS_MURDER),
+    options: { carriers: true, boarding: true },
+    ships: [
+      ...p1.map((classId, i) => ({ owner: "p1" as const, name: `I${i}`, classId })),
+      ...p2.map((classId, i) => ({ owner: "p2" as const, name: `C${i}`, classId })),
+    ],
+  });
+  const matchups: [string, GameConfig][] = [
+    ["Dictator vs Devastation", carriers(["dictator"], ["devastation"])],
+    ["Dictator and 2 Lunars vs Devastation and 2 Murders", carriers(["dictator", "lunar", "lunar"], ["devastation", "murder", "murder"])],
+  ];
+  for (const [name, config] of matchups) {
+    test.each([1, 2, 3, 4, 5, 6])(`${name}, seed %i, plays to a result`, (seed) => {
+      const s = playOut(seed, config);
+      expect(s.result).not.toBeNull();
+      expect(s.queue).toEqual([]);
+    });
+  }
+
+  test("across those games the bot launches, flies CAP, dogfights, bombs and boards from assault boats", () => {
+    const kinds = new Set<string>();
+    for (const [, config] of matchups) for (const seed of [1, 2, 3, 4, 5, 6]) for (const e of playOut(seed, config).log) kinds.add(e.kind);
+    for (const k of ["craft_launch", "craft_move", "cap_formed", "dogfight", "craft_attack", "hit_and_run", "turrets"]) expect(kinds).toContain(k);
+  });
+});
+
 describe("full games with boarding on", () => {
   const withBoarding = (c: GameConfig): GameConfig => ({ ...c, options: { boarding: true } });
   const matchups: [string, GameConfig][] = [

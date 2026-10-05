@@ -65,13 +65,13 @@ export function targets(state: GameState, ship: Ship, weapon: Weapon): TargetCho
     out.push({ kind: "ship", id: s.id, name: s.name, distance: geometry.distance(from, s.position), options: Array.isArray(r) ? r : [], reason: Array.isArray(r) ? null : r.reason });
   }
   for (const o of state.ordnance) {
-    if (o.owner === ship.owner) continue;
+    if (o.owner === ship.owner || (o.kind === "attack_craft" && o.cap !== null)) continue; // CAP can't be shot at
     const launcher = state.ships.find((s) => s.id === o.launchedBy)?.name;
     const r = fireOptions(state, { ...base, target: { kind: "ordnance", id: o.id } });
     out.push({
       kind: "ordnance",
       id: o.id,
-      name: `${launcher ? `${launcher}'s ` : ""}torpedoes (${o.strength})`,
+      name: `${launcher ? `${launcher}'s ` : ""}${o.kind === "torpedo_salvo" ? `torpedoes (${o.strength})` : o.squadrons.map((q) => q.name).join(", ")}`,
       distance: geometry.distance(from, o.position),
       options: Array.isArray(r) ? r : [],
       reason: Array.isArray(r) ? null : r.reason,

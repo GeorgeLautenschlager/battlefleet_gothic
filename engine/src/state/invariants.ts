@@ -9,7 +9,7 @@ import { nonJsonPaths } from "./json";
 import type { GameState, Phase, Step } from "./types";
 
 export type Violation = {
-  /** "I1"…"I12" for the numbered invariants in §13; "J" plain JSON; "C" consistency. */
+  /** "I1"…"I13" for the numbered invariants in §13; "J" plain JSON; "C" consistency. */
   rule: string;
   message: string;
 };
@@ -122,7 +122,21 @@ export function checkInvariants(state: GameState): Violation[] {
 
   // I9: live torpedo salvoes have strength
   for (const salvo of state.ordnance) {
-    if (salvo.strength < 1) fail("I9", `${salvo.id}: strength ${salvo.strength}`);
+    if (salvo.kind === "torpedo_salvo" && salvo.strength < 1) fail("I9", `${salvo.id}: strength ${salvo.strength}`);
+  }
+
+  // I13: attack craft are consistent
+  for (const wave of state.ordnance) {
+    if (wave.kind !== "attack_craft") continue;
+    if (wave.squadrons.length === 0) fail("I13", `${wave.id} has no squadrons`);
+    if (wave.cap === null) continue;
+    const ship = state.ships.find((s) => s.id === wave.cap);
+    if (wave.squadrons.length !== 1 || wave.squadrons[0]?.role !== "fighter") fail("I13", `${wave.id} is on CAP but isn't a single fighter`);
+    if (ship === undefined || ship.owner !== wave.owner || ship.status !== "active") {
+      fail("I13", `${wave.id} flies CAP for ${wave.cap}, which isn't an active friendly ship`);
+    } else if (ship.position === null || Math.abs(ship.position.x - wave.position.x) > EPS || Math.abs(ship.position.y - wave.position.y) > EPS) {
+      fail("I13", `${wave.id} isn't at ${ship.id}'s stem`);
+    }
   }
 
   // I10: turnState belongs to this player turn

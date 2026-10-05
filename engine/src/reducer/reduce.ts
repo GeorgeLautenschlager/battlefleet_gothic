@@ -18,6 +18,7 @@ import { launchTorpedoes, moveOrdnance } from "./torpedoes";
 import { advanceStep, eliminatedSide, endGame, stepComplete } from "./steps";
 import { runWorkItem } from "./work";
 import { board, teleport } from "./boarding";
+import { launchAttackCraft, moveAttackCraft, releaseCapOrder } from "./craft";
 
 export function reduce(state: GameState, transform: Transform): GameState {
   const ctx = new Ctx(cloneJson(state));
@@ -77,7 +78,12 @@ function handle(ctx: Ctx, t: Transform): void {
     case "launch_torpedoes":
       return launchTorpedoes(ctx, t);
     case "move_ordnance":
+      if (ctx.state.ordnance.find((o) => o.id === t.ordnanceId)?.kind === "attack_craft") return moveAttackCraft(ctx, t);
       return moveOrdnance(ctx, t.ordnanceId);
+    case "launch_attack_craft":
+      return launchAttackCraft(ctx, t);
+    case "release_cap":
+      return releaseCapOrder(ctx, t);
     case "board":
       return board(ctx, t);
     case "teleport":

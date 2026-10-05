@@ -11,6 +11,7 @@ import { sum, type Ctx } from "./context";
 import { placeAtStem, placeCluster, placeShieldBlastMarkers } from "./blast";
 import { enqueueFront } from "./queue";
 import { leaveGrapple } from "./grapple";
+import { releaseCap } from "./cap";
 
 export type DamageSource = {
   source: AttackSource;
@@ -128,6 +129,7 @@ function resolveCatastrophic(ctx: Ctx, ship: Ship, rolls: number[], result: numb
     ship.status = result <= 6 ? "drifting_hulk" : "blazing_hulk";
     ship.specialOrder = null;
     leaveGrapple(ctx, ship);
+    releaseCap(ctx, ship);
     const blastMarkerIds = placeHulkMarker ? [placeAtStem(ctx, ship)] : [];
     ctx.log("catastrophic", { shipId: ship.id, rolls, result, outcome: ship.status, blastMarkerIds });
     return;
@@ -147,6 +149,7 @@ function explode(ctx: Ctx, ship: Ship, rolls: number[], result: number, strength
   ship.heading = null;
   ship.specialOrder = null;
   leaveGrapple(ctx, ship);
+  releaseCap(ctx, ship);
   const blastMarkerIds = placeCluster(ctx, centre, strength);
   ctx.log("catastrophic", {
     shipId: ship.id,

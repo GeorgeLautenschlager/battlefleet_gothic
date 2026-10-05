@@ -1,6 +1,6 @@
 /** Shooting checks (validator spec §4.3): fire and launch_torpedoes. */
 import { approxLe, distance, quadrantsOf, quadrantsOfPoint } from "../geometry/basic";
-import { isNearest, lineOfFireBlocked, type Target } from "../geometry/targeting";
+import { isNearest, lineOfFireBlocked, shootableOrdnance, type Target } from "../geometry/targeting";
 import { onTable, weaponDisabled } from "../state/derived";
 import type { GameState, Point, Ship, Weapon } from "../state/types";
 import type { Fire, LaunchTorpedoes } from "../transforms/types";
@@ -8,7 +8,7 @@ import { isResult, ownActiveShip } from "./movement";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
 
 /** Shared checks 1–6: own active ship whose disengage test didn't fail, not grappled and not boarding. */
-function shooter(state: GameState, shipId: string, player: string): Ship | ValidationResult {
+export function shooter(state: GameState, shipId: string, player: string): Ship | ValidationResult {
   const ship = ownActiveShip(state, shipId, player);
   if (isResult(ship)) return ship;
   if (state.turnState.ships[ship.id]?.disengage === "failed") {
@@ -67,8 +67,11 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
     target = { kind: "ship", ship: s };
   } else {
     const o = state.ordnance.find((x) => x.id === t.target.id);
-    if (o === undefined) return reject("UNKNOWN_TARGET", `No salvo ${t.target.id}`, { targetId: t.target.id });
-    if (o.owner === ship.owner) return reject("INVALID_TARGET", "That salvo is yours", { targetId: o.id });
+    if (o === undefined) return reject("UNKNOWN_TARGET", `No ordnance ${t.target.id}`, { targetId: t.target.id });
+    if (o.owner === ship.owner) return reject("INVALID_TARGET", "That ordnance is yours", { targetId: o.id });
+    if (!shootableOrdnance(o, ship)) {
+      return reject("INVALID_TARGET", "Fighters on Combat Air Patrol can't be shot at: they're on their ship's base", { targetId: o.id });
+    }
     target = { kind: "ordnance", salvo: o };
   }
   const from = ship.position as Point;

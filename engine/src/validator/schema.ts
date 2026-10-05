@@ -16,6 +16,7 @@ const ORDER_KINDS = [
   "brace_for_impact",
 ] as const;
 const QUADRANTS = ["front", "left", "rear", "right"] as const;
+const CRAFT_ROLES = ["fighter", "bomber", "assault_boat"] as const;
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -74,13 +75,17 @@ const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>
   drift_hulk: { required: { shipId: str } },
   declare_order: { required: { shipId: str, order: oneOf(ORDER_KINDS) }, optional: { ramTargetId: str } },
   move: { required: { shipId: str, path: arrayOf(pathStep), disengage: bool }, optional: { boardTargetId: str } },
+  release_cap: { required: { ordnanceId: str } },
   fire: {
     required: { shipId: str, weaponId: str, target },
     optional: { arc: oneOf(QUADRANTS), aspect: oneOf(QUADRANTS) },
   },
   launch_torpedoes: { required: { shipId: str, weaponId: str, bearing: num } },
+  launch_attack_craft: {
+    required: { shipId: str, waves: arrayOf(shape({ roles: arrayOf(oneOf(CRAFT_ROLES)), cap: bool })), recall: arrayOf(str) },
+  },
   end_step: { required: {} },
-  move_ordnance: { required: { ordnanceId: str } },
+  move_ordnance: { required: { ordnanceId: str }, optional: { path: arrayOf(point), cap: str } },
   answer_brace: { required: { pendingId: str, attempt: bool } },
   repair: { required: { shipId: str, priority: arrayOf(str) } },
   remove_blast_markers: { required: { priority: arrayOf(str) } },

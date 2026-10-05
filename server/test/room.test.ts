@@ -106,7 +106,7 @@ describe("lobby and start", () => {
       "p2 Bo 1 Lunar class cruiser", "p2 Bo 2 Lunar class cruiser", "p2 Bo 3 Lunar class cruiser",
     ]);
     expect(state.players.p2.faction).toBe("imperial_navy");
-    expect(state.meta.options).toEqual({ ramming: false, boarding: true });
+    expect(state.meta.options).toEqual({ ramming: false, boarding: true, carriers: false });
   });
 
   test("proposals before the start are refused", async () => {

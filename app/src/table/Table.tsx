@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { constants, type GameState, type Point } from "@bfg/engine";
+import { constants, craft, type GameState, type Point } from "@bfg/engine";
 import { ShipGlyph } from "./ShipGlyph";
 import { pointerToTable, toSvg, type View } from "./view";
 
@@ -93,6 +93,17 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
 
       {state.ordnance.map((o) => {
         const p = toSvg(view, o.position);
+        if (o.kind === "attack_craft") {
+          // Placeholder until the attack craft UI: the wave's footprint and its squadron count.
+          return (
+            <g key={o.id} className={`wave ${o.owner}${highlight.includes(o.id) ? " highlight" : ""}`} transform={`translate(${p.x} ${p.y})`}>
+              <circle r={craft.waveRadius(o)} />
+              <text y={0.5} textAnchor="middle">
+                {o.squadrons.length}
+              </text>
+            </g>
+          );
+        }
         return (
           <g
             key={o.id}

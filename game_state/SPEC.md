@@ -577,7 +577,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `bmsInContact(s)` | Blast Markers whose circle touches or overlaps the ship's base circle |
 | `shieldCapacity(s)` | `max(0, maxShields − |bmsInContact|)` (interpretation #11) |
 | `turrets(s)` | hulks 0; crippled `⌈turrets/2⌉`; else `turrets`. Not affected by Brace. |
-| `launchCapacity(s)` | Σ over the ship's `launch_bay` weapons that aren't disabled: `effectiveStrength` (crippled and braced halve it, p. 73) |
+| `launchCapacity(s)` | Σ `strength` over the ship's `launch_bay` weapons not lost to their side's armament critical, then halved (rounding up) if crippled and again if braced (p. 73, ruling N9) |
 | `craftInPlay(player)` | the number of squadrons in the player's attack craft waves, CAP included |
 | `fleetBays(player)` | Σ `launchCapacity` over the player's `active` ships: the fleet's ordnance limit (p. 73) |
 | `armourFacing(target, from)` | quadrant of `target` containing `from`; armour = `profile.armour[quadrant]`. Bombers use the minimum. |
@@ -824,6 +824,7 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N6 | **Fire!** deals its damage once per round (game turn), in the **owner's** End Phase after damage control. Both players still roll repairs in every End Phase. | §6 |
 | N7 | A ship that hasn't moved yet (`lastMove: null`) is **not** targeted as Defences. | §11 |
 | N8 | An attack craft marker's footprint is a circle of radius `CRAFT_RADIUS` = 1 cm (a 20 mm square's inscribed circle, p. 79); a wave of `n` markers is a circle of radius `√n` cm, about the area of a compact block. | §10.2 |
+| N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
 
 ---
 
