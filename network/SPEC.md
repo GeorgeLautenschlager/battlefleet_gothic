@@ -1,6 +1,6 @@
 # Network Play Specification
 
-**Status:** draft v0.1, for discussion. **Scope:** two players on two devices playing the Phase 1 game (Cruiser Clash, Lunar vs Murder), live or turn-by-turn. Builds on [Game State](../game_state/SPEC.md), [Transforms](../transforms/SPEC.md), the [engine](../engine/README.md) and the [browser app](../app/README.md) ([ADR 0002](../docs/adr/0002-browser-app.md)).
+**Status:** v0.2, accepted ([ADR 0003](../docs/adr/0003-network-play.md)); not yet implemented. **Scope:** two players on two devices playing the Phase 1 game (Cruiser Clash, Lunar vs Murder), live or turn-by-turn. Builds on [Game State](../game_state/SPEC.md), [Transforms](../transforms/SPEC.md), the [engine](../engine/README.md) and the [browser app](../app/README.md) ([ADR 0002](../docs/adr/0002-browser-app.md)).
 
 Hot-seat stays exactly as it is. Network play is a second way to drive the same UI.
 
@@ -17,7 +17,7 @@ Contents:
 - operations: hosting, deploys, versions, limits (§9)
 - testing (§10)
 - delivery plan (§11)
-- rulings (§12), decisions (§13), open questions (§14)
+- rulings (§12), decisions (§13), later (§14)
 
 ---
 
@@ -55,7 +55,7 @@ Why not peer-to-peer? WebRTC still needs a signalling server, NAT traversal some
 
 No accounts. A player is whoever holds that seat's **token**.
 
-1. **Create.** The host picks *New online game*, enters their name and ship name, and picks a side (Imperial or Chaos; open question Q3). The server creates the game and returns `gameId` plus two secret tokens, one per seat.
+1. **Create.** The host picks *New online game*, enters their name and ship name, and picks a side (Imperial or Chaos; D3). The server creates the game and returns `gameId` plus two secret tokens, one per seat.
 2. **Invite.** The app shows an invite link for the other seat: `https://…/battlefleet_gothic/#join=<gameId>.<token>`. The host sends it however they like.
 3. **Join.** The guest opens the link, enters their name and ship name, and the seat is theirs. When both seats are filled, the server builds the config (with a server-side random seed, §5) and creates the game. Setup then proceeds as today: leadership, zones, deployment.
 4. **Return.** Each browser remembers its games in `localStorage` (`gameId`, seat and token). A *My games* list on the start screen resumes any of them, live or days later.
@@ -95,7 +95,7 @@ One WebSocket per open game: `wss://<server>/games/<gameId>/ws`. Messages are JS
 
 ### 4.3 Sending whole states
 
-Each `applied` carries the whole redacted state. A Phase 1 state is a few tens of KB once the log has grown. That costs bandwidth but keeps clients trivially correct: there's no diffing, no client-side reduce, and no drift. If size becomes a problem, the first optimisation is sending log entries since the last `seq` plus the non-log state (open question Q8).
+Each `applied` carries the whole redacted state. A Phase 1 state is a few tens of KB once the log has grown. That costs bandwidth but keeps clients trivially correct: there's no diffing, no client-side reduce, and no drift. If size becomes a problem, the first optimisation is sending log entries since the last `seq` plus the non-log state (D8).
 
 ### 4.4 Ordering and conflicts
 
@@ -197,7 +197,7 @@ Stored per game:
 
 ### 8.3 Lifetime
 
-- An alarm deletes a game after **30 days with no activity** (open question Q4).
+- An alarm deletes a game after **30 days with no activity** (D4).
 - Ended games are kept for 7 days so both players can export them.
 
 ## 9. Operations
@@ -267,18 +267,19 @@ Steps 1 and 3 don't need a Cloudflare account, so they can start straight away.
 
 | # | Question | Decision |
 |---|---|---|
-| — | — | (none yet) |
+| D1 | Server-authoritative engine, or a dumb relay with per-roll commit-reveal between peers? | **Server-authoritative** (W1). |
+| D2 | Online undo? | As §6 (W4): your own latest, dice-free transform only; repeatable; no consent. |
+| D3 | Sides and names? | The host picks their side; the guest gets the other. Each player names their own admiral and ship. |
+| D4 | How long do games live? | Deleted after 30 days idle; ended games kept 7 days for export. |
+| D8 | Whole states or deltas on the wire? | Whole redacted states until size hurts (§4.3). |
+| D9 | Turn timeouts or a clock? | None. |
 
-## 14. Open questions
+## 14. Later
 
-| # | Question | Recommendation |
+Not in the first version; the design leaves room for each.
+
+| # | What | Note |
 |---|---|---|
-| Q1 | Server-authoritative engine (this spec) or a dumb relay plus per-roll commit-reveal between peers? | **Server-authoritative.** Less code, no extra round-trips per roll, and dice are simply secret. |
-| Q2 | Is the undo rule in §6 right, or should online undo be off entirely, or need the opponent's OK? | §6 as written. |
-| Q3 | Who picks sides and names? | The host picks their side, the guest gets the other, and each names their own admiral and ship. A "random sides" toggle is cheap if wanted. |
-| Q4 | How long do idle games live? | 30 days idle, plus 7 days after the end for export. |
-| Q5 | Spectator links (read-only, a third token)? | Later. It's cheap with this design, but not needed for two friends. |
-| Q6 | In-game chat? | Later. You'll have a chat app open anyway. |
-| Q7 | "Your turn" notifications (email or Web Push) for turn-by-turn games? | Later. The *My games* list shows whose turn it is. Web Push is the natural next step. |
-| Q8 | Send whole states, or log deltas? | Whole states until it hurts (§4.3). |
-| Q9 | Should the server enforce turn timeouts or a clock? | No. Friendly games, and turn-by-turn play needs none. |
+| L5 | Spectator links | A third, read-only token; the server already broadcasts to every socket. |
+| L6 | In-game chat | A `chat` message type relayed by the DO. |
+| L7 | "Your turn" notifications | Web Push from the DO when the actor changes; *My games* shows whose turn it is meanwhile. |
