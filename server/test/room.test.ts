@@ -50,9 +50,9 @@ describe("creating a game", () => {
     expect(upgradeRoomData(v2)).toEqual(v2);
     // A protocol 2 room from before boarding or carriers existed: they stay off.
     const before = { ...v2, options: { ramming: false } } as unknown as RoomData;
-    expect(upgradeRoomData(before).options).toEqual({ ramming: false, boarding: false, carriers: false });
+    expect(upgradeRoomData(before).options).toEqual({ ramming: false, boarding: false, carriers: false, forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
     const boardingOnly = { ...v2, options: { ramming: true, boarding: true } } as unknown as RoomData;
-    expect(upgradeRoomData(boardingOnly).options).toEqual({ ramming: true, boarding: true, carriers: false });
+    expect(upgradeRoomData(boardingOnly).options).toEqual({ ramming: true, boarding: true, carriers: false, forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
   });
 });
 
@@ -124,6 +124,26 @@ describe("lobby and start", () => {
     const state = h.stateOf("b")!;
     expect(state.meta.options.carriers).toBe(true);
     expect(state.ships.map((s) => s.profile.classId)).toEqual(["dictator", "lunar", "devastation", "murder"]);
+  });
+
+  test("points battles: each side brings its own number of ships within the limit, scored in victory points", async () => {
+    const ann = { faction: "imperial_navy", ships: [{ name: "Fortitude", classId: "dictator" }, { name: "Invincible", classId: "gothic" }, { name: "Agrippa", classId: "lunar" }] } as const;
+    const h = await Harness.create({ fleet: ann, forces: { kind: "points", limit: 750 }, scoring: "victory_points" });
+    const [welcome] = await h.hello("a", "p1");
+    expect(welcome).toMatchObject({ lobby: { options: { forces: { kind: "points", limit: 750 }, scoring: "victory_points" } } });
+    await h.hello("b", "p2");
+    const tooMuch = { faction: "chaos", ships: ["devastation", "carnage", "inferno", "slaughter", "murder"].map((classId, i) => ({ name: `C${i}`, classId })) } as const;
+    expect(rejection(await h.join("b", "p2", "Bo", tooMuch))?.reason).toMatchObject({ code: "INVALID_FLEET", message: expect.stringContaining("over the 750 pt limit") });
+    const two = { faction: "chaos", ships: [{ name: "Deathbane", classId: "devastation" }, { name: "Killfrenzy", classId: "slaughter" }] } as const;
+    await h.join("b", "p2", "Bo", two);
+    const state = h.stateOf("b")!;
+    expect(state.ships).toHaveLength(5);
+    expect(state.scenario).toMatchObject({ forces: { kind: "points", limit: 750 }, scoring: "victory_points" });
+  });
+
+  test("a host over its own points limit can't create the game", async () => {
+    const big = { faction: "imperial_navy", ships: ["dictator", "dictator", "tyrant", "lunar"].map((classId, i) => ({ name: `I${i}`, classId })) } as const;
+    await expect(Harness.create({ fleet: big, forces: { kind: "points", limit: 750 } })).rejects.toThrow("INVALID_FLEET");
   });
 
   test("proposals before the start are refused", async () => {

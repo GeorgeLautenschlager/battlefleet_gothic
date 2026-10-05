@@ -118,3 +118,38 @@ test("fleets online: two a side, a Chaos mirror match, names checked against the
   await expect(bo.locator(".card").filter({ hasText: "Woe Unending" })).toHaveCount(1);
   await bo.screenshot({ path: "e2e-results/online-fleets.png" });
 });
+
+test("points battle online: the host sets the limit, each side brings its own number of ships", async ({ browser }) => {
+  const ann = await player(browser);
+  const bo = await player(browser);
+
+  await ann.goto("/");
+  const online = ann.locator("form", { hasText: "Online" });
+  await online.getByLabel("Battle").selectOption("750");
+  await online.getByLabel("Commander").fill("Ann");
+  await online.getByRole("button", { name: "Add a ship" }).click();
+  await online.getByRole("button", { name: "Add a ship" }).click();
+  await online.getByLabel("Ship 1 class").selectOption("dictator");
+  await expect(online.locator("fieldset")).toContainText("· 580 of 750 pts");
+  await online.getByRole("button", { name: "Create game" }).click();
+  await expect(ann.getByText("Waiting for your opponent")).toBeVisible();
+  const link = await ann.getByLabel("Invite link").inputValue();
+
+  await bo.goto(link);
+  await expect(bo.getByText("750 points a side, victory points")).toBeVisible();
+  const form = bo.locator("form", { hasText: "You've been invited" });
+  await form.getByLabel("Commander").fill("Bo");
+  // Starts with the host's three; a fourth Murder-class fits, a fifth ship doesn't.
+  await form.getByRole("button", { name: "Add a ship" }).click();
+  await form.getByRole("button", { name: "Add a ship" }).click();
+  await expect(form.locator(".rejection")).toContainText("over the 750 pt limit");
+  await expect(form.getByRole("button", { name: "Join the battle" })).toBeDisabled();
+  await form.getByRole("button", { name: "Remove the last" }).click();
+  await form.getByRole("button", { name: "Join the battle" }).click();
+
+  for (const p of [ann, bo]) {
+    await expect(where(p)).toContainText("Setup · Roll leadership");
+    await expect(p.locator(".card")).toHaveCount(7);
+    await expect(p.locator(".card").filter({ hasText: "Dictator class cruiser" })).toHaveCount(1);
+  }
+});

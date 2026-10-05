@@ -2,7 +2,7 @@
  * The network protocol (network/SPEC.md §4): every message between a client
  * and a game room. Plain JSON, one `type` per message.
  */
-import type { FactionId, GameConfig, GameState, PlayerId, Transform } from "@bfg/engine";
+import type { FactionId, Forces, GameConfig, GameState, PlayerId, Scoring, Transform } from "@bfg/engine";
 
 /** Bumped on any incompatible change to these messages. 2: fleets (several ships a side, any faction). */
 export const PROTOCOL = 2;
@@ -14,6 +14,8 @@ export const MAX_SOCKETS_PER_SEAT = 2;
 export const MAX_NAME_LENGTH = 40;
 /** Cruiser Clash (p. 128): 1–4 cruisers a side. */
 export const MAX_SHIPS = 4;
+/** Ships a side in a points battle (the app's limit too). */
+export const MAX_POINTS_SHIPS = 8;
 
 /** One ship a player brings: its name and its class in the engine catalogue. */
 export type ShipEntry = { name: string; classId: string };
@@ -31,9 +33,12 @@ export type ClientMessage = Hello | Join | Propose | Undo | Ping;
 // --- Server → client (§4.2)
 
 export type SeatInfo = { name: string | null; faction: FactionId | null; ships: ShipEntry[]; joined: boolean };
-/** The game's optional rules. `carriers`: one carrier each over the 185-point cap (p. 129). */
-export type RoomOptions = { ramming: boolean; boarding: boolean; carriers: boolean };
-/** `count`: ships a side, set by the host; `options`: the game's optional rules. */
+/**
+ * The game's rules. `carriers`: one carrier each over the 185-point cap (p. 129).
+ * `forces`: Cruiser Clash or a points battle; `scoring`: Cruiser Clash or victory points (transform §5).
+ */
+export type RoomOptions = { ramming: boolean; boarding: boolean; carriers: boolean; forces: Forces; scoring: Scoring };
+/** `count`: ships a side, set by the host (Cruiser Clash; a points battle leaves each side its own); `options`: the game's rules. */
 export type Lobby = { seats: Record<PlayerId, SeatInfo>; count: number; options: RoomOptions };
 export type Presence = Record<PlayerId, boolean>;
 export type RoomStatus = "lobby" | "active" | "ended";
@@ -105,7 +110,7 @@ const isCount = (v: unknown): v is number => typeof v === "number" && Number.isI
 
 /** A list of ships, shape only: names and classes are checked by the room. */
 export function isShipList(v: unknown): v is ShipEntry[] {
-  return Array.isArray(v) && v.length <= MAX_SHIPS * 2 && v.every((s) => isObject(s) && isString(s["name"]) && isString(s["classId"], 40));
+  return Array.isArray(v) && v.length <= MAX_POINTS_SHIPS && v.every((s) => isObject(s) && isString(s["name"]) && isString(s["classId"], 40));
 }
 
 /** Parse one raw client message, or say why not. */

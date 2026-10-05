@@ -3,7 +3,7 @@
  * authoritative engine. No Cloudflare APIs: messages in, addressed messages
  * out, and `data` to persist. Randomness, hashing and time come in as `Deps`.
  */
-import { newGame, reduce, validate, type FactionId, type GameConfig, type GameState, type PlayerId, type Transform } from "@bfg/engine";
+import { newGame, reduce, validate, type FactionId, type Forces, type GameConfig, type GameState, type PlayerId, type Scoring, type Transform } from "@bfg/engine";
 import { cleanName, cruiserClash, fleetProblem } from "./config";
 import {
   MAX_MESSAGES_PER_SECOND,
@@ -88,11 +88,23 @@ export function toBase64Url(bytes: Uint8Array): string {
   return out;
 }
 
+const CRUISER_CLASH: Forces = { kind: "cruiser_clash" };
+
 const trimShips = (ships: ShipEntry[]): ShipEntry[] => ships.map((s) => ({ name: s.name.trim(), classId: s.classId }));
 
 /** The host's fleet sets the number of ships a side. */
-/** `boarding` and `carriers` are optional: pages from before they existed create games without them. */
-export type CreateRequest = { name: string; side: PlayerId; faction: FactionId; ships: ShipEntry[]; ramming: boolean; boarding?: boolean; carriers?: boolean };
+/** `boarding`, `carriers`, `forces` and `scoring` are optional: pages from before they existed create Cruiser Clash games without them. */
+export type CreateRequest = {
+  name: string;
+  side: PlayerId;
+  faction: FactionId;
+  ships: ShipEntry[];
+  ramming: boolean;
+  boarding?: boolean;
+  carriers?: boolean;
+  forces?: Forces;
+  scoring?: Scoring;
+};
 export type Created = { data: RoomData; seat: PlayerId; token: string; inviteToken: string };
 export type CreateError = { error: "INVALID_NAME" | "INVALID_SIDE" | "INVALID_FLEET"; message?: string };
 
@@ -101,7 +113,8 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
   if (req.side !== "p1" && req.side !== "p2") return { error: "INVALID_SIDE" };
   const name = cleanName(req.name);
   if (name === null) return { error: "INVALID_NAME" };
-  const problem = fleetProblem(req.faction, req.ships, req.ships.length, req.carriers ?? false);
+  const forces = req.forces ?? CRUISER_CLASH;
+  const problem = fleetProblem(req.faction, req.ships, req.ships.length, req.carriers ?? false, forces);
   if (problem !== null) return { error: "INVALID_FLEET", message: problem };
   const token = toBase64Url(deps.randomBytes(16));
   const inviteToken = toBase64Url(deps.randomBytes(16));
@@ -119,7 +132,7 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
     status: "lobby",
     seats,
     count: req.ships.length,
-    options: { ramming: req.ramming, boarding: req.boarding ?? false, carriers: req.carriers ?? false },
+    options: { ramming: req.ramming, boarding: req.boarding ?? false, carriers: req.carriers ?? false, forces, scoring: req.scoring ?? "cruiser_clash" },
     config: null,
     transforms: [],
     snapshot: null,
@@ -132,7 +145,16 @@ export function upgradeRoomData(data: RoomData): RoomData {
   if (typeof data.count === "number") {
     // Rooms from before boarding or carriers existed don't have those options: they stay off.
     const options = data.options as Partial<RoomData["options"]>;
-    return { ...data, options: { ramming: options.ramming ?? true, boarding: options.boarding ?? false, carriers: options.carriers ?? false } };
+    return {
+      ...data,
+      options: {
+        ramming: options.ramming ?? true,
+        boarding: options.boarding ?? false,
+        carriers: options.carriers ?? false,
+        forces: options.forces ?? CRUISER_CLASH,
+        scoring: options.scoring ?? "cruiser_clash",
+      },
+    };
   }
   const legacy = (p: PlayerId, seat: SeatRecord & { shipName?: string | null }): SeatRecord => ({
     tokenHash: seat.tokenHash,
@@ -140,7 +162,7 @@ export function upgradeRoomData(data: RoomData): RoomData {
     faction: seat.name === null ? null : p === "p1" ? "imperial_navy" : "chaos",
     ships: seat.shipName ? [{ name: seat.shipName, classId: p === "p1" ? "lunar" : "murder" }] : [],
   });
-  return { ...data, count: 1, options: { ramming: true, boarding: false, carriers: false }, seats: { p1: legacy("p1", data.seats.p1), p2: legacy("p2", data.seats.p2) } };
+  return { ...data, count: 1, options: { ramming: true, boarding: false, carriers: false, forces: CRUISER_CLASH, scoring: "cruiser_clash" }, seats: { p1: legacy("p1", data.seats.p1), p2: legacy("p2", data.seats.p2) } };
 }
 
 type Session = { seat: PlayerId | null; recent: number[] };
@@ -226,7 +248,7 @@ export class GameRoom {
     if (this.data.status !== "lobby") return this.reject(conn, "", "ALREADY_STARTED", "The game has already started");
     const name = cleanName(rawName);
     if (name === null) return this.reject(conn, "", "INVALID_NAME", `Names need 1–${MAX_NAME_LENGTH} characters`);
-    const problem = fleetProblem(faction, ships, this.data.count, this.data.options.carriers);
+    const problem = fleetProblem(faction, ships, this.data.count, this.data.options.carriers, this.data.options.forces);
     if (problem !== null) return this.reject(conn, "", "INVALID_FLEET", problem);
     const other = this.data.seats[seat === "p1" ? "p2" : "p1"];
     const taken = trimShips(ships).find((s) => other.ships.some((o) => o.name === s.name));

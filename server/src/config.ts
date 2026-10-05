@@ -1,6 +1,6 @@
 /** Online Cruiser Clash (p. 128): each seat brings its own fleet; the room builds the config when both have. */
-import { newGame, type FactionId, type GameConfig, type PlayerId } from "@bfg/engine";
-import { MAX_NAME_LENGTH, MAX_SHIPS, type RoomOptions, type ShipEntry } from "./protocol";
+import { newGame, type FactionId, type Forces, type GameConfig, type PlayerId } from "@bfg/engine";
+import { MAX_NAME_LENGTH, MAX_POINTS_SHIPS, MAX_SHIPS, type RoomOptions, type ShipEntry } from "./protocol";
 
 export type SeatFleet = { name: string; faction: FactionId; ships: ShipEntry[] };
 
@@ -15,6 +15,8 @@ export function cruiserClash(
     seed,
     createdAt,
     options: { ramming: options.ramming, boarding: options.boarding, carriers: options.carriers },
+    forces: options.forces,
+    scoring: options.scoring,
     players: {
       p1: { name: seats.p1.name, faction: seats.p1.faction },
       p2: { name: seats.p2.name, faction: seats.p2.faction },
@@ -35,9 +37,20 @@ export const cleanName = (s: string): string | null => {
  * (classes, faction, cruisers only, points) are the engine's: the fleet is
  * tried against a mirror of itself.
  */
-export function fleetProblem(faction: string, ships: ShipEntry[], count: number, carriers = false): string | null {
-  if (!Number.isInteger(count) || count < 1 || count > MAX_SHIPS) return `A fleet has 1–${MAX_SHIPS} cruisers`;
-  if (ships.length !== count) return `This game is ${count} cruiser${count === 1 ? "" : "s"} a side`;
+export function fleetProblem(
+  faction: string,
+  ships: ShipEntry[],
+  count: number,
+  carriers = false,
+  forces: Forces = { kind: "cruiser_clash" },
+): string | null {
+  if (forces.kind === "points") {
+    // A points battle: each side brings its own number of ships, within the limit (T36).
+    if (ships.length < 1 || ships.length > MAX_POINTS_SHIPS) return `A fleet has 1–${MAX_POINTS_SHIPS} ships`;
+  } else {
+    if (!Number.isInteger(count) || count < 1 || count > MAX_SHIPS) return `A fleet has 1–${MAX_SHIPS} cruisers`;
+    if (ships.length !== count) return `This game is ${count} cruiser${count === 1 ? "" : "s"} a side`;
+  }
   if (ships.some((s) => cleanName(s.name) === null)) return `Ship names need 1–${MAX_NAME_LENGTH} characters`;
   const names = ships.map((s) => s.name.trim());
   if (new Set(names).size !== names.length) return "Every ship needs its own name";
@@ -47,6 +60,7 @@ export function fleetProblem(faction: string, ships: ShipEntry[], count: number,
       seed: 1,
       createdAt: "1970-01-01T00:00:00Z",
       options: { carriers },
+      forces,
       players: { p1: { name: "a", faction: faction as FactionId }, p2: { name: "b", faction: faction as FactionId } },
       ships: [...side("p1"), ...side("p2")],
     });

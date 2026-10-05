@@ -3,6 +3,7 @@
  * its Durable Object. CORS and origin checks for browsers; a best-effort
  * per-isolate rate limit on creating games.
  */
+import type { Forces } from "@bfg/engine";
 import { createRoom, type CreateRequest } from "../room";
 import { isShipList, PROTOCOL } from "../protocol";
 import { isWebSocketUpgrade, workerDeps } from "./deps";
@@ -73,6 +74,8 @@ export default {
           ramming: body?.ramming !== false,
           boarding: body?.boarding === true,
           carriers: body?.carriers === true,
+          ...forcesOf(body?.forces),
+          ...(body?.scoring === "victory_points" ? { scoring: "victory_points" as const } : {}),
         },
         workerDeps(env.ENGINE_BUILD),
       );
@@ -93,3 +96,10 @@ export default {
     return new Response("Not found", { status: 404, headers: cors(origin) });
   },
 } satisfies ExportedHandler<Env>;
+
+/** A points battle's forces from a request body, or nothing (Cruiser Clash). A bad limit is the engine's to refuse. */
+function forcesOf(v: unknown): { forces?: Forces } {
+  if (typeof v !== "object" || v === null) return {};
+  const f = v as { kind?: unknown; limit?: unknown };
+  return f.kind === "points" && typeof f.limit === "number" ? { forces: { kind: "points", limit: f.limit } } : {};
+}

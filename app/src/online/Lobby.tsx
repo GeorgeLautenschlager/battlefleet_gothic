@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CATALOGUE, type PlayerId } from "@bfg/engine";
 import type { Lobby as LobbyInfo, SeatInfo } from "@bfg/server";
-import { asFleet, shipEntries, sideProblem, type Side } from "../game/config";
+import { asFleet, carriersAllowed, shipEntries, sideProblem, type Side } from "../game/config";
 import { duplicates, DuplicateNames, FleetFields, FleetProblem, resize } from "../panels/FleetForm";
 import { factionName } from "../players";
 import { inviteLink } from "./config";
@@ -11,10 +11,15 @@ import type { Remote } from "./useRemoteSource";
 const SEAT: Record<PlayerId, string> = { p1: "Player 1", p2: "Player 2" };
 const other = (p: PlayerId): PlayerId => (p === "p1" ? "p2" : "p1");
 
-/** "Cruiser Clash, 2 cruisers a side, ramming allowed, boarding allowed, one carrier each." */
+/** "Cruiser Clash, 2 cruisers a side, ramming allowed, boarding allowed, one carrier each." or "750 points a side, victory points, …" */
 function rulesLine(lobby: LobbyInfo): string {
-  const { ramming, boarding = false, carriers = false } = lobby.options as Partial<LobbyInfo["options"]>;
-  return `Cruiser Clash, ${lobby.count} cruiser${lobby.count === 1 ? "" : "s"} a side, ${ramming ? "ramming allowed" : "no ramming"}, ${boarding ? "boarding allowed" : "no boarding"}${carriers ? ", one carrier each" : ""}.`;
+  const { ramming, boarding = false, carriers = false, forces, scoring } = lobby.options as Partial<LobbyInfo["options"]>;
+  const size =
+    forces?.kind === "points"
+      ? `${forces.limit} points a side`
+      : `Cruiser Clash, ${lobby.count} cruiser${lobby.count === 1 ? "" : "s"} a side${carriers ? ", one carrier each" : ""}`;
+  const score = scoring === "victory_points" ? ", victory points" : forces?.kind === "points" ? ", Cruiser Clash scoring" : "";
+  return `${size}${score}, ${ramming ? "ramming allowed" : "no ramming"}, ${boarding ? "boarding allowed" : "no boarding"}.`;
 }
 
 /** "Imperial Navy: 2 × Lunar class cruiser (Agrippa, Hammer of Terra)" */
@@ -83,9 +88,12 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
     const fleet = asFleet(host.faction) === "chaos" ? "imperial_navy" : "chaos";
     return { name: SEAT[seat], fleet, ships: resize([], fleet, lobby.count, hostNames) };
   });
-  const carriers = (lobby.options as Partial<LobbyInfo["options"]>).carriers === true;
+  const options = lobby.options as Partial<LobbyInfo["options"]>;
+  const forces = options.forces;
+  const points = forces?.kind === "points" ? forces.limit : null;
+  const carriers = carriersAllowed({ carriers: options.carriers === true, ...(forces ? { forces } : {}) });
   const dupes = duplicates([...hostNames, ...side.ships]);
-  const problem = dupes.length > 0 ? null : sideProblem(side, carriers);
+  const problem = dupes.length > 0 ? null : sideProblem(side, carriers, forces);
   return (
     <form
       className="new-game"
@@ -116,6 +124,8 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
         }
         dupes={dupes}
         carriers={carriers}
+        pointsLimit={points}
+        taken={hostNames}
       />
       <DuplicateNames dupes={dupes} />
       <FleetProblem problem={problem} />
