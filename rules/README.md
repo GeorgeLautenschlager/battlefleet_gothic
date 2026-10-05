@@ -45,7 +45,7 @@ Rules needed for a minimal hot-seat game (no terrain, no squadrons, no attack cr
 | Fire arcs, target aspect, lances, batteries, Gunnery Table | [04-shooting.md](04-shooting.md) |
 | Shields, Blast Markers, criticals, crippling, catastrophic damage, hulks | [05-damage.md](05-damage.md) |
 | Torpedoes (Lunar prow), turrets, reload | [06-ordnance.md](06-ordnance.md) (Torpedoes, Turrets sections) |
-| Damage control, BM removal, (optional) boarding | [07-end-phase.md](07-end-phase.md) |
+| Damage control, BM removal, boarding actions and teleport attacks | [07-end-phase.md](07-end-phase.md) |
 | Designer rulings on arcs/halted ships/BM timing/torpedo facing | [14-designer-notes.md](14-designer-notes.md) |
 
 Not needed for Phase 1: squadrons, attack craft, nova cannon, planetary defences, celestial phenomena, campaigns.

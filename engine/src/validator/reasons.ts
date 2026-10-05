@@ -57,6 +57,20 @@ export const REASON_CODES = [
   "ALREADY_REPAIRED",
   "NOTHING_TO_REPAIR",
   "INVALID_PRIORITY",
+  // Boarding and teleport attacks (validator spec v0.4): specified, not yet produced.
+  "BOARDING_OFF",
+  "INVALID_BOARDING_TARGET",
+  "TARGET_GRAPPLED",
+  "CANNOT_BOARD_AND_LEAVE",
+  "NOT_IN_CONTACT",
+  "GRAPPLED",
+  "BOARDING_SHIP",
+  "NO_BOARDING_DECLARED",
+  "BOARDING_UNRESOLVED",
+  "ALREADY_TELEPORTED",
+  "CANNOT_TELEPORT",
+  "SHIELDS_UP",
+  "TARGET_TOO_LARGE",
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.6, for discussion. **Scope:** Phase 1 (Cruiser Clash, one Lunar vs one Murder, hot-seat), with room to grow.
+**Status:** draft v0.7, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 adds boarding actions, grapples and teleport attacks (pp. 89–92): §7 `Grapple`, §8, §9.1, §11, §13.
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -119,8 +119,9 @@ type Meta = {
   ruleset: "bfg-remastered-1.10"
   createdAt: string            // ISO-8601, informational only; never read by rules
   options: {
-    ramming: boolean           // Phase 1 default true
-    boarding: boolean          // Phase 1 default false
+    ramming: boolean           // default true
+    boarding: boolean          // boarding actions and teleport attacks (pp. 89–92). Default false when
+                               // a config doesn't say, so older saves replay unchanged; the app turns it on
   }
 }
 
@@ -200,7 +201,7 @@ type Step =
   // ordnance (both players, active player first; p. 74, p. 201)
   | "active_ordnance" | "inactive_ordnance"
   // end (p. 88: in this order)
-  | "boarding"           // skipped unless meta.options.boarding
+  | "boarding"           // grapples fight, boarding actions, teleport attacks; skipped unless meta.options.boarding
   | "damage_control"     // both players repair; then the active player's fires burn
   | "blast_marker_removal"
 ```
@@ -211,6 +212,8 @@ Steps advance automatically once they're complete; steps with optional actions e
 |---|---|
 | Start of a player turn | `turnState` reset (§8). |
 | Start of the owner's Movement Phase | Remove that player's special orders whose `expires.at = "movement_start"` and `expires.playerTurn ≤ now` (p. 51). |
+| Entering `move_ships` | Each of the active player's **grappled** ships stays put: `moved = true`, `lastMove = { playerTurn, distance: 0 }` (drawn combats, pp. 90–91). |
+| Entering `boarding` | Every grapple fights again (transform §4.6). |
 | Entering `blast_marker_removal` | Each of the **active player's** ships takes 1 damage per `fire` critical still burning. Fires burn once per round, in their owner's End Phase, after both players have had their repair rolls. |
 | End of a player turn | Remove orders whose `expires.at = "turn_end"` for this player turn (Brace For Impact!). |
 | End of round `maxRounds`, or a fleet has no `active` ships left (D6) | `stage = "ended"`, `result` filled in. |
@@ -234,7 +237,12 @@ type Ship = {
   specialOrder: SpecialOrder | null
   loaded: { torpedoes?: boolean }    // one key per launcher kind the ship has; true at game start (p. 74)
   lastMove: { playerTurn: number, distance: number } | null
-  grapple: { withShipId: string } | null   // drawn boarding action (p. 90); Phase 1: always null
+  grapple: Grapple | null            // locked in a drawn boarding action (pp. 90–91)
+}
+
+type Grapple = {
+  defenderId: string
+  attackerIds: string[]              // also the order in which the attackers take boarding damage
 }
 
 type ShipStatus =
@@ -251,6 +259,7 @@ Notes:
 - `damage` is capped at `profile.hits`. Hits beyond that (on a hulk, say) are logged but don't increase `damage`. Cruiser Clash scoring reads `damage`, so overkill doesn't score (D7).
 - `lastMove` is written when the ship ends a move. A ship that didn't move at all (e.g. Burn Retros to zero) still gets `distance: 0`. It drives the **Defences** gunnery column (§11).
 - `leadership` is the rolled value only. Bridge Smashed and any other modifiers are derived.
+- `grapple`: a boarding action that ended in a draw locks its ships together. They fight again in **every** End Phase, both players', until the defender or every attacker is no longer `active` (drawn combats, pp. 90–91). Every ship in a grapple carries an **identical** `grapple` object. A ship leaves its grapple the moment it stops being `active` (it becomes a hulk, explodes, or leaves the table), and a grapple with no defender or no attackers left dissolves: every member's `grapple` becomes `null`. Grappled ships can't move, take orders, fire or launch ordnance, and other ships can't board them (transform T9).
 
 ### 7.1 Profile snapshot
 
@@ -363,7 +372,9 @@ type ShipTurnState = {
   priorityTest: "passed" | "failed" | null   // Ld test to ignore the nearest target (p. 60)
   weaponsFired: string[]             // weapon ids fired/launched this turn
   disengage: "passed" | "failed" | null      // failed → may not fire, launch or take orders (except Brace)
-  boardingDeclared: string | null    // target ship id; Phase 1 unused
+  boardingDeclared: string | null    // target ship id: declared with the move that made contact (p. 89)
+  boarded: boolean                   // its boarding action has been fought this End Phase
+  teleported: boolean                // made its teleport attack this End Phase (pp. 91–92)
   repaired: boolean                  // damage control rolled this End Phase
 }
 
@@ -404,6 +415,7 @@ type Activation = {
   slowedByBlastMarkers: boolean      // the −5 cm has been applied (once per move)
   zeroShieldBMTestDone: boolean      // 0-shield ship already rolled for moving through BMs
   disengage: boolean                 // the move asked for a disengage test at its end
+  boardTargetId: string | null       // the move declares a boarding action against this ship (transform §4.2)
 }
 
 type PathStep =
@@ -538,7 +550,10 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `turrets(s)` | hulks 0; crippled `⌈turrets/2⌉`; else `turrets`. Not affected by Brace. |
 | `armourFacing(target, from)` | quadrant of `target` containing `from`; armour = `profile.armour[quadrant]`. Bombers use the minimum. |
 | `canTurn(s)` | `!has(engine_room)` |
-| `weaponDisabled(s, w)` | a matching `<location>_armament` critical exists, or the ship failed its disengage test this turn |
+| `weaponDisabled(s, w)` | a matching `<location>_armament` critical exists, or the ship failed its disengage test this turn, is grappled, or declared a boarding action this turn (p. 89) |
+| `isGrappled(s)` | `s.grapple ≠ null` |
+| `boardingValue(s)` | `remainingHits(s)` (p. 89). Later fleets modify it (Mark of Khorne doubles it, Tau halve it). |
+| `shieldsDown(s)` | `shieldCapacity(s) = 0`: the ship can be teleported onto (pp. 91–92) |
 | `effectiveStrength(s, w)` | `w.strength`, halved (round up) once for each that applies: crippled; braced; for direct fire only, on AAF / Come To New Heading / Burn Retros |
 | `targetedAsDefences(s)` | `lastMove.distance < 5` (p. 53) |
 | `commandCheckLd(s)` | `leadership(s) − (bmsInContact non-empty ? 1 : 0) + (any enemy ship has a live specialOrder ? 1 : 0)`, max 10; roll ≤ that, 11–12 always fail |
@@ -580,6 +595,7 @@ Properties every valid state satisfies. These are good property-test fodder.
 9. Every `TorpedoSalvo.strength ≥ 1`.
 10. `turnState.playerTurn = clock.playerTurn`.
 11. `clock.stage = "ended"` ⇔ `result ≠ null`.
+12. Grapples are consistent. A ship with `grapple ≠ null` is `active`. Every ship its grapple names is `active` and carries an identical `grapple`. `defenderId ∉ attackerIds`, `attackerIds` is non-empty, and the attackers are all the defender's enemies. No ship is in two grapples.
 
 ```ts
 type GameResult = {
@@ -701,8 +717,8 @@ Agrippa (p1, Imperial, zone B, Ld 8) vs Unclean (p2, Chaos, zone A, Ld 7). Uncle
     "playerTurn": 1,
     "commandCheckFailed": false,
     "ships": {
-      "ship-1": { "moved": false, "drifted": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "repaired": false },
-      "ship-2": { "moved": false, "drifted": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "repaired": false }
+      "ship-1": { "moved": false, "drifted": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "boarded": false, "teleported": false, "repaired": false },
+      "ship-2": { "moved": false, "drifted": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "boarded": false, "teleported": false, "repaired": false }
     },
     "ordnanceMoved": [],
     "braceFailures": [],
@@ -785,7 +801,6 @@ The shapes above leave room for these without breaking changes. Each will add fi
 - **Attack craft:** new `Ordnance` variants (`attack_craft` with role fighter/bomber/assault boat, `onCap` ship id); `loaded.launchBays`.
 - **Nova cannon:** weapon kind `nova_cannon`, a `WorkItem` for scatter.
 - **Terrain:** `table.features: Feature[]` (gas clouds, asteroid fields, planets with gravity wells), `table.sunwardEdge`.
-- **Boarding:** already sketched (`grapple`, `boardingDeclared`, `factionTraits.boardingModifier`); switched on by `meta.options.boarding`.
 - **Fleet commanders and re-rolls:** `players[].commander: { shipId, rerollsLeft }`.
 - **Other scenarios / victory points:** `scenario.scoring: "victory_points"` plus scenario-specific blocks.
 

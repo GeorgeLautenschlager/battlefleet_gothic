@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.3, for discussion. **Scope:** Phase 1 (Cruiser Clash, Lunar vs Murder, hot-seat). Builds on [Game State v0.5](../game_state/SPEC.md) and [Transforms v0.4](../transforms/SPEC.md).
+**Status:** draft v0.4, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side). Builds on [Game State v0.7](../game_state/SPEC.md) and [Transforms v0.5](../transforms/SPEC.md). v0.4 adds the boarding checks: `move`'s `boardTargetId`, `board`, `teleport`, and shooting by grappled or boarding ships.
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -45,6 +45,7 @@ Shared by validator and reducer: one module, one definition. Everything is 2D, i
 | `DEFENCES_MOVE` | 5 cm | p. 53 |
 | `TURN_DISTANCE.battleship` / `.cruiser` / `.escort` | 15 / 10 / 0 cm | p. 54 |
 | `BM_SLOWDOWN` | 5 cm | p. 69 |
+| `TELEPORT_RANGE` | 10 cm | teleport attacks, pp. 91–92 |
 
 ### 2.2 Tolerant comparison
 
@@ -314,6 +315,11 @@ Then check the path:
 | 12 | `walk.total ≤ D`. For All Ahead Full, see 14. | `PATH_TOO_LONG` |
 | 13 | Unless `exit ≠ null`: `walk.total ≥ min(minDistance, D)`. A ship that can't make half speed must go as far as it can (p. 53). | `PATH_TOO_SHORT` |
 | 14 | **All Ahead Full only.** `walk.total ≈ aafEnd` (below), or the path leaves the table at or before `aafEnd`. | `MUST_STOP_AT_BLAST_MARKER` if `aafEnd` is a BM stop, else `MUST_MOVE_FULL_DISTANCE` |
+| 15 | If `boardTargetId` is given: `meta.options.boarding` | `BOARDING_OFF` |
+| 16 | … it names an enemy ship that is `active` (not a hulk, transform T9) | `INVALID_BOARDING_TARGET` |
+| 17 | … the target isn't grappled (T9) | `TARGET_GRAPPLED` |
+| 18 | … `exit = null` and `disengage = false` | `CANNOT_BOARD_AND_LEAVE` |
+| 19 | … the bases touch at the path's end: `basesTouch` with the ship at `walk.end` (inclusive; overlap counts, V7) | `NOT_IN_CONTACT` |
 
 Check 14 replaces 12 and 13 for AAF. An AAF path has no turns (check 8), so it's one straight line. `aafEnd` is computed along that line out to `D0`, whatever the path's own length:
 
@@ -332,7 +338,11 @@ In words:
 
 The details for `TURN_TOO_EARLY` are `{ stepIndex, sinceLastTurn, required }`; for `PATH_TOO_LONG` / `PATH_TOO_SHORT` they're `{ total, limit, slowed }`.
 
-Rams and torpedo contacts don't affect legality. The reducer resolves them as the path executes (transform §4.2).
+Rams and torpedo contacts don't affect legality. The reducer resolves them as the path executes (transform §4.2). If one of them truncates the move, a boarding declaration lapses (transform T8): that's an outcome, not a validation error.
+
+`NOT_IN_CONTACT.details` is `{ distance, needed }`: the stem-to-stem distance at the path's end, and the sum of the two base radii.
+
+Grappled ships never reach the `declare_order` or `move` checks: they're marked `moved` on entering `move_ships` (state §6), so they fail check 4 with `ALREADY_MOVED`.
 
 ### 4.3 Shooting
 
@@ -344,36 +354,42 @@ Rams and torpedo contacts don't affect legality. The reducer resolves them as th
 | 2 | `ship.owner = player` | `NOT_YOUR_SHIP` |
 | 3 | `ship.status = "active"` | `SHIP_NOT_ACTIVE` |
 | 4 | `turnState.ships[id].disengage ≠ "failed"` | `DISENGAGE_FAILED` |
-| 5 | Weapon exists on the profile | `UNKNOWN_WEAPON` |
-| 6 | `weapon.kind ∈ {battery, lance}` | `WRONG_WEAPON_KIND` |
-| 7 | Weapon not in `weaponsFired` | `WEAPON_ALREADY_FIRED` |
-| 8 | Weapon not disabled (state §11 `weaponDisabled`) | `WEAPON_DISABLED` |
-| 9 | Target exists: a ship id for `kind: "ship"`, a salvo id for `kind: "ordnance"` | `UNKNOWN_TARGET` |
-| 10 | Target is the enemy's. A ship target must be `onTable` (so friendly hulks are out). | `INVALID_TARGET` |
-| 11 | `distance(ship, target) ≤ weapon.range` | `OUT_OF_RANGE` |
-| 12 | Let `Q = quadrantsOfPoint(ship, target.position) ∩ weapon.arcs`. `Q` is non-empty. | `OUT_OF_ARC` |
-| 13 | If `|quadrantsOfPoint(ship, target.position)| > 1` and `|Q| > 1`, `arc` is supplied | `ARC_CHOICE_REQUIRED` |
-| 14 | If `arc` is supplied, `arc ∈ Q` | `INVALID_ARC_CHOICE` |
-| 15 | Ship targets only: if `|quadrantsOfPoint(target, ship.position)| > 1`, `aspect` is supplied | `ASPECT_CHOICE_REQUIRED` |
-| 16 | If `aspect` is supplied, it's in `quadrantsOfPoint(target, ship.position)`. Ordnance targets must not supply it. | `INVALID_ASPECT_CHOICE` |
-| 17 | Ship targets only: `!lineOfFireBlocked(ship, target)` | `LINE_OF_FIRE_BLOCKED` |
-| 18 | If `priorityTest = "failed"`: `isNearest(ship, weapon, target)` | `MUST_TARGET_NEAREST` |
+| 5 | `ship.grapple = null` (drawn combats, pp. 90–91) | `GRAPPLED` |
+| 6 | `turnState.ships[id].boardingDeclared = null` (p. 89) | `BOARDING_SHIP` |
+| 7 | Weapon exists on the profile | `UNKNOWN_WEAPON` |
+| 8 | `weapon.kind ∈ {battery, lance}` | `WRONG_WEAPON_KIND` |
+| 9 | Weapon not in `weaponsFired` | `WEAPON_ALREADY_FIRED` |
+| 10 | Weapon not disabled (state §11 `weaponDisabled`) | `WEAPON_DISABLED` |
+| 11 | Target exists: a ship id for `kind: "ship"`, a salvo id for `kind: "ordnance"` | `UNKNOWN_TARGET` |
+| 12 | Target is the enemy's. A ship target must be `onTable` (so friendly hulks are out). | `INVALID_TARGET` |
+| 13 | `distance(ship, target) ≤ weapon.range` | `OUT_OF_RANGE` |
+| 14 | Let `Q = quadrantsOfPoint(ship, target.position) ∩ weapon.arcs`. `Q` is non-empty. | `OUT_OF_ARC` |
+| 15 | If `|quadrantsOfPoint(ship, target.position)| > 1` and `|Q| > 1`, `arc` is supplied | `ARC_CHOICE_REQUIRED` |
+| 16 | If `arc` is supplied, `arc ∈ Q` | `INVALID_ARC_CHOICE` |
+| 17 | Ship targets only: if `|quadrantsOfPoint(target, ship.position)| > 1`, `aspect` is supplied | `ASPECT_CHOICE_REQUIRED` |
+| 18 | If `aspect` is supplied, it's in `quadrantsOfPoint(target, ship.position)`. Ordnance targets must not supply it. | `INVALID_ASPECT_CHOICE` |
+| 19 | Ship targets only: `!lineOfFireBlocked(ship, target)` | `LINE_OF_FIRE_BLOCKED` |
+| 20 | If `priorityTest = "failed"`: `isNearest(ship, weapon, target)` | `MUST_TARGET_NEAREST` |
 
-Check 13 only demands a choice when it makes a difference. A target on the front/right boundary of a weapon that only fires right doesn't need `arc`: `Q = {right}`.
+Check 15 only demands a choice when it makes a difference. A target on the front/right boundary of a weapon that only fires right doesn't need `arc`: `Q = {right}`.
 
 **`launch_torpedoes`**
 
 | # | Check | Code |
 |---|---|---|
-| 1–4 | As `fire` 1–4 | as `fire` |
-| 5 | Weapon exists | `UNKNOWN_WEAPON` |
-| 6 | `weapon.kind = "torpedoes"` | `WRONG_WEAPON_KIND` |
-| 7 | Weapon not in `weaponsFired` | `WEAPON_ALREADY_FIRED` |
-| 8 | Weapon not disabled | `WEAPON_DISABLED` |
-| 9 | `ship.loaded.torpedoes = true` | `NOT_LOADED` |
-| 10 | `0 ≤ bearing < 360` and `quadrantsOf(bearing) ∩ weapon.arcs ≠ ∅` | `BEARING_OUT_OF_ARC` |
+| 1–6 | As `fire` 1–6 | as `fire` |
+| 7 | Weapon exists | `UNKNOWN_WEAPON` |
+| 8 | `weapon.kind = "torpedoes"` | `WRONG_WEAPON_KIND` |
+| 9 | Weapon not in `weaponsFired` | `WEAPON_ALREADY_FIRED` |
+| 10 | Weapon not disabled | `WEAPON_DISABLED` |
+| 11 | `ship.loaded.torpedoes = true` | `NOT_LOADED` |
+| 12 | `0 ≤ bearing < 360` and `quadrantsOf(bearing) ∩ weapon.arcs ≠ ∅` | `BEARING_OUT_OF_ARC` |
 
-**`end_step`**: gates only. G6 already limits it to `direct_fire` / `launch_ordnance`.
+**`end_step`**: G6 already limits it to `direct_fire`, `launch_ordnance` and `boarding`. In `boarding`, one check:
+
+| # | Check | Code |
+|---|---|---|
+| 1 | `boardingsToFight(state)` is empty (transform §4.6): declared boarding actions must be fought | `BOARDING_UNRESOLVED` |
 
 ### 4.4 Ordnance
 
@@ -396,6 +412,32 @@ Check 13 only demands a choice when it makes a difference. A target on the front
 (G5 already made sure `player` is that entry's player.)
 
 ### 4.6 End Phase
+
+**`board`**
+
+| # | Check | Code |
+|---|---|---|
+| 1 | Target exists | `UNKNOWN_TARGET` |
+| 2 | `boardingsToFight(state)` has a group for the target (transform §4.6) | `NO_BOARDING_DECLARED` |
+| 3 | `priority` is exactly that group's ship ids: no extras, no duplicates, none missing | `INVALID_PRIORITY` |
+
+**`teleport`**
+
+| # | Check | Code |
+|---|---|---|
+| 1–3 | As `fire` 1–3 | as `fire` |
+| 4 | `turnState.ships[id].disengage ≠ "failed"` | `DISENGAGE_FAILED` |
+| 5 | `ship.grapple = null` (T13) | `GRAPPLED` |
+| 6 | `turnState.ships[id].boardingDeclared = null` (T13) | `BOARDING_SHIP` |
+| 7 | `turnState.ships[id].teleported = false` | `ALREADY_TELEPORTED` |
+| 8 | `ship.profile.type ≠ "escort"`, `!isCrippled(ship)`, and `ship.specialOrder` is null, Lock On or Reload Ordnance (R#7) | `CANNOT_TELEPORT` |
+| 9 | Target exists | `UNKNOWN_TARGET` |
+| 10 | Target is an enemy ship that is `active` | `INVALID_TARGET` |
+| 11 | `shieldsDown(target)` (state §11) | `SHIELDS_UP` |
+| 12 | `distance(ship, target) ≤ TELEPORT_RANGE` (10 cm, stem to stem, T14) | `OUT_OF_RANGE` |
+| 13 | `remainingHits(target) ≤ remainingHits(ship)` | `TARGET_TOO_LARGE` |
+
+`CANNOT_TELEPORT.details` is `{ reason: "escort" | "crippled" | "orders" }`, the first that applies.
 
 **`repair`**
 
@@ -461,6 +503,16 @@ Check 13 only demands a choice when it makes a difference. A target on the front
 | `ORDNANCE_ALREADY_MOVED` | Salvo already moved this step |
 | `ALREADY_REPAIRED` / `NOTHING_TO_REPAIR` | Damage control |
 | `INVALID_PRIORITY` | Priority list isn't exactly the required set |
+| `BOARDING_OFF` | Boarding declared with `options.boarding` off |
+| `INVALID_BOARDING_TARGET` / `TARGET_GRAPPLED` | Boarding a friend, a hulk, or a ship already in a grapple |
+| `CANNOT_BOARD_AND_LEAVE` | Boarding declared on a move that leaves the table or asks to disengage |
+| `NOT_IN_CONTACT` | The path doesn't end with the bases touching |
+| `GRAPPLED` | The ship is locked in a grapple: it can't fire, launch or teleport |
+| `BOARDING_SHIP` | The ship declared a boarding action this turn: it can't fire, launch or teleport |
+| `NO_BOARDING_DECLARED` | `board` against a ship nobody is boarding (or whose boarding has lapsed) |
+| `BOARDING_UNRESOLVED` | `end_step` while a declared boarding action is still to be fought |
+| `ALREADY_TELEPORTED` / `CANNOT_TELEPORT` | One teleport per ship per turn; escorts, crippled ships and ships on other orders can't |
+| `SHIELDS_UP` / `TARGET_TOO_LARGE` | Teleport target still has shields, or more hits left than the attacker |
 
 ---
 
@@ -501,6 +553,7 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V4 | **All Ahead Full meeting a BM within its last 5 cm** stops on contact, and the 5 cm slowdown is not applied on top. |
 | V5 | **No overlapping bases at deployment.** Bases may touch but not overlap. Overlap during play is still legal (p. 57). |
 | V6 | **Deterministic maths.** Engine code uses only IEEE-exact operations and the `dmath` module; platform trig is forbidden (§2.8). |
+| V7 | **Boarding contact is `basesTouch`** at the end of the path: inclusive, and overlapping bases count (overlap is legal in play, V5). |
 
 ## 8. Decisions
 
