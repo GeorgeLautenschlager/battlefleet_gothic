@@ -12,7 +12,8 @@ type Props = {
   selectedShipId?: string | null;
   /** Blast Markers or salvos to pick out (e.g. while ordering removals). */
   highlight?: string[];
-  onSelectShip?: (id: string) => void;
+  /** Return true if the click was used up, so it doesn't also count as a table click. */
+  onSelectShip?: (id: string) => boolean;
   onSelectSalvo?: (id: string) => void;
   /** `shift`: the Shift key was held. */
   onPointer?: (p: Point | null, shift: boolean) => void;

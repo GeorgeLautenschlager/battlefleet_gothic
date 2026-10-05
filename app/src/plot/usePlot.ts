@@ -4,6 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import { activePlayer, type GameState, type PathStep, type Point, type Ship, type Transform } from "@bfg/engine";
+import { pick } from "../game/pick";
 import { append, judge, propose, stats, type PlotStats, type Verdict } from "./plot";
 
 type Plan = { shipId: string; playerTurn: number; path: PathStep[]; disengage: boolean };
@@ -29,18 +30,24 @@ export type Plot = {
   commit: () => void;
 };
 
-/** The ship the active player is plotting, if any. */
-export function plottingShip(state: GameState): Ship | null {
+/** Ships the active player may pick to move next: none once one has declared an order (it must move first). */
+export function movableShips(state: GameState): Ship[] {
+  if (state.clock.stage !== "battle" || state.clock.step !== "move_ships" || state.pending.length > 0 || state.activation !== null) return [];
+  const player = activePlayer(state);
+  return state.ships.filter((s) => s.owner === player && s.status === "active" && state.turnState.ships[s.id]?.moved !== true);
+}
+
+/** The ship the active player is plotting, if any: the one with an order, else the one picked (`focus`), else the first. */
+export function plottingShip(state: GameState, focus: string | null = null): Ship | null {
   if (state.clock.stage !== "battle" || state.clock.step !== "move_ships" || state.pending.length > 0) return null;
   const open = state.activation;
   if (open !== null) return open.stage === "ordered" ? (state.ships.find((s) => s.id === open.shipId) ?? null) : null;
-  const player = activePlayer(state);
-  return state.ships.find((s) => s.owner === player && s.status === "active" && state.turnState.ships[s.id]?.moved !== true) ?? null;
+  return pick(movableShips(state), focus) ?? null;
 }
 
-export function usePlot(state: GameState | null, pointer: Point | null, straight: boolean, run: (t: Transform) => Promise<boolean>): Plot | null {
+export function usePlot(state: GameState | null, pointer: Point | null, straight: boolean, run: (t: Transform) => Promise<boolean>, focus: string | null = null): Plot | null {
   const [plan, setPlan] = useState<Plan | null>(null);
-  const ship = state === null ? null : plottingShip(state);
+  const ship = state === null ? null : plottingShip(state, focus);
 
   const current = state !== null && ship !== null && plan?.shipId === ship.id && plan.playerTurn === state.clock.playerTurn ? plan : null;
   const path = current?.path ?? [];

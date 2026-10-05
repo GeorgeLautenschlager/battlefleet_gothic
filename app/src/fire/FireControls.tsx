@@ -20,11 +20,16 @@ export function FireControls({ state, aimed, onAim, onApply, bearing }: Props) {
   if (step !== "direct_fire" && step !== "launch_ordnance") return null;
   const player = activePlayer(state);
   const ships = state.ships.filter((s) => s.owner === player && s.status === "active");
+  // With several ships, those with nothing left to fire this step fold into one line.
+  const kinds: readonly Weapon["kind"][] = KINDS[step];
+  const ready = ships.filter((s) => s.profile.weapons.some((w) => kinds.includes(w.kind) && available(state, s, w)));
+  const done = ships.filter((s) => !ready.includes(s));
   return (
     <>
-      {ships.map((ship) => (
-        <ShipWeapons key={ship.id} state={state} ship={ship} kinds={KINDS[step]} aimed={aimed} onAim={onAim} onApply={onApply} bearing={bearing} />
+      {ready.map((ship) => (
+        <ShipWeapons key={ship.id} state={state} ship={ship} kinds={kinds} aimed={aimed} onAim={onAim} onApply={onApply} bearing={bearing} />
       ))}
+      {done.length > 0 && <p className="muted small">Nothing left to {step === "direct_fire" ? "fire" : "launch"}: {done.map((s) => s.name).join(", ")}</p>}
       <div className="buttons">
         <Act state={state} transform={{ type: "end_step", player }} onApply={onApply}>
           {step === "direct_fire" ? "Done shooting" : "Done launching"}
@@ -32,6 +37,13 @@ export function FireControls({ state, aimed, onAim, onApply, bearing }: Props) {
       </div>
     </>
   );
+}
+
+/** Can this weapon still be used this step? */
+function available(state: GameState, ship: Ship, w: Weapon): boolean {
+  const turn = state.turnState.ships[ship.id];
+  if (turn?.disengage === "failed" || turn?.weaponsFired.includes(w.id) === true || weaponDisabled(state, ship, w)) return false;
+  return w.kind !== "torpedoes" || ship.loaded.torpedoes === true;
 }
 
 function ShipWeapons({

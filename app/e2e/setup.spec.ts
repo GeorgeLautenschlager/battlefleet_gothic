@@ -37,3 +37,55 @@ test("new game, setup by clicking, into the battle", async ({ page }) => {
   await expect(page.locator(".clock .where")).toContainText("Round 1");
   await page.screenshot({ path: "e2e-results/battle.png" });
 });
+
+test("fleets: a two-a-side Chaos mirror match, deploying and moving ships in the order picked", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Cruisers a side").selectOption("2");
+  const p1 = page.locator("fieldset.p1");
+  await p1.getByLabel("Fleet").selectOption("chaos");
+  await expect(p1).toContainText("2 × Murder class cruiser");
+  await expect(page.locator("fieldset.p2")).toContainText("2 × Murder class cruiser");
+  // Duplicate names are refused.
+  const first = p1.getByLabel("Ship 1");
+  const original = await first.inputValue();
+  await first.fill(await page.locator("fieldset.p2").getByLabel("Ship 1").inputValue());
+  await expect(page.getByRole("button", { name: "Start" })).toBeDisabled();
+  await first.fill(original);
+  await page.getByRole("button", { name: "Start" }).click();
+
+  await page.getByRole("button", { name: "Roll Leadership" }).click();
+  await page.getByRole("button", { name: /deployment zones/ }).click();
+  while (await page.getByRole("button", { name: /who deploys first/ }).isVisible()) {
+    await page.getByRole("button", { name: /who deploys first/ }).click();
+  }
+  // Four deployments. With two ships left to place, deploy the second one first.
+  for (let i = 0; i < 4; i++) {
+    const picker = page.getByRole("group", { name: "Deploy which ship" });
+    if (await picker.isVisible()) {
+      const last = picker.getByRole("button").last();
+      const name = await last.innerText();
+      await last.click();
+      await expect(page.locator(".hint strong")).toHaveText(name);
+    }
+    const zone = (await page.locator(".hint").innerText()).match(/zone ([AB])/)?.[1];
+    await clickTable(page, 50 + i * 20, zone === "A" ? 110 : 10);
+  }
+  while (await page.getByRole("button", { name: /first turn/ }).isVisible()) {
+    await page.getByRole("button", { name: /first turn/ }).click();
+  }
+  await page.getByRole("button", { name: "Go first" }).click();
+  await expect(page.locator(".banner")).toContainText("Chaos");
+
+  // Pick the second ship to move first, from its card.
+  const mover = page.getByRole("group", { name: "Move which ship" });
+  const second = await mover.getByRole("button").nth(1).innerText();
+  await page.locator(".card").filter({ hasText: second }).click();
+  await expect(page.locator(".ship-controls h3")).toHaveText(second);
+  await page.getByRole("button", { name: "Full ahead" }).click();
+  await page.getByRole("button", { name: "Move", exact: true }).click();
+  await expect(page.locator(".log")).toContainText(`${second} moves`);
+  // One ship left: no picker, its controls straight away.
+  await expect(mover).toBeHidden();
+  await expect(page.locator(".ship-controls h3")).not.toHaveText(second);
+  await page.screenshot({ path: "e2e-results/fleets.png" });
+});

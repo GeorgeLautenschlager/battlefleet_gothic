@@ -8,12 +8,13 @@ import { newGame } from "../src/state/newGame";
 import { cloneJson } from "../src/state/json";
 import { validate } from "../src/validator/validate";
 import type { GameState } from "../src/state/types";
+import type { GameConfig } from "../src/state/newGame";
 import { candidates } from "./bot";
-import { LUNAR_VS_MURDER } from "./helpers";
+import { fleets, LUNAR_VS_MURDER } from "./helpers";
 import { play } from "./reducer-helpers";
 
-function playOut(seed: number): GameState {
-  let s = newGame({ ...cloneJson(LUNAR_VS_MURDER), seed });
+function playOut(seed: number, config: GameConfig = LUNAR_VS_MURDER): GameState {
+  let s = newGame({ ...cloneJson(config), seed });
   for (let n = 0; s.clock.stage !== "ended"; n++) {
     if (n > 5000) throw new Error(`seed ${seed}: no end in sight at ${JSON.stringify(s.clock)}`);
     const t = candidates(s, n).find((c) => validate(s, c).ok);
@@ -35,3 +36,22 @@ describe("full games", () => {
   });
 });
 
+const IMPERIAL = { faction: "imperial_navy", classId: "lunar" } as const;
+const CHAOS = { faction: "chaos", classId: "murder" } as const;
+
+describe("full games with fleets", () => {
+  const matchups: [string, GameConfig][] = [
+    ["4 Lunars vs 4 Murders", fleets({ ...IMPERIAL, n: 4 }, { ...CHAOS, n: 4 })],
+    ["3 Murders vs 3 Lunars", fleets({ ...CHAOS, n: 3 }, { ...IMPERIAL, n: 3 })],
+    ["mirror: 2 Lunars a side", fleets({ ...IMPERIAL, n: 2 }, { ...IMPERIAL, n: 2 })],
+    ["mirror: 4 Murders a side", fleets({ ...CHAOS, n: 4 }, { ...CHAOS, n: 4 })],
+  ];
+  for (const [name, config] of matchups) {
+    test.each([1, 2, 3, 4, 5, 6])(`${name}, seed %i, plays to a result`, (seed) => {
+      const s = playOut(seed, config);
+      expect(s.result).not.toBeNull();
+      expect(s.log.at(-1)?.kind).toBe("game_end");
+      expect(s.queue).toEqual([]);
+    });
+  }
+});

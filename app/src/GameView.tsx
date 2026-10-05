@@ -12,7 +12,8 @@ import { BracePrompt } from "./controls/BracePrompt";
 import { StepControls } from "./controls/StepControls";
 import { TurnBanner } from "./controls/TurnBanner";
 import { Waiting } from "./controls/Waiting";
-import { usePlot } from "./plot/usePlot";
+import { movableShips, usePlot } from "./plot/usePlot";
+import { pick, undeployed } from "./game/pick";
 import { PlotOverlay } from "./plot/PlotOverlay";
 import { FireControls } from "./fire/FireControls";
 import { FireOverlay } from "./fire/FireOverlay";
@@ -22,6 +23,8 @@ import { bearingToward, launch, targets } from "./fire/fire";
 /** `banner`: anything to show above the controls (online: presence, connection, verification). */
 export function GameView({ source, banner }: { source: GameSource; banner?: ReactNode }) {
   const [selected, setSelected] = useState<string | null>(null);
+  /** The ship picked to deploy or move next (several ships a side). */
+  const [focus, setFocus] = useState<string | null>(null);
   const [pointer, setPointer] = useState<Point | null>(null);
   const [shift, setShift] = useState(false);
   const [highlight, setHighlight] = useState<string[]>([]);
@@ -36,7 +39,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
   // Online, only one seat's controls belong on this screen (network/SPEC.md §7.2).
   const waiting = waitingOn(state, seat);
 
-  const plot = usePlot(waiting === null ? state : null, pointer, shift, run);
+  const plot = usePlot(waiting === null ? state : null, pointer, shift, run, focus);
 
   // Shooting: the weapon being aimed, its targets, and a torpedo bearing that follows the pointer.
   const aimed = waiting !== null ? null : liveAim(state, aim);
@@ -55,11 +58,28 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
     if (state.clock.setupStep !== "deploy") return null;
     const who = actor(state);
     if ((who !== "p1" && who !== "p2") || !controls(seat, who)) return null;
-    const ship = state.ships.find((s) => s.owner === who && s.status === "undeployed");
+    const ship = pick(undeployed(state, who), focus);
     const zone = state.setup.zones?.[who];
     if (ship === undefined || zone === undefined) return null;
     return { player: who, ship, heading: state.scenario.deploymentFacing[zone] };
-  }, [state, seat]);
+  }, [state, seat, focus]);
+
+  /**
+   * Pick a ship (its card, or its glyph on the table). If it's one this player
+   * could move next, it becomes the one to plot. From the table, that only
+   * happens before a path is started: after that a click on a ship is a waypoint.
+   */
+  const choose = (id: string, fromTable: boolean): boolean => {
+    setSelected(id);
+    const candidates = waiting !== null ? [] : deploy !== null ? undeployed(state, deploy.player) : movableShips(state);
+    if (!candidates.some((s) => s.id === id)) return false;
+    if (fromTable && plot !== null && plot.path.length > 0 && plot.ship.id !== id) return false;
+    setFocus(id);
+    return true;
+  };
+
+  // The ship being deployed or plotted is the one picked out; otherwise whatever was clicked last.
+  const highlighted = plot?.ship.id ?? deploy?.ship.id ?? selected;
 
   let ghost: Ghost | null = null;
   if (deploy !== null && pointer !== null) {
@@ -77,9 +97,14 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
         <Table
           state={state}
           ghost={ghost}
-          selectedShipId={selected}
+          selectedShipId={highlighted}
           highlight={aimed !== null ? aimTargets.filter((t) => t.options.length > 0).map((t) => t.id) : highlight}
-          onSelectShip={(id) => (aimed !== null ? fireAt(id) : setSelected(id))}
+          onSelectShip={(id) => {
+            if (aimed === null) return choose(id, true);
+            // A ship under the pointer is a target; for torpedoes the click is a bearing, so let it through.
+            fireAt(id);
+            return aimed.weapon.kind !== "torpedoes";
+          }}
           onSelectSalvo={(id) => aimed !== null && fireAt(id)}
           onPointer={(p, s) => {
             setPointer(p);
@@ -105,11 +130,11 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           ) : state.pending.length > 0 ? (
             <BracePrompt state={state} onApply={act} />
           ) : state.clock.stage === "setup" ? (
-            <SetupControls state={state} seat={seat} onApply={act} />
+            <SetupControls state={state} seat={seat} onApply={act} focus={focus} onFocus={setFocus} />
           ) : shooting ? (
             <FireControls state={state} aimed={aimed} onAim={setAim} onApply={act} bearing={bearing} />
           ) : state.clock.stage === "battle" ? (
-            <StepControls state={state} onApply={act} onHighlight={setHighlight} plot={plot} seat={seat} />
+            <StepControls state={state} onApply={act} onHighlight={setHighlight} plot={plot} seat={seat} onFocus={(id) => choose(id, false)} />
           ) : null}
           {state.result !== null && (
             <p className="result">
@@ -123,7 +148,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           )}
           <Console state={state} onApply={act} />
         </section>
-        <ShipCards state={state} selectedShipId={selected} onSelect={setSelected} />
+        <ShipCards state={state} selectedShipId={highlighted} onSelect={(id) => void choose(id, false)} />
         <LogFeed state={state} />
       </aside>
     </main>

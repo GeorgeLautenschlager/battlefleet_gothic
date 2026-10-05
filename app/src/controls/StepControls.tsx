@@ -6,6 +6,7 @@ import { MoveControls, needsToMove } from "./MoveControls";
 import type { Plot } from "../plot/usePlot";
 import { controls, type Seat } from "../game/source";
 import { PriorityList, reconcile } from "./PriorityList";
+import { ShipPicker } from "./ShipPicker";
 
 const words = (s: string) => s.replaceAll("_", " ");
 const UNREPAIRABLE = new Set(["bridge_smashed", "shields_collapse"]);
@@ -17,10 +18,12 @@ type Props = {
   plot?: Plot | null;
   /** The player(s) this screen drives. */
   seat?: Seat;
+  /** Pick the ship to move next. */
+  onFocus?: (id: string) => void;
 };
 
 /** What the acting player can do in the current battle step. */
-export function StepControls({ state, onApply, onHighlight, plot = null, seat = "both" }: Props) {
+export function StepControls({ state, onApply, onHighlight, plot = null, seat = "both", onFocus = () => {} }: Props) {
   const { step } = state.clock;
   const active = activePlayer(state);
   const mine = state.ships.filter((s) => s.owner === active);
@@ -40,13 +43,14 @@ export function StepControls({ state, onApply, onHighlight, plot = null, seat = 
       );
 
     case "move_ships": {
+      // A ship with an order declared moves next; otherwise the player picks which.
       const open = state.activation?.shipId;
       const ships = mine.filter((s) => (open === undefined ? needsToMove(state, s) : s.id === open));
+      const current = ships.find((s) => s.id === plot?.ship.id) ?? ships[0];
       return (
         <>
-          {ships.map((s) => (
-            <MoveControls key={s.id} state={state} ship={s} plot={plot} onApply={onApply} />
-          ))}
+          <ShipPicker ships={ships} current={current?.id} verb="Move" onPick={onFocus} />
+          {current && <MoveControls state={state} ship={current} plot={plot} onApply={onApply} />}
         </>
       );
     }

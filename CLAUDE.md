@@ -42,3 +42,8 @@ Recorded in [`docs/adr/`](docs/adr/). Current:
   - Engine implementation in [`engine/`](engine/README.md) (`npm run check` there): game state, geometry, validator and reducer done: a full Lunar vs Murder game plays from `newGame` to `game_end`.
   - Browser app in [`app/`](app/README.md) (`npm run check` and `npm run e2e` there): new game, setup, table view, log, undo, saves, battle controls, movement plotter and shooting done: a whole game is playable in the UI. 
 - **Network play** ([`network/SPEC.md`](network/SPEC.md)): done. Server in [`server/`](server/README.md) (`npm run check` there), live on Cloudflare; the app's online play (start screen, invite links, lobby, remote source, reconnect, end-of-game verification) in `app/src/online/`.
+- **Original boxed fleets** (Imperial Navy and Chaos), in slices:
+  1. Fleet composition, hot-seat: a fleet per side, 1–4 cruisers (Cruiser Clash's limits), mirror matches, picking which ship acts next. Done.
+  2. Fleet composition online: lobby fleet picker, protocol v2.
+  3. Boarding (pp. 89–91): specs first, then engine and UI.
+  4. More ship classes from the box.
