@@ -1,0 +1,18 @@
+# Network play's server (network/SPEC.md §8): a Worker routing to one Durable Object per game.
+name = "bfg-server"
+main = "src/cf/worker.ts"
+compatibility_date = "2026-09-01"
+
+[[durable_objects.bindings]]
+name = "GAMES"
+class_name = "GameDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameDO"]
+
+[vars]
+# Browser origins allowed to create games and open sockets.
+ALLOWED_ORIGINS = "https://georgelautenschlager.github.io,http://localhost:5173,http://localhost:4173"
+# The engine build id; CI overrides it with the commit of engine/src (spec §9).
+ENGINE_BUILD = "dev"
