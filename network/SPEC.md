@@ -1,6 +1,6 @@
 # Network Play Specification
 
-**Status:** v0.2, accepted ([ADR 0003](../docs/adr/0003-network-play.md)); not yet implemented. **Scope:** two players on two devices playing the Phase 1 game (Cruiser Clash, Lunar vs Murder), live or turn-by-turn. Builds on [Game State](../game_state/SPEC.md), [Transforms](../transforms/SPEC.md), the [engine](../engine/README.md) and the [browser app](../app/README.md) ([ADR 0002](../docs/adr/0002-browser-app.md)).
+**Status:** v0.3, accepted ([ADR 0003](../docs/adr/0003-network-play.md)). The game room is implemented in [`server/`](../server/README.md); Cloudflare wiring and the app are next. **Scope:** two players on two devices playing the Phase 1 game (Cruiser Clash, Lunar vs Murder), live or turn-by-turn. Builds on [Game State](../game_state/SPEC.md), [Transforms](../transforms/SPEC.md), the [engine](../engine/README.md) and the [browser app](../app/README.md) ([ADR 0002](../docs/adr/0002-browser-app.md)).
 
 Hot-seat stays exactly as it is. Network play is a second way to drive the same UI.
 
@@ -82,11 +82,11 @@ One WebSocket per open game: `wss://<server>/games/<gameId>/ws`. Messages are JS
 
 | type | payload | when |
 |---|---|---|
-| `welcome` | `seat, seq, state, lobby?, presence, engine` | reply to `hello`: the full current (redacted) state, or the lobby if the game hasn't started |
+| `welcome` | `seat, status, seq, state, lobby, presence, engine` | reply to `hello`: the full current (redacted) state, or `state: null` in the lobby. Sent again to every seat when the game starts. |
 | `lobby` | `seats: { p1, p2 }` with names and joined flags | the lobby changed |
 | `applied` | `seq, by, transform, state, rolled` | a transform was accepted. Sent to **both** seats, the proposer included, with `id` echoed to the proposer. |
-| `rejected` | `id, reason` | a proposal or undo was refused. `reason` is the validator's `{ code, message, details }`, or a protocol code (§4.4). |
-| `undone` | `seq, state` | transform `seq` was taken back; this is now the state |
+| `rejected` | `id, reason` | a proposal, undo or join was refused (a join's `id` is `""`). `reason` is the validator's `{ code, message, details }`, or a room code (§4.4). |
+| `undone` | `seq, state` | the latest transform was taken back; `seq` is the new current `seq` and `state` the state there |
 | `presence` | `p1, p2` (online booleans) | someone connected or disconnected |
 | `ended` | `seed, config, transforms` | the game is over: everything needed to replay and verify it (§5) |
 | `error` | `code, message` | a protocol failure; the server closes the socket |
@@ -105,7 +105,8 @@ Each `applied` carries the whole redacted state. A Phase 1 state is a few tens o
   - `NOT_YOUR_SEAT`: the transform's `player` isn't the token's seat;
   - `NOT_STARTED` / `GAME_OVER`;
   - any validator rejection, passed through unchanged.
-- Proposals are idempotent by `id`. Resending one that was already applied gets the same `applied` back, so a retry after a dropped connection can't apply a transform twice.
+- Proposals are idempotent by `id` (per seat). Resending one that was already applied is rejected as `ALREADY_APPLIED` with its `seq`, so a retry after a dropped connection can't apply a transform twice; the client already has the state from `welcome` or `applied`.
+- Undo rejections: `NOT_LATEST`, `NOT_YOURS`, `ROLLED_DICE`. Join rejections: `ALREADY_STARTED`, `INVALID_NAME`.
 
 ### 4.5 Reconnecting
 
