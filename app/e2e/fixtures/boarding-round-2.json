@@ -1,0 +1,111 @@
+{
+ "format": "bfg-save",
+ "version": 1,
+ "config": {
+  "seed": 2024,
+  "createdAt": "2026-10-05T20:00:00.000Z",
+  "options": {
+   "ramming": true,
+   "boarding": true
+  },
+  "players": {
+   "p1": {
+    "name": "Ann",
+    "faction": "imperial_navy"
+   },
+   "p2": {
+    "name": "Bo",
+    "faction": "chaos"
+   }
+  },
+  "ships": [
+   {
+    "owner": "p1",
+    "name": "Agrippa",
+    "classId": "lunar"
+   },
+   {
+    "owner": "p2",
+    "name": "Unclean",
+    "classId": "murder"
+   }
+  ]
+ },
+ "transforms": [
+  {
+   "type": "roll_leadership",
+   "player": "p1"
+  },
+  {
+   "type": "roll_zones",
+   "player": "p1"
+  },
+  {
+   "type": "roll_deploy_order",
+   "player": "p1"
+  },
+  {
+   "type": "deploy_ship",
+   "player": "p2",
+   "shipId": "ship-2",
+   "position": {
+    "x": 90,
+    "y": 90
+   }
+  },
+  {
+   "type": "deploy_ship",
+   "player": "p1",
+   "shipId": "ship-1",
+   "position": {
+    "x": 90,
+    "y": 30
+   }
+  },
+  {
+   "type": "roll_first_turn",
+   "player": "p1"
+  },
+  {
+   "type": "choose_first_turn",
+   "player": "p1",
+   "goFirst": true
+  },
+  {
+   "type": "move",
+   "player": "p1",
+   "shipId": "ship-1",
+   "path": [
+    {
+     "kind": "advance",
+     "distance": 20
+    }
+   ],
+   "disengage": false
+  },
+  {
+   "type": "end_step",
+   "player": "p1"
+  },
+  {
+   "type": "end_step",
+   "player": "p1"
+  },
+  {
+   "type": "move",
+   "player": "p2",
+   "shipId": "ship-2",
+   "path": [
+    {
+     "kind": "advance",
+     "distance": 22
+    }
+   ],
+   "disengage": false
+  },
+  {
+   "type": "end_step",
+   "player": "p2"
+  }
+ ]
+}

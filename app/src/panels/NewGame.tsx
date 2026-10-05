@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { PlayerId } from "@bfg/engine";
 import { defaultNames, type NewGameOptions, type Side } from "../game/config";
-import { CountSelect, duplicates, DuplicateNames, FleetFields, RammingCheck, resize } from "./FleetForm";
+import { CountSelect, duplicates, DuplicateNames, FleetFields, resize, RulesChecks } from "./FleetForm";
 
 const PLAYERS: PlayerId[] = ["p1", "p2"];
 
@@ -9,6 +9,7 @@ const INITIAL: NewGameOptions = {
   p1: { name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1) },
   p2: { name: "Player 2", fleet: "chaos", ships: defaultNames("chaos", 1) },
   ramming: true,
+  boarding: true,
 };
 
 /** Hot-seat Cruiser Clash: each side picks a fleet; both field the same number of cruisers. */
@@ -46,7 +47,7 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
       {PLAYERS.map((p) => (
         <FleetFields key={p} legend={p === "p1" ? "Player 1" : "Player 2"} className={p} side={o[p]} onChange={(patch) => change(p, patch)} dupes={dupes} />
       ))}
-      <RammingCheck value={o.ramming} onChange={(ramming) => setO({ ...o, ramming })} />
+      <RulesChecks value={o} onChange={(rules) => setO({ ...o, ...rules })} />
       <DuplicateNames dupes={dupes} />
       <div className="buttons">
         <button type="submit" className="primary" disabled={dupes.length > 0}>

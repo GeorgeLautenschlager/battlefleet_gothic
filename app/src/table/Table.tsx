@@ -109,6 +109,18 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
         );
       })}
 
+      {state.ships.flatMap((d) => {
+        // Grapples: a line from the defender to each attacker locked with it.
+        if (d.grapple === null || d.grapple.defenderId !== d.id || d.position === null) return [];
+        const from = toSvg(view, d.position);
+        return d.grapple.attackerIds.map((id) => {
+          const a = state.ships.find((s) => s.id === id);
+          if (a?.position == null) return null;
+          const to = toSvg(view, a.position);
+          return <line key={`grapple-${d.id}-${id}`} className="grapple" x1={from.x} y1={from.y} x2={to.x} y2={to.y} />;
+        });
+      })}
+
       {state.ships.map((s) =>
         s.position === null || s.heading === null ? null : (
           <ShipGlyph

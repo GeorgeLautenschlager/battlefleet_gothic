@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { defaultNames, shipEntries, type Side } from "../game/config";
-import { CountSelect, duplicates, DuplicateNames, FleetFields, RammingCheck, resize } from "../panels/FleetForm";
+import { CountSelect, duplicates, DuplicateNames, FleetFields, resize, RulesChecks, type Rules } from "../panels/FleetForm";
 import { createGame } from "./api";
 import type { MyGame } from "./myGames";
 
 /** New online game: you're Player 1 and set the size of the battle; your opponent joins with a link and brings their own fleet. */
 export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }) {
   const [side, setSide] = useState<Side>({ name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1) });
-  const [ramming, setRamming] = useState(true);
+  const [rules, setRules] = useState<Rules>({ ramming: true, boarding: true });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dupes = duplicates(side.ships);
@@ -20,7 +20,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         setBusy(true);
         setError(null);
         const name = side.name.trim();
-        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side), ramming })
+        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side), ...rules })
           .then((g) => onCreated({ gameId: g.gameId, token: g.token, seat: g.seat, name, joinedAt: new Date().toISOString(), inviteToken: g.inviteToken }))
           .catch((err: unknown) => setError((err as Error).message))
           .finally(() => setBusy(false));
@@ -38,7 +38,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         }
         dupes={dupes}
       />
-      <RammingCheck value={ramming} onChange={setRamming} />
+      <RulesChecks value={rules} onChange={setRules} />
       <DuplicateNames dupes={dupes} />
       <div className="buttons">
         <button type="submit" className="primary" disabled={busy || dupes.length > 0}>

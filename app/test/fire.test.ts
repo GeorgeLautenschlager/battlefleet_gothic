@@ -5,7 +5,7 @@ import { cruiserClash } from "../src/game/config";
 import { bearingToward, clampToArcs, describeBearing, fireOptions, inArcs, targets } from "../src/fire/fire";
 import type { Transform } from "@bfg/engine";
 
-const config = cruiserClash({ p1: { name: "A", fleet: "imperial_navy", ships: ["Agrippa"] }, p2: { name: "B", fleet: "chaos", ships: ["Unclean"] }, ramming: true, seed: 1337 }, new Date("2026-10-04T12:00:00Z"));
+const config = cruiserClash({ p1: { name: "A", fleet: "imperial_navy", ships: ["Agrippa"] }, p2: { name: "B", fleet: "chaos", ships: ["Unclean"] }, ramming: true, boarding: false, seed: 1337 }, new Date("2026-10-04T12:00:00Z"));
 const play = (h: History, t: Transform): History => {
   const r = apply(h, t);
   if (!r.ok) throw new Error(r.reason.message);

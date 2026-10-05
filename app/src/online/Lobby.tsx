@@ -11,6 +11,12 @@ import type { Remote } from "./useRemoteSource";
 const SEAT: Record<PlayerId, string> = { p1: "Player 1", p2: "Player 2" };
 const other = (p: PlayerId): PlayerId => (p === "p1" ? "p2" : "p1");
 
+/** "Cruiser Clash, 2 cruisers a side, ramming allowed, boarding allowed." */
+function rulesLine(lobby: LobbyInfo): string {
+  const { ramming, boarding = false } = lobby.options as LobbyInfo["options"] & { boarding?: boolean };
+  return `Cruiser Clash, ${lobby.count} cruiser${lobby.count === 1 ? "" : "s"} a side, ${ramming ? "ramming allowed" : "no ramming"}, ${boarding ? "boarding allowed" : "no boarding"}.`;
+}
+
 /** "Imperial Navy: 2 × Lunar class cruiser (Agrippa, Hammer of Terra)" */
 function fleetLine(seat: SeatInfo): string {
   if (seat.faction === null) return "";
@@ -53,7 +59,7 @@ export function Lobby({ remote, game }: { remote: Remote; game: MyGame }) {
         <p className="muted">The game starts when the other seat joins.</p>
       )}
       <p className="muted small">
-        Cruiser Clash, {lobby.count} cruiser{lobby.count === 1 ? "" : "s"} a side{lobby.options.ramming ? ", ramming allowed" : ", no ramming"}.
+        {rulesLine(lobby)}
       </p>
       <ul className="seats">
         {(["p1", "p2"] as const).map((p) => (
@@ -88,7 +94,7 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
     >
       <h2>You've been invited</h2>
       <p className="muted">
-        Cruiser Clash, {lobby.count} cruiser{lobby.count === 1 ? "" : "s"} a side{lobby.options.ramming ? ", ramming allowed" : ", no ramming"}.
+        {rulesLine(lobby)}
       </p>
       {host.joined && (
         <p className="muted small">

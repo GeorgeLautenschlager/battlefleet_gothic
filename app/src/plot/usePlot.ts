@@ -3,11 +3,11 @@
  * pointer preview on top of it, and the engine's verdict on both.
  */
 import { useEffect, useState } from "react";
-import { activePlayer, type GameState, type PathStep, type Point, type Ship, type Transform } from "@bfg/engine";
+import { activePlayer, geometry, type GameState, type PathStep, type Point, type Ship, type Transform } from "@bfg/engine";
 import { pick } from "../game/pick";
 import { append, judge, propose, stats, type PlotStats, type Verdict } from "./plot";
 
-type Plan = { shipId: string; playerTurn: number; path: PathStep[]; disengage: boolean };
+type Plan = { shipId: string; playerTurn: number; path: PathStep[]; disengage: boolean; board: string | null };
 
 export type Plot = {
   ship: Ship;
@@ -21,6 +21,11 @@ export type Plot = {
   previewVerdict: Verdict;
   disengage: boolean;
   setDisengage: (on: boolean) => void;
+  /** Enemy ships the path ends touching, which the move could board (boarding on only). */
+  boardable: Ship[];
+  /** The ship this move boards, if one is picked and the path still ends touching it. */
+  board: string | null;
+  setBoard: (id: string | null) => void;
   click: (p: Point, straight: boolean) => void;
   /** Add a typed step. */
   add: (step: PathStep) => void;
@@ -52,16 +57,26 @@ export function usePlot(state: GameState | null, pointer: Point | null, straight
   const current = state !== null && ship !== null && plan?.shipId === ship.id && plan.playerTurn === state.clock.playerTurn ? plan : null;
   const path = current?.path ?? [];
   const disengage = current?.disengage ?? false;
+  const picked = current?.board ?? null;
 
   const update = (patch: Partial<Plan>) => {
     if (state === null || ship === null) return;
-    setPlan({ shipId: ship.id, playerTurn: state.clock.playerTurn, path, disengage, ...patch });
+    setPlan({ shipId: ship.id, playerTurn: state.clock.playerTurn, path, disengage, board: picked, ...patch });
   };
 
   const st = state === null || ship === null ? null : stats(state, ship, path);
   const preview = state === null || ship === null || pointer === null ? [] : propose(state, ship, path, pointer, straight);
 
-  const move = (p: PathStep[]): Transform => ({ type: "move", player: ship?.owner ?? "p1", shipId: ship?.id ?? "", path: p, disengage });
+  const boardable = state === null || ship === null || st === null ? [] : boardableAt(state, ship, st.end.position);
+  const board = boardable.some((s) => s.id === picked) ? picked : null;
+  const move = (p: PathStep[], withBoard = true): Transform => ({
+    type: "move",
+    player: ship?.owner ?? "p1",
+    shipId: ship?.id ?? "",
+    path: p,
+    disengage,
+    ...(withBoard && board !== null ? { boardTargetId: board } : {}),
+  });
 
   // Keyboard: Backspace steps back, Escape clears, Enter moves.
   const committable = state !== null && ship !== null && judge(state, move(path)).kind === "ok";
@@ -89,9 +104,12 @@ export function usePlot(state: GameState | null, pointer: Point | null, straight
     stats: st,
     previewStats: stats(state, ship, full),
     verdict: judge(state, move(path)),
-    previewVerdict: judge(state, move(full)),
+    previewVerdict: judge(state, move(full, false)),
     disengage,
     setDisengage: (on) => update({ disengage: on }),
+    boardable,
+    board,
+    setBoard: (id) => update({ board: id }),
     click: (p, straightOnly) => update({ path: append(path, propose(state, ship, path, p, straightOnly)) }),
     add: (step) => update({ path: append(path, [step]) }),
     back: () => update({ path: path.slice(0, -1) }),
@@ -106,4 +124,17 @@ export function usePlot(state: GameState | null, pointer: Point | null, straight
       });
     },
   };
+}
+
+/** Active, ungrappled enemy ships whose bases touch the moving ship's base at `end` (validator V7). */
+function boardableAt(state: GameState, ship: Ship, end: Point): Ship[] {
+  if (!state.meta.options.boarding) return [];
+  return state.ships.filter(
+    (s) =>
+      s.owner !== ship.owner &&
+      s.status === "active" &&
+      s.grapple === null &&
+      s.position !== null &&
+      geometry.basesTouch(end, ship.profile.baseSize, s.position, s.profile.baseSize),
+  );
 }

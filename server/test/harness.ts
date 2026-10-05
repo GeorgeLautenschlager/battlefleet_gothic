@@ -39,11 +39,11 @@ export class Harness {
     readonly tokens: Record<PlayerId, string>,
   ) {}
 
-  static async create(opts: { side?: PlayerId; seed?: number; fleet?: Fleet; ramming?: boolean } = {}): Promise<Harness> {
+  static async create(opts: { side?: PlayerId; seed?: number; fleet?: Fleet; ramming?: boolean; boarding?: boolean } = {}): Promise<Harness> {
     const deps = testDeps(opts.seed);
     const fleet = opts.fleet ?? HOST_FLEET;
     const created = await createRoom(
-      { name: "Ann", side: opts.side ?? "p1", faction: fleet.faction, ships: [...fleet.ships], ramming: opts.ramming ?? true },
+      { name: "Ann", side: opts.side ?? "p1", faction: fleet.faction, ships: [...fleet.ships], ramming: opts.ramming ?? true, boarding: opts.boarding ?? false },
       deps,
     );
     if ("error" in created) throw new Error(created.error);

@@ -4,12 +4,17 @@ import { MAX_NAME_LENGTH, MAX_SHIPS, type ShipEntry } from "./protocol";
 
 export type SeatFleet = { name: string; faction: FactionId; ships: ShipEntry[] };
 
-export function cruiserClash(seats: Record<PlayerId, SeatFleet>, seed: number, createdAt: string, options: { ramming: boolean }): GameConfig {
+export function cruiserClash(
+  seats: Record<PlayerId, SeatFleet>,
+  seed: number,
+  createdAt: string,
+  options: { ramming: boolean; boarding: boolean },
+): GameConfig {
   const ships = (owner: PlayerId) => seats[owner].ships.map((s) => ({ owner, name: s.name, classId: s.classId }));
   return {
     seed,
     createdAt,
-    options: { ramming: options.ramming },
+    options: { ramming: options.ramming, boarding: options.boarding },
     players: {
       p1: { name: seats.p1.name, faction: seats.p1.faction },
       p2: { name: seats.p2.name, faction: seats.p2.faction },
