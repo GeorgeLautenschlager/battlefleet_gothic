@@ -1,6 +1,6 @@
 # Network Play Specification
 
-**Status:** v0.3, accepted ([ADR 0003](../docs/adr/0003-network-play.md)). The game room is implemented in [`server/`](../server/README.md); Cloudflare wiring and the app are next. **Scope:** two players on two devices playing the Phase 1 game (Cruiser Clash, Lunar vs Murder), live or turn-by-turn. Builds on [Game State](../game_state/SPEC.md), [Transforms](../transforms/SPEC.md), the [engine](../engine/README.md) and the [browser app](../app/README.md) ([ADR 0002](../docs/adr/0002-browser-app.md)).
+**Status:** v0.3, accepted ([ADR 0003](../docs/adr/0003-network-play.md)). The server (game room, Worker and Durable Object, deploy) is implemented in [`server/`](../server/README.md); the app is next. **Scope:** two players on two devices playing the Phase 1 game (Cruiser Clash, Lunar vs Murder), live or turn-by-turn. Builds on [Game State](../game_state/SPEC.md), [Transforms](../transforms/SPEC.md), the [engine](../engine/README.md) and the [browser app](../app/README.md) ([ADR 0002](../docs/adr/0002-browser-app.md)).
 
 Hot-seat stays exactly as it is. Network play is a second way to drive the same UI.
 
@@ -204,7 +204,7 @@ Stored per game:
 ## 9. Operations
 
 - **Hosting:** Cloudflare Workers with SQLite-backed Durable Objects. A two-player turn-based game is a handful of requests per minute, which should fit comfortably in the free plan. Verify the current limits and pricing before relying on that.
-- **Deploys:** a GitHub Actions job deploys `server/` with `wrangler deploy` on pushes to `main` that touch `server/**` or `engine/src/**`. It needs a `CLOUDFLARE_API_TOKEN` (and account id) as repository secrets, which only George can create.
+- **Deploys:** a GitHub Actions job deploys `server/` with `wrangler deploy` on pushes to `main` that touch `server/**` or `engine/src/**`. It reads `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the `github-pages` environment's secrets.
 - **Versions:** each build stamps an `engine` id (the commit SHA of `engine/src`).
   - The client sends it in `hello`. On a mismatch the server answers with an error asking the client to reload, so the client never validates against different rules from the server's.
   - A game in progress keeps running on whatever engine the server has after a deploy. A rules change mid-game is accepted as a risk for Phase 1, since the rules are stable now.
