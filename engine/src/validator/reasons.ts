@@ -71,6 +71,20 @@ export const REASON_CODES = [
   "CANNOT_TELEPORT",
   "SHIELDS_UP",
   "TARGET_TOO_LARGE",
+  // Attack craft and CAP (validator spec v0.5)
+  "NO_LAUNCH_BAYS",
+  "EMPTY_WAVE",
+  "CRAFT_NOT_CARRIED",
+  "TOO_MANY_SQUADRONS",
+  "FLEET_LIMIT",
+  "INVALID_RECALL",
+  "CAP_NOT_FIGHTERS",
+  "INVALID_CAP_SHIP",
+  "NOT_ON_CAP",
+  "ON_CAP",
+  "TOO_LATE_TO_RELEASE",
+  "WRONG_ORDNANCE_MOVE",
+  "PATH_OFF_TABLE",
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];
