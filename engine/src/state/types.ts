@@ -175,6 +175,13 @@ export type ShipProfile = {
   turrets: number;
   baseSize: BaseSize;
   weapons: Weapon[];
+  /** The class's special rules from the fleet book; absent = none. */
+  traits?: ShipTraits;
+};
+
+export type ShipTraits = {
+  /** D6 rolled for All Ahead Full; default 4. Improved thrusters: 5 (state N10). */
+  allAheadFullDice?: number;
 };
 
 export type WeaponKind = "battery" | "lance" | "torpedoes" | "launch_bay";
@@ -307,6 +314,8 @@ export type WorkItem =
       kind: "direct_fire";
       shooterId: string;
       weaponId: string;
+      /** More batteries in the same volley (T32). Absent in older saves: none. */
+      combineWith?: string[];
       target: { kind: "ship" | "ordnance"; id: string };
       arc: Quadrant;
       aspect: Quadrant | null;

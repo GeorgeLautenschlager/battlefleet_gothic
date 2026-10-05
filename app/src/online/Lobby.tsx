@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { CATALOGUE, type PlayerId } from "@bfg/engine";
 import type { Lobby as LobbyInfo, SeatInfo } from "@bfg/server";
-import { asFleet, shipEntries, type Side } from "../game/config";
-import { duplicates, DuplicateNames, FleetFields, resize } from "../panels/FleetForm";
+import { asFleet, shipEntries, sideProblem, type Side } from "../game/config";
+import { duplicates, DuplicateNames, FleetFields, FleetProblem, resize } from "../panels/FleetForm";
 import { factionName } from "../players";
 import { inviteLink } from "./config";
 import type { MyGame } from "./myGames";
@@ -81,16 +81,17 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
   const [side, setSide] = useState<Side>(() => {
     // Default to the classic matchup: whichever fleet the host didn't pick.
     const fleet = asFleet(host.faction) === "chaos" ? "imperial_navy" : "chaos";
-    return { name: SEAT[seat], fleet, ships: resize([], fleet, lobby.count, hostNames), carrier: true };
+    return { name: SEAT[seat], fleet, ships: resize([], fleet, lobby.count, hostNames) };
   });
   const carriers = (lobby.options as Partial<LobbyInfo["options"]>).carriers === true;
   const dupes = duplicates([...hostNames, ...side.ships]);
+  const problem = dupes.length > 0 ? null : sideProblem(side, carriers);
   return (
     <form
       className="new-game"
       onSubmit={(e) => {
         e.preventDefault();
-        if (dupes.length === 0) remote.join(side.name.trim(), side.fleet, shipEntries(side, carriers));
+        if (dupes.length === 0 && problem === null) remote.join(side.name.trim(), side.fleet, shipEntries(side, carriers));
       }}
     >
       <h2>You've been invited</h2>
@@ -110,16 +111,17 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
           setSide({
             ...side,
             ...patch,
-            ...(patch.fleet !== undefined && patch.fleet !== side.fleet ? { ships: resize([], patch.fleet, lobby.count, hostNames) } : {}),
+            ...(patch.fleet !== undefined && patch.fleet !== side.fleet ? { ships: resize([], patch.fleet, lobby.count, hostNames), classes: [] } : {}),
           })
         }
         dupes={dupes}
         carriers={carriers}
       />
       <DuplicateNames dupes={dupes} />
+      <FleetProblem problem={problem} />
       {remote.rejection && <p className="rejection">{remote.rejection.message}</p>}
       <div className="buttons">
-        <button type="submit" className="primary" disabled={dupes.length > 0}>
+        <button type="submit" className="primary" disabled={dupes.length > 0 || problem !== null}>
           Join the battle
         </button>
       </div>

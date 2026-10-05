@@ -16,8 +16,8 @@ function launchStep(): History {
   let h = start(
     cruiserClash(
       {
-        p1: { name: "Ann", fleet: "imperial_navy", ships: ["Fortitude"], carrier: true },
-        p2: { name: "Bo", fleet: "chaos", ships: ["Deathbane"], carrier: true },
+        p1: { name: "Ann", fleet: "imperial_navy", ships: ["Fortitude"], classes: ["dictator"] },
+        p2: { name: "Bo", fleet: "chaos", ships: ["Deathbane"], classes: ["devastation"] },
         ramming: true,
         boarding: false,
         carriers: true,
@@ -103,6 +103,9 @@ describe("log prose", () => {
     expect(prose(s, entry("dogfight", { ordnanceIds: [["ord-1"], ["ord-2"]], lost: [["Fury"], ["Swiftdeath", "Doomfire"]] }))).toBe("Dogfight: Fury lost against Swiftdeath, Doomfire");
     expect(prose(s, entry("turrets", { shipId: target.id, against: "attack_craft", own: 3, massed: ["ship-9"], rolls: [4, 1, 5, 2], stopped: 2 }))).toBe(
       `${target.name} turrets (+1 massed) [4 1 5 2]: 2 squadrons stopped`,
+    );
+    expect(prose(s, entry("attack", { source: { kind: "ship", id: target.id }, targetId: s.ships[0]!.id, weapon: "battery", weaponIds: ["a", "b", "c"], firepower: 16, need: 5, rolls: [6, 2], rerolls: [], hits: 1 }))).toBe(
+      `${target.name} 3 batteries (firepower 16) at ${s.ships[0]!.name}: [6 2] need 5+, 1 hit`,
     );
     expect(prose(s, entry("hit_and_run", { targetId: target.id, rolls: [5], result: "critical" }))).toBe(`Assault boats hit ${target.name} [5]: critical hit`);
   });

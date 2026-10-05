@@ -25,7 +25,8 @@ src/
   state/invariants.ts  §13 invariants (+ plain-JSON and clock consistency)
   state/rng.ts         §10.3 mulberry32 dice
   state/newGame.ts     the newGame factory (transforms §5)
-  state/catalogue.ts   ship profiles: Lunar, Murder, and the carriers Dictator and Devastation
+  state/catalogue.ts   ship profiles: every Cruiser Clash cruiser of the Imperial Navy (Lunar, Gothic, Tyrant, Dictator)
+                       and Chaos (Murder and its lance variant, Carnage, Inferno, Slaughter, Devastation); traits and rarity limits
   state/json.ts        plain-JSON checks and cloning
   math/dmath.ts        fdlibm ports: sinDeg, cosDeg, asinDeg, atan2Deg
   geometry/basic.ts    bearings, quadrants, distance, contact, segments

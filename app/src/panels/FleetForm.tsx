@@ -1,5 +1,5 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
-import { carrierClass, classIds, defaultNames, FLEETS, MAX_SHIPS, profileOf, type Fleet, type Side } from "../game/config";
+import { classChoices, classIds, defaultNames, FLEETS, MAX_SHIPS, profileOf, type Fleet, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
 export function duplicates(names: string[]): string[] {
@@ -85,10 +85,12 @@ function fleetSummary(side: Side, carriers: boolean): string {
   return `${[...counts].map(([name, c]) => `${c.n} × ${name} (${c.points} pts)`).join(", ")} · ${total} pts`;
 }
 
-/** One side: commander, fleet, its carrier if allowed, and a name per ship. */
+/** One side: commander, fleet, and a name and class per ship. */
 export function FleetFields({ legend, className, side, onChange, dupes, carriers = false }: FieldsProps) {
   const count = side.ships.length;
-  const carrier = carrierClass(side.fleet);
+  const choices = classChoices(side.fleet, carriers);
+  const classes = classIds(side, carriers);
+  const setClass = (i: number, classId: string) => onChange({ classes: classes.map((c, j) => (j === i ? classId : c)) });
   return (
     <fieldset className={className}>
       <legend>
@@ -108,27 +110,41 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
           ))}
         </select>
       </label>
-      {carriers && (
-        <label className="check">
-          <input type="checkbox" checked={side.carrier === true} onChange={(e) => onChange({ carrier: e.target.checked })} />
-          Bring a carrier: {side.ships[0]?.trim() || "ship 1"} is a {carrier.className}
-        </label>
-      )}
       <p className="muted small">{fleetSummary(side, carriers)}</p>
       {side.ships.map((name, i) => (
-        <label key={i}>
-          {count === 1 ? "Ship name" : `Ship ${i + 1}`}
-          <input
-            value={name}
-            onChange={(e) => onChange({ ships: side.ships.map((s, j) => (j === i ? e.target.value : s)) })}
-            required
-            maxLength={40}
-            aria-invalid={dupes.includes(name.trim())}
-          />
-        </label>
+        <div key={i} className="ship-row">
+          <label>
+            {count === 1 ? "Ship name" : `Ship ${i + 1}`}
+            <input
+              value={name}
+              onChange={(e) => onChange({ ships: side.ships.map((s, j) => (j === i ? e.target.value : s)) })}
+              required
+              maxLength={40}
+              aria-invalid={dupes.includes(name.trim())}
+            />
+          </label>
+          <label>
+            {count === 1 ? "Class" : `Ship ${i + 1} class`}
+            <select value={classes[i]} onChange={(e) => setClass(i, e.target.value)}>
+              {choices.map((id) => {
+                const p = profileOf(id);
+                return (
+                  <option key={id} value={id}>
+                    {p.className.replace(" class cruiser", "")} · {p.points} pts
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+        </div>
       ))}
     </fieldset>
   );
+}
+
+/** The engine's reason this fleet can't play, if there is one. */
+export function FleetProblem({ problem }: { problem: string | null }) {
+  return problem !== null ? <p className="rejection">{problem}</p> : null;
 }
 
 export function DuplicateNames({ dupes }: { dupes: string[] }) {

@@ -19,8 +19,12 @@ export function fire(ctx: Ctx, t: Fire): void {
     targetShip !== null ? { kind: "ship", ship: targetShip } : targetSalvo !== null ? { kind: "ordnance", salvo: targetSalvo } : null;
   if (target === null) return; // unreachable after validation
 
-  // Target priority (p. 60): a test only if this isn't the nearest target and none was taken yet.
-  if (entry.priorityTest === null && !isNearest(state, ship, weapon, target)) {
+  // A combined volley (T32): the other batteries firing with this one.
+  const combineWith = t.combineWith ?? [];
+  const volley = [weapon, ...combineWith.map((id) => ship.profile.weapons.find((w) => w.id === id)).filter((w) => w !== undefined)];
+
+  // Target priority (p. 60): a test only if this isn't the nearest target (for any weapon in the volley, T34) and none was taken yet.
+  if (entry.priorityTest === null && volley.some((w) => !isNearest(state, ship, w, target))) {
     const ld = leadership(ship);
     const test = ctx.test(2, ld);
     entry.priorityTest = test.passed ? "passed" : "failed";
@@ -28,7 +32,7 @@ export function fire(ctx: Ctx, t: Fire): void {
     if (!test.passed) return; // the weapon isn't spent: it may fire at the nearest target instead
   }
 
-  entry.weaponsFired.push(weapon.id);
+  for (const w of volley) entry.weaponsFired.push(w.id);
   const from = ship.position as Point;
   const at = targetShip !== null ? (targetShip.position as Point) : (targetSalvo?.position as Point);
   // Validation guarantees a single option wherever the transform left a choice out.
@@ -39,5 +43,5 @@ export function fire(ctx: Ctx, t: Fire): void {
   if (targetShip !== null) {
     state.queue.push({ kind: "brace_offer", shipId: targetShip.id, source: { kind: "ship", id: ship.id } });
   }
-  state.queue.push({ kind: "direct_fire", shooterId: ship.id, weaponId: weapon.id, target: { ...t.target }, arc, aspect });
+  state.queue.push({ kind: "direct_fire", shooterId: ship.id, weaponId: weapon.id, combineWith: [...combineWith], target: { ...t.target }, arc, aspect });
 }

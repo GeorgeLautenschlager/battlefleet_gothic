@@ -106,11 +106,24 @@ export function candidates(s: GameState, n: number): Transform[] {
               for (const arc of ARCS) out.push({ type: "fire", player: p, shipId: ship.id, weaponId: w.id, target: { kind: "ordnance", id: o.id }, ...(arc === undefined ? {} : { arc }) });
             }
           }
-          for (const e of enemies) for (const arc of ARCS) for (const aspect of ARCS) {
-            out.push({
-              type: "fire", player: p, shipId: ship.id, weaponId: w.id, target: { kind: "ship", id: e.id },
-              ...(arc === undefined ? {} : { arc }), ...(aspect === undefined ? {} : { aspect }),
-            });
+          for (const e of enemies) {
+            // Batteries: first with every other unfired battery that bears on this target, in one volley (T32), then alone.
+            const bearing = quadrantsOfPoint(ship.position!, ship.heading!, e.position!);
+            const others =
+              w.kind === "battery"
+                ? ship.profile.weapons
+                    .filter((x) => x.kind === "battery" && x.id !== w.id && !done(ship.id, x.id) && !weaponDisabled(s, ship, x))
+                    .filter((x) => x.arcs.some((q) => bearing.includes(q)) && distance(ship.position!, e.position!) <= (x.range ?? 0))
+                    .map((x) => x.id)
+                : [];
+            const volleys = others.length > 0 && n % 3 !== 0 ? [others, undefined] : [undefined];
+            for (const combineWith of volleys) for (const arc of ARCS) for (const aspect of ARCS) {
+              out.push({
+                type: "fire", player: p, shipId: ship.id, weaponId: w.id, target: { kind: "ship", id: e.id },
+                ...(combineWith === undefined ? {} : { combineWith }),
+                ...(arc === undefined ? {} : { arc }), ...(aspect === undefined ? {} : { aspect }),
+              });
+            }
           }
         }
       }

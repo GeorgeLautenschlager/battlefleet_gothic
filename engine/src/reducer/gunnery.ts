@@ -61,11 +61,15 @@ export function resolveDirectFire(ctx: Ctx, item: DirectFire): void {
   const lockOn = shooter.specialOrder?.kind === "lock_on";
   const source = { kind: "ship" as const, id: shooter.id };
 
-  const { hits, need, rolls, rerolls, column, shift } = rollToHit(ctx, shooter, weapon, at, targetShip ?? null, item.aspect, lockOn);
+  // A combined volley's batteries add their effective firepower (T32); older saves have no combineWith.
+  const combined = (item.combineWith ?? []).map((id) => shooter.profile.weapons.find((w) => w.id === id)).filter((w) => w !== undefined);
+  const firepower = [weapon, ...combined].reduce((n, w) => n + effectiveStrength(shooter, w), 0);
+  const { hits, need, rolls, rerolls, column, shift } = rollToHit(ctx, shooter, weapon, firepower, at, targetShip ?? null, item.aspect, lockOn);
   ctx.log("attack", {
     source,
     targetId: item.target.id,
     weapon: weapon.kind,
+    ...(combined.length > 0 ? { weaponIds: [weapon.id, ...combined.map((w) => w.id)], firepower } : {}),
     ...(column !== null ? { column, shifts: shift } : {}),
     need,
     rolls,
@@ -95,12 +99,12 @@ function rollToHit(
   ctx: Ctx,
   shooter: Ship,
   weapon: Weapon,
+  strength: number,
   at: Point,
   target: Ship | null,
   aspect: Quadrant | null,
   lockOn: boolean,
 ): { hits: number; need: number; rolls: number[]; rerolls: number[]; column: GunneryColumn | null; shift: number } {
-  const strength = effectiveStrength(shooter, weapon);
   let dice: number;
   let need: number;
   let column: GunneryColumn | null = null;

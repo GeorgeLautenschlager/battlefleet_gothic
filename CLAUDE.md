@@ -47,4 +47,7 @@ Recorded in [`docs/adr/`](docs/adr/). Current:
   2. Fleet composition online: lobby fleet picker, protocol 2. Done.
   3. Boarding actions, grapples and teleport attacks (pp. 89–92): specs (state v0.7, transforms v0.5, validator v0.4, reducer v0.4), engine and UI done; a rules option for hot-seat and online games, on by default.
   4. Attack craft (pp. 73–87), with the Dictator and Devastation as the first carriers: launch bays, fighters, bombers and assault boats, dogfights, Combat Air Patrol, massed turrets, and a "one carrier each" option over the 185-point cap (p. 129). Specs (state v0.8, transforms v0.6, validator v0.5, reducer v0.5), engine and UI done; a rules option for hot-seat and online games, off by default.
-  5. More ship classes from the box.
+  5. The rest of the capital ships, in chunks:
+     1. The remaining Cruiser Clash cruisers: Gothic and Tyrant; Carnage, Inferno, Slaughter and the Murder lance variant. A class per ship in the fleet forms, combined battery volleys (`fire.combineWith`, T32), class traits (improved thrusters, state N10) and rarity limits (T35). Done.
+     2. Battlecruisers and heavy cruisers, then grand and light cruisers, then battleships. These need fleet battles by points (beyond Cruiser Clash's 185-point cap) and the nova cannon first.
+  6. Squadrons and escorts.

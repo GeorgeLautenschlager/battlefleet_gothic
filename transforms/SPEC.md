@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.6, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.8](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12).
+**Status:** draft v0.7, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.9](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -184,7 +184,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 
   Brace For Impact! is never declared here; it only arises through `answer_brace`.
 - **Reducer:** draw **2D6** Command check against `commandCheckLd` (state §11).
-  - **Pass:** set `specialOrder` with its expiry (state §7.3). `reload_ordnance` sets every `loaded` flag to `true` at once. For `all_ahead_full`: if there's a ram target, draw **3D6 / 2D6 / 1D6** for the ram Leadership test (target smaller / same / larger type, p. 55; pass if ≤ Ld), then draw **4D6** for `aafExtra`.
+  - **Pass:** set `specialOrder` with its expiry (state §7.3). `reload_ordnance` sets every `loaded` flag to `true` at once. For `all_ahead_full`: if there's a ram target, draw **3D6 / 2D6 / 1D6** for the ram Leadership test (target smaller / same / larger type, p. 55; pass if ≤ Ld), then draw **4D6** for `aafExtra` (the class's `allAheadFullDice`, if it has one: 5D6 with improved thrusters, state N10).
   - **Fail:** `commandCheckFailed = true`; the ship moves with no order.
 
   Either way, open an `activation` with `stage: "ordered"` (state §9.1) and fill in `maxDistance`, `minDistance` and `ram`.
@@ -242,6 +242,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   type: "fire", player,
   shipId: string,
   weaponId: string,           // a battery or lance
+  combineWith?: string[],     // more of this ship's weapons batteries, fired in the same volley (T32)
   target: { kind: "ship" | "ordnance", id: string },
   arc?: Quadrant,             // required only when the target is on an arc boundary of the firer
   aspect?: Quadrant           // required only when the firer is on a quadrant boundary of the target ship
@@ -254,18 +255,19 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - **Range:** stem-to-stem distance ≤ `range`.
   - **Arc:** the target's bearing from the shooter falls in one of the weapon's `arcs`. On a boundary, `arc` must be supplied, must be one of the two adjacent quadrants, and must be one of the weapon's arcs. `aspect` follows the same rule for the target's quadrant facing the shooter.
   - **Line of fire:** the stem-to-stem line doesn't cross the base of a hulk other than the target (p. 71).
-  - **Target priority:** if `priorityTest = "failed"`, the target must be **nearest** for this weapon. That's the nearest non-hulk enemy ship (or enemy salvo, when shooting at ordnance) that this weapon could legally engage. See [validator §2.7](../validator/SPEC.md#27-lines-of-fire-and-targeting) and ruling V1 (p. 60, p. 75).
+  - **Combined batteries** (`combineWith`, T32): only with a battery as `weaponId`. Each id names another of the ship's weapons batteries, once, not fired and not disabled, with the target in its range and in one of its arcs.
+  - **Target priority:** if `priorityTest = "failed"`, the target must be **nearest** for this weapon (and for each combined battery). That's the nearest non-hulk enemy ship (or enemy salvo, when shooting at ordnance) that this weapon could legally engage. See [validator §2.7](../validator/SPEC.md#27-lines-of-fire-and-targeting) and ruling V1 (p. 60, p. 75).
 - **Reducer:**
-  1. **Priority test** (Ld test on **2D6**, no modifiers; pass if ≤ Ld): only if the target isn't the nearest and `priorityTest` is null. On a fail, record `"failed"`. The shot doesn't happen and the weapon isn't spent, so the player can fire it at the nearest target instead. On a pass, record `"passed"` and carry on.
+  1. **Priority test** (Ld test on **2D6**, no modifiers; pass if ≤ Ld): only if the target isn't the nearest (for any weapon in the volley) and `priorityTest` is null. On a fail, record `"failed"`. The shot doesn't happen and the weapon isn't spent, so the player can fire it at the nearest target instead. On a pass, record `"passed"` and carry on.
   2. **Offer brace** (target), if it's a ship.
-  3. **To hit:** draw the dice. Batteries roll the Gunnery Table result with column shifts; lances roll 1D6 per point of strength. Strength is `effectiveStrength` (state §11). A hit is ≥ armour on the aspect facing (batteries), 4+ (lances), or 6 (any weapon against ordnance). Lock On re-rolls the misses, drawn straight after the first roll.
+  3. **To hit:** draw the dice. Batteries roll the Gunnery Table result with column shifts, for the **sum** of the volley's firepower (T32); lances roll 1D6 per point of strength. Strength is `effectiveStrength` (state §11), each battery halved on its own before they're added. A hit is ≥ armour on the aspect facing (batteries), 4+ (lances), or 6 (any weapon against ordnance). Lock On re-rolls the misses, drawn straight after the first roll.
   4. **Against ordnance:** any hit removes the salvo, or the **whole** attack craft wave (p. 85). A wave's range and bearing are measured to its centre.
   5. **Against a ship:**
      - Shields absorb hits up to `shieldCapacity`; a Blast Marker is placed for each.
      - If braced, draw **1D6 per remaining hit**; each 4+ is saved.
      - Each unsaved hit is 1 damage, with a critical check per point (**1D6**; on a 6, draw **2D6** on the table, plus any extra-damage dice).
      - Catastrophic damage if the ship reaches 0 hits.
-  6. Add `weaponId` to `weaponsFired`.
+  6. Add `weaponId`, and every `combineWith` id, to `weaponsFired`.
 
   Phase 1 has **no split fire**: a weapon fires once, at one target, at full effective strength (ruling T1).
 
@@ -487,8 +489,8 @@ type GameConfig = {
 }
 ```
 
-- Profiles come from a ship catalogue built from `rules/fleets/`: `lunar`, `murder`, and the carriers `dictator` (Imperial Navy, p. 67) and `devastation` (Chaos, p. 276). Their launch bays carry their fleets' attack craft: Fury fighters and Starhawk bombers (Imperial Navy); Swiftdeath fighters, Doomfire bombers and Dreadclaw assault boats (Chaos).
-- Cruiser Clash checks: 1–4 ships per side, the same number each, all `cruiser`, each ≤ 185 points (p. 128). With `carriers` on, each side may also field **at most one** ship with launch bays above that cap ("allow one carrier each", p. 129). A bad config throws; it never produces an invalid state.
+- Profiles come from a ship catalogue built from `rules/fleets/`. Imperial Navy: `lunar`, `gothic` (p. 70), `tyrant` (p. 69), and the carrier `dictator` (p. 67). Chaos: `murder`, its lance variant `murder_lances` (p. 279), `carnage` (p. 277), `inferno` (p. 278), `slaughter` (p. 280, improved thrusters), and the carrier `devastation` (p. 276). A ship option that changes a profile is its own catalogue class (D13). Their launch bays carry their fleets' attack craft: Fury fighters and Starhawk bombers (Imperial Navy); Swiftdeath fighters, Doomfire bombers and Dreadclaw assault boats (Chaos).
+- Cruiser Clash checks: 1–4 ships per side, the same number each, all `cruiser`, each ≤ 185 points (p. 128). With `carriers` on, each side may also field **at most one** ship with launch bays above that cap ("allow one carrier each", p. 129). A class with a rarity limit is held to it per side: the Murder lance variant, no more than two per 750 points, or part, of that side's fleet (p. 279). A bad config throws; it never produces an invalid state.
 - The result is at `stage: "setup"`, `setupStep: "roll_leadership"`, `playerTurn: 0`. Ships are `undeployed`, with ids `ship-1 … ship-n` in config order. `rng.state = seed`.
 
 ---
@@ -527,6 +529,10 @@ type GameConfig = {
 | T28 | Only fighters fly CAP, one squadron per CAP marker: a wave going on CAP splits into single fighters. |
 | T29 | **Recall** (p. 73) is part of a launch, removes whole waves, and never CAP fighters. |
 | T30 | CAP fighters whose ship stops being `active` stay where it was, as ordinary single fighters. |
+| T32 | **Combined batteries** (pp. 61, 63): a ship's weapons batteries firing at the same target fire as one volley: their effective firepower is added and looked up once on the Gunnery Table, with one column (shared aspect, range band and Blast Marker shift). A battery may still fire alone, and a ship may send different batteries at different targets. |
+| T33 | Lances aren't combined: they roll 1D6 per point of strength whatever the grouping, so there's nothing to add up. |
+| T34 | A volley's target priority: if the target isn't the nearest for **any** battery in it, one priority test covers the volley. A failed test leaves every battery in it unfired. |
+| T35 | **Rarity limits** count the side's whole fleet: "two per 750 points or part" allows two in any Cruiser Clash fleet (4 × 185 = 740). |
 | T31 | **Launch bays** are weapons at a location (port, starboard): that side's armament critical disables them (p. 67), which lowers the fleet's limit too. |
 
 ## 7. Decisions
@@ -544,6 +550,8 @@ type GameConfig = {
 | D9 | Combat Air Patrol in this slice? | Yes (George's call): escorting a carrier is core fighter play. |
 | D10 | Massed turrets? | Yes, now, for torpedoes as well as attack craft (George's call). |
 | D11 | Torpedo bombers, resilient craft, boarding torpedoes? | Not in this slice: neither carrier in the box takes them by default. Their rules (pp. 78, 84, 86) slot in as new roles and ordnance kinds later. |
+| D13 | Ship options and refits? | A variant whose profile differs is its own catalogue class (`murder_lances`), with its own points and any rarity limit. Options that would take a cruiser over Cruiser Clash's 185 points (the Tyrant's 45 cm batteries, nova cannons) wait for fleet battles by points. |
+| D14 | Combined batteries: automatic, or the player's choice? | The player's: `combineWith` names the batteries joining the volley, so a ship can still send its long-range battery at one target and its short-range one at another. The app offers the combined volley first. |
 | D12 | One wave entity, or one entity per marker? | One wave with a footprint (T17, state N8). Turrets fire once at a wave and a hit kills it all (p. 85), so the wave is the unit the rules care about. |
 
 No open questions.

@@ -71,6 +71,8 @@ export const REASON_CODES = [
   "CANNOT_TELEPORT",
   "SHIELDS_UP",
   "TARGET_TOO_LARGE",
+  // Combined battery fire (validator spec v0.6)
+  "INVALID_VOLLEY",
   // Attack craft and CAP (validator spec v0.5)
   "NO_LAUNCH_BAYS",
   "EMPTY_WAVE",
