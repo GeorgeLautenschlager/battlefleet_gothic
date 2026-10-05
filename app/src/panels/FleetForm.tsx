@@ -39,12 +39,21 @@ export function CountSelect({ value, onChange }: { value: number; onChange: (n: 
   );
 }
 
-export function RammingCheck({ value, onChange }: { value: boolean; onChange: (on: boolean) => void }) {
+export type Rules = { ramming: boolean; boarding: boolean };
+
+/** The game's rule switches: ramming (optional, pp. 55–56) and boarding with teleport attacks (pp. 89–92). */
+export function RulesChecks({ value, onChange }: { value: Rules; onChange: (rules: Rules) => void }) {
   return (
-    <label className="check">
-      <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
-      Ramming (optional rule, pp. 55–56)
-    </label>
+    <>
+      <label className="check">
+        <input type="checkbox" checked={value.ramming} onChange={(e) => onChange({ ...value, ramming: e.target.checked })} />
+        Ramming (optional rule, pp. 55–56)
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={value.boarding} onChange={(e) => onChange({ ...value, boarding: e.target.checked })} />
+        Boarding and teleport attacks (pp. 89–92)
+      </label>
+    </>
   );
 }
 

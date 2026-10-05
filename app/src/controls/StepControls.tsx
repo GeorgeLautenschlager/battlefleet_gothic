@@ -7,6 +7,7 @@ import type { Plot } from "../plot/usePlot";
 import { controls, type Seat } from "../game/source";
 import { PriorityList, reconcile } from "./PriorityList";
 import { ShipPicker } from "./ShipPicker";
+import { BoardingControls } from "./BoardingControls";
 
 const words = (s: string) => s.replaceAll("_", " ");
 const UNREPAIRABLE = new Set(["bridge_smashed", "shields_collapse"]);
@@ -76,6 +77,9 @@ export function StepControls({ state, onApply, onHighlight, plot = null, seat = 
         </div>
       );
     }
+
+    case "boarding":
+      return <BoardingControls state={state} onApply={onApply} />;
 
     case "damage_control": {
       const needy = state.ships.filter(

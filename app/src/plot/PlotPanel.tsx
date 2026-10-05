@@ -34,6 +34,22 @@ export function PlotPanel({ plot }: { plot: Plot }) {
         back, clear, move.
       </p>
       <StepEntry plot={plot} />
+      {plot.boardable.length > 0 && (
+        <div className="picker" role="group" aria-label="Board">
+          <span className="muted small">Ends in base contact. Board (no shooting this turn):</span>
+          {plot.boardable.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              aria-pressed={plot.board === s.id}
+              className={plot.board === s.id ? "selected" : undefined}
+              onClick={() => plot.setBoard(plot.board === s.id ? null : s.id)}
+            >
+              Board {s.name}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="buttons">
         <button type="button" onClick={plot.fullAhead} disabled={st.total >= st.max}>
           Full ahead

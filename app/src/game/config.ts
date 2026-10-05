@@ -22,7 +22,7 @@ export const FLEETS: Record<Fleet, { name: string; classId: string; names: strin
 export const MAX_SHIPS = 4;
 
 export type Side = { name: string; fleet: Fleet; ships: string[] };
-export type NewGameOptions = { p1: Side; p2: Side; ramming: boolean; seed?: number };
+export type NewGameOptions = { p1: Side; p2: Side; ramming: boolean; boarding: boolean; seed?: number };
 
 /** Default ship names. In a mirror match p2 takes the second half of the list, so no name repeats. */
 export function defaultNames(fleet: Fleet, n: number, mirrorP2 = false): string[] {
@@ -49,7 +49,7 @@ export function cruiserClash(options: NewGameOptions, now = new Date()): GameCon
   return {
     seed: options.seed ?? randomSeed(),
     createdAt: now.toISOString(),
-    options: { ramming: options.ramming },
+    options: { ramming: options.ramming, boarding: options.boarding },
     players: {
       p1: { name: options.p1.name.trim(), faction: options.p1.fleet satisfies FactionId },
       p2: { name: options.p2.name.trim(), faction: options.p2.fleet satisfies FactionId },

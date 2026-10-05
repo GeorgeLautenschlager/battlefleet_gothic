@@ -58,7 +58,7 @@ export type RoomData = {
   seats: Record<PlayerId, SeatRecord>;
   /** Ships a side, set by the host. */
   count: number;
-  options: { ramming: boolean };
+  options: { ramming: boolean; boarding: boolean };
   /** Secret until the game ends. */
   config: GameConfig | null;
   transforms: TransformRecord[];
@@ -90,7 +90,8 @@ export function toBase64Url(bytes: Uint8Array): string {
 const trimShips = (ships: ShipEntry[]): ShipEntry[] => ships.map((s) => ({ name: s.name.trim(), classId: s.classId }));
 
 /** The host's fleet sets the number of ships a side. */
-export type CreateRequest = { name: string; side: PlayerId; faction: FactionId; ships: ShipEntry[]; ramming: boolean };
+/** `boarding` is optional: pages from before it existed create games without it. */
+export type CreateRequest = { name: string; side: PlayerId; faction: FactionId; ships: ShipEntry[]; ramming: boolean; boarding?: boolean };
 export type Created = { data: RoomData; seat: PlayerId; token: string; inviteToken: string };
 export type CreateError = { error: "INVALID_NAME" | "INVALID_SIDE" | "INVALID_FLEET"; message?: string };
 
@@ -117,7 +118,7 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
     status: "lobby",
     seats,
     count: req.ships.length,
-    options: { ramming: req.ramming },
+    options: { ramming: req.ramming, boarding: req.boarding ?? false },
     config: null,
     transforms: [],
     snapshot: null,
@@ -125,16 +126,20 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
   return { data, seat: req.side, token, inviteToken };
 }
 
-/** Protocol 1 rooms (one Lunar vs one Murder, `shipName` per seat), read as protocol 2. */
+/** Older rooms, read as current: protocol 1 rooms (one Lunar vs one Murder, `shipName` per seat), and rooms without a boarding option. */
 export function upgradeRoomData(data: RoomData): RoomData {
-  if (typeof data.count === "number") return data;
+  if (typeof data.count === "number") {
+    // Rooms from before boarding existed have no boarding option: it stays off.
+    const options = data.options as Partial<RoomData["options"]>;
+    return { ...data, options: { ramming: options.ramming ?? true, boarding: options.boarding ?? false } };
+  }
   const legacy = (p: PlayerId, seat: SeatRecord & { shipName?: string | null }): SeatRecord => ({
     tokenHash: seat.tokenHash,
     name: seat.name,
     faction: seat.name === null ? null : p === "p1" ? "imperial_navy" : "chaos",
     ships: seat.shipName ? [{ name: seat.shipName, classId: p === "p1" ? "lunar" : "murder" }] : [],
   });
-  return { ...data, count: 1, options: { ramming: true }, seats: { p1: legacy("p1", data.seats.p1), p2: legacy("p2", data.seats.p2) } };
+  return { ...data, count: 1, options: { ramming: true, boarding: false }, seats: { p1: legacy("p1", data.seats.p1), p2: legacy("p2", data.seats.p2) } };
 }
 
 type Session = { seat: PlayerId | null; recent: number[] };

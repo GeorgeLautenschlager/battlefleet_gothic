@@ -44,10 +44,13 @@ describe("creating a game", () => {
       seats: { p1: { tokenHash: "h1", name: "Ann", shipName: "Agrippa" }, p2: { tokenHash: "h2", name: null, shipName: null } },
     } as unknown as RoomData;
     const v2 = upgradeRoomData(v1);
-    expect(v2).toMatchObject({ count: 1, options: { ramming: true } });
+    expect(v2).toMatchObject({ count: 1, options: { ramming: true, boarding: false } });
     expect(v2.seats.p1).toEqual({ tokenHash: "h1", name: "Ann", faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }] });
     expect(v2.seats.p2).toEqual({ tokenHash: "h2", name: null, faction: null, ships: [] });
-    expect(upgradeRoomData(v2)).toBe(v2);
+    expect(upgradeRoomData(v2)).toEqual(v2);
+    // A protocol 2 room from before boarding existed: boarding stays off.
+    const before = { ...v2, options: { ramming: false } } as unknown as RoomData;
+    expect(upgradeRoomData(before).options).toEqual({ ramming: false, boarding: false });
   });
 });
 
@@ -57,7 +60,7 @@ describe("lobby and start", () => {
     const [welcome] = await h.hello("a", "p1");
     expect(welcome).toMatchObject({ type: "welcome", seat: "p1", status: "lobby", seq: 0, state: null });
     expect(welcome).toMatchObject({
-      lobby: { count: 1, options: { ramming: true }, seats: { p1: { name: "Ann", faction: "imperial_navy", joined: true }, p2: { joined: false } } },
+      lobby: { count: 1, options: { ramming: true, boarding: false }, seats: { p1: { name: "Ann", faction: "imperial_navy", joined: true }, p2: { joined: false } } },
     });
 
     await h.hello("b", "p2");
@@ -93,7 +96,7 @@ describe("lobby and start", () => {
 
   test("fleets: a 3-a-side Imperial mirror match starts with the host's options", async () => {
     const lunars = (prefix: string) => ({ faction: "imperial_navy", ships: [1, 2, 3].map((i) => ({ name: `${prefix} ${i}`, classId: "lunar" })) }) as const;
-    const h = await Harness.create({ fleet: lunars("Ann"), ramming: false });
+    const h = await Harness.create({ fleet: lunars("Ann"), ramming: false, boarding: true });
     await h.hello("a", "p1");
     await h.hello("b", "p2");
     await h.join("b", "p2", "Bo", lunars("Bo"));
@@ -103,7 +106,7 @@ describe("lobby and start", () => {
       "p2 Bo 1 Lunar class cruiser", "p2 Bo 2 Lunar class cruiser", "p2 Bo 3 Lunar class cruiser",
     ]);
     expect(state.players.p2.faction).toBe("imperial_navy");
-    expect(state.meta.options.ramming).toBe(false);
+    expect(state.meta.options).toEqual({ ramming: false, boarding: true });
   });
 
   test("proposals before the start are refused", async () => {

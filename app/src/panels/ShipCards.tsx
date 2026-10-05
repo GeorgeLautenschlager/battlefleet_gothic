@@ -26,6 +26,7 @@ function ShipCard({ ship, state, selected, onSelect }: { ship: Ship; state: Game
   const hits = ship.profile.hits;
   const left = remainingHits(ship);
   const status = STATUS[ship.status];
+  const boarding = state.turnState.ships[ship.id]?.boardingDeclared ?? null;
   return (
     <button type="button" className={`card ${playerClass(ship.owner)} ${selected ? "selected" : ""}`} onClick={() => onSelect(ship.id)}>
       <div className="card-head">
@@ -45,6 +46,8 @@ function ShipCard({ ship, state, selected, onSelect }: { ship: Ship; state: Game
       </div>
       {status !== "" && <div className="status">{status}</div>}
       {ship.specialOrder !== null && <div className="order">{words(ship.specialOrder.kind)}</div>}
+      {ship.grapple !== null && <div className="status">Grappled with {grappledWith(state, ship).join(", ")}</div>}
+      {boarding !== null && ship.grapple === null && <div className="status">Boarding {nameOf(state, boarding)}</div>}
       {ship.criticals.length > 0 && (
         <ul className="crits">
           {ship.criticals.map((c) => (
@@ -55,4 +58,13 @@ function ShipCard({ ship, state, selected, onSelect }: { ship: Ship; state: Game
       {state.clock.stage === "battle" && state.turnState.ships[ship.id]?.moved === true && <div className="muted">Moved</div>}
     </button>
   );
+}
+
+const nameOf = (state: GameState, id: string): string => state.ships.find((s) => s.id === id)?.name ?? id;
+
+/** The other ships in this ship's grapple. */
+function grappledWith(state: GameState, ship: Ship): string[] {
+  const g = ship.grapple;
+  if (g === null) return [];
+  return [g.defenderId, ...g.attackerIds].filter((id) => id !== ship.id).map((id) => nameOf(state, id));
 }

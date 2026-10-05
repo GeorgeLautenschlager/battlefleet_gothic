@@ -32,7 +32,7 @@ export type ClientMessage = Hello | Join | Propose | Undo | Ping;
 
 export type SeatInfo = { name: string | null; faction: FactionId | null; ships: ShipEntry[]; joined: boolean };
 /** `count`: ships a side, set by the host; `options`: the game's optional rules. */
-export type Lobby = { seats: Record<PlayerId, SeatInfo>; count: number; options: { ramming: boolean } };
+export type Lobby = { seats: Record<PlayerId, SeatInfo>; count: number; options: { ramming: boolean; boarding: boolean } };
 export type Presence = Record<PlayerId, boolean>;
 export type RoomStatus = "lobby" | "active" | "ended";
 

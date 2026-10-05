@@ -104,6 +104,36 @@ export function describe(state: GameState, entry: LogEntry): string {
       return `Blast Marker removal ${dice(d["rolls"])}: ${Array.isArray(d["removed"]) ? d["removed"].length : 0} removed`;
     case "game_end":
       return `Game over (${words(String(d["reason"]))}): ${d["winner"] === null ? "a draw" : `${player("winner")} wins`}`;
+    case "boarding_declared":
+      return `${ship("shipId")} closes to board ${ship("targetId")}`;
+    case "boarding_lapsed":
+      return `${ship("shipId")} can't board ${ship("targetId")} after all (${words(String(d["reason"]))})`;
+    case "boarding": {
+      const attackers = Array.isArray(d["attackerIds"]) ? d["attackerIds"].map((id) => state.ships.find((s) => s.id === id)?.name ?? String(id)).join(" and ") : "?";
+      const several = Array.isArray(d["attackerIds"]) && d["attackerIds"].length > 1;
+      const totals = d["totals"] as { attackers?: number; defender?: number } | undefined;
+      const outcome =
+        d["loser"] === null
+          ? "a draw: the ships grapple"
+          : `${words(String(d["result"]))}, ${d["loser"] === "defender" ? ship("defenderId") : attackers} take${d["loser"] === "attackers" && several ? "" : "s"} ${num(d["damage"])} damage`;
+      return `${attackers} board${several ? "" : "s"} ${ship("defenderId")}: ${dice(d["rolls"])} → ${num(totals?.attackers)} vs ${num(totals?.defender)}, ${outcome}`;
+    }
+    case "boarding_critical":
+      return d["need"] === "auto"
+        ? `${ship("shipId")} suffers a critical from the boarding action`
+        : `${ship("shipId")} boarding critical check ${dice(d["rolls"])} need ${num(d["need"])}+: ${d["critical"] === true ? "critical" : "none"}`;
+    case "boarded_hulk":
+      return `${ship("shipId")} is overrun: a drifting hulk`;
+    case "grapple":
+      return `${ship("defenderId")} is locked in a grapple`;
+    case "grapple_ended":
+      return `The grapple around ${ship("defenderId")} ends`;
+    case "grappled":
+      return `${ship("shipId")} is grappled and can't move`;
+    case "teleport":
+      return `${ship("shipId")} teleports onto ${ship("targetId")} ${dice(d["rolls"])}: ${
+        d["result"] === "failed" ? "the attack fails" : d["result"] === "saved" ? `braced, saved ${dice(d["saveRolls"])}` : "critical hit"
+      }`;
     case "skipped":
       return `(${words(String(d["item"]))} skipped)`;
     default:

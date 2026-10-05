@@ -6,12 +6,12 @@ import { pick } from "../src/game/pick";
 import { movableShips, plottingShip } from "../src/plot/usePlot";
 
 const when = new Date("2026-10-05T12:00:00Z");
-const options = (p1: NewGameOptions["p1"], p2: NewGameOptions["p2"]): NewGameOptions => ({ p1, p2, ramming: false, seed: 7 });
+const options = (p1: NewGameOptions["p1"], p2: NewGameOptions["p2"]): NewGameOptions => ({ p1, p2, ramming: false, boarding: false, seed: 7 });
 
 describe("cruiserClash config", () => {
   test("a fleet per side, in config order, with the ramming option", () => {
     const c = cruiserClash(options({ name: "A", fleet: "imperial_navy", ships: ["Agrippa", "Hammer of Terra"] }, { name: "B", fleet: "chaos", ships: ["Unclean", "Woe Eternal"] }), when);
-    expect(c.options).toEqual({ ramming: false });
+    expect(c.options).toEqual({ ramming: false, boarding: false });
     expect(c.ships.map((s) => [s.owner, s.classId])).toEqual([["p1", "lunar"], ["p1", "lunar"], ["p2", "murder"], ["p2", "murder"]]);
     expect(newGame(c).ships).toHaveLength(4);
   });

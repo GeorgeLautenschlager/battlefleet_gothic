@@ -71,6 +71,7 @@ export default {
           faction: String(body?.faction ?? "") as CreateRequest["faction"],
           ships: ships.map((s) => ({ name: s.name, classId: s.classId })),
           ramming: body?.ramming !== false,
+          boarding: body?.boarding === true,
         },
         workerDeps(env.ENGINE_BUILD),
       );

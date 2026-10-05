@@ -83,6 +83,7 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .ship.p2 .base { stroke: var(--p2); }
 .ship.p2 .hull { fill: var(--p2); }
 .ship.selected .base { stroke: var(--accent); stroke-width: 0.5; }
+.grapple { stroke: var(--bad); stroke-width: 0.6; stroke-dasharray: 1 0.6; }
 .ship.hulk .hull { fill: #59636e; }
 .ship.hulk .base { stroke-dasharray: 0.6 0.6; }
 .ship.blazing .hull { fill: #c2410c; }

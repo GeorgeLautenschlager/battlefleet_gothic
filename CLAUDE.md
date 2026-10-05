@@ -45,5 +45,5 @@ Recorded in [`docs/adr/`](docs/adr/). Current:
 - **Original boxed fleets** (Imperial Navy and Chaos), in slices:
   1. Fleet composition, hot-seat: a fleet per side, 1–4 cruisers (Cruiser Clash's limits), mirror matches, picking which ship acts next. Done.
   2. Fleet composition online: lobby fleet picker, protocol 2. Done.
-  3. Boarding actions, grapples and teleport attacks (pp. 89–92): specs (state v0.7, transforms v0.5, validator v0.4, reducer v0.4) and engine done; UI and the online option next.
+  3. Boarding actions, grapples and teleport attacks (pp. 89–92): specs (state v0.7, transforms v0.5, validator v0.4, reducer v0.4), engine and UI done; a rules option for hot-seat and online games, on by default.
   4. More ship classes from the box.
