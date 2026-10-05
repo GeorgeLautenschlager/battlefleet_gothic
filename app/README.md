@@ -12,7 +12,7 @@ Battlefleet Gothic in the browser: hot-seat Cruiser Clash (one Lunar vs one Murd
 | Log as prose | ✅ |
 | Transform console (raw JSON, validated live) | ✅ for debugging |
 | Battle controls: turn banner, orders, brace prompts, hulk drift, salvo moves, repairs, BM removal, end step | ✅ |
-| Movement plotter: click-to-plot with turn limits, live verdict, guides, keyboard | ✅ |
+| Movement plotter: click-to-plot with turn limits, exact turns at the turn point, typed steps, live verdict, guides, keyboard | ✅ |
 | Shooting: weapon picker, arc/range overlay, target list with the engine's reasons, click-to-fire, arc/aspect choices, torpedo aiming and launch | ✅ |
 | Zoom and pan, dice presentation, polish | next |
 

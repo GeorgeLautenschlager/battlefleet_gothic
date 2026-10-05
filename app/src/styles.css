@@ -201,3 +201,6 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .arc.torpedoes { fill: rgba(255, 255, 255, 0.04); stroke: rgba(255, 255, 255, 0.3); stroke-dasharray: 0.6 0.6; }
 .torpedo-run { fill: none; stroke: var(--accent); stroke-width: 0.35; }
 .ship.targeted .base { stroke: var(--accent); stroke-width: 0.6; stroke-dasharray: 0.8 0.4; }
+.step-entry { display: grid; gap: 6px; }
+.step-entry > * { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.step-entry input { width: 4.5em; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
