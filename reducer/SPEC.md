@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** draft v0.6, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.9](../game_state/SPEC.md), [Transforms v0.7](../transforms/SPEC.md) and [Validator v0.6](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1).
+**Status:** draft v0.7, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.10](../game_state/SPEC.md), [Transforms v0.8](../transforms/SPEC.md) and [Validator v0.6](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end).
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState
@@ -917,7 +917,7 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `teleport` | `shipId, targetId, rolls, saveRolls?, result: "failed" \| "saved" \| "critical"` |
 | `bm_removal` | `rolls, removed` |
 | `skipped` | `item` |
-| `game_end` | `reason, scores, winner` |
+| `game_end` | `reason, scores, winner`; with victory points also `scoring: "victory_points"` and `breakdown: { p1, p2 }`, each `{ ships: { shipId, vp, why: "destroyed" \| "crippled" \| "disengaged" }[], field }` |
 
 `actor` is the player whose transform led to the entry, or `null` for housekeeping.
 

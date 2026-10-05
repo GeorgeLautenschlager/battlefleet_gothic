@@ -49,5 +49,8 @@ Recorded in [`docs/adr/`](docs/adr/). Current:
   4. Attack craft (pp. 73–87), with the Dictator and Devastation as the first carriers: launch bays, fighters, bombers and assault boats, dogfights, Combat Air Patrol, massed turrets, and a "one carrier each" option over the 185-point cap (p. 129). Specs (state v0.8, transforms v0.6, validator v0.5, reducer v0.5), engine and UI done; a rules option for hot-seat and online games, off by default.
   5. The rest of the capital ships, in chunks:
      1. The remaining Cruiser Clash cruisers: Gothic and Tyrant; Carnage, Inferno, Slaughter and the Murder lance variant. A class per ship in the fleet forms, combined battery volleys (`fire.combineWith`, T32), class traits (improved thrusters, state N10) and rarity limits (T35). Done.
-     2. Battlecruisers and heavy cruisers, then grand and light cruisers, then battleships. These need fleet battles by points (beyond Cruiser Clash's 185-point cap) and the nova cannon first.
+     2. Fleet battles by points (Cruiser Clash's p. 129 alternatives: a points limit a side, standard victory points). Specs written (state v0.10, transforms v0.8, reducer v0.7); engine, hot-seat UI and online next.
+     3. Nova cannon.
+     4. Scenario selection and Fleet Engagement (pp. 142–143).
+     5. Battlecruisers and heavy cruisers, with the fleet composition rules (fleet lists' ratios, fleet commanders); then grand and light cruisers; then battleships.
   6. Squadrons and escorts.

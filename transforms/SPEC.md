@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.7, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.9](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14).
+**Status:** draft v0.8, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.10](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -87,7 +87,7 @@ Movement and Ordnance steps have no `end_step`: every ship must move (p. 53), to
 
 **End a player turn** (leaving `blast_marker_removal`): remove every order whose `expires = { playerTurn: now, at: "turn_end" }`. If `playerTurn = 2 × maxRounds`, the game ends. Otherwise `playerTurn += 1` and *start a player turn*.
 
-**Game end** is also checked after every reduce, once `pending` is empty: if either side has no ship with `status = "active"`, the game ends at once (state D6). Ending sets `stage = "ended"`, clears `activation`, and fills in `result` from `score()` (higher score wins, equal is a draw).
+**Game end** is also checked after every reduce, once `pending` is empty: if either side has no ship with `status = "active"`, the game ends at once (state D6). Ending sets `stage = "ended"`, clears `activation`, and fills in `result` from `score()` (higher score wins, equal is a draw). `score()` is Cruiser Clash points or victory points, per `scenario.scoring` (state §11).
 
 ### 2.6 When the reducer offers a Brace
 
@@ -481,6 +481,8 @@ type GameConfig = {
   createdAt: string
   options?: { ramming?: boolean, boarding?: boolean, carriers?: boolean }   // defaults: true, false, false
                                                                            // (false keeps older saves replaying unchanged)
+  forces?: Forces                            // default { kind: "cruiser_clash" } (state §4)
+  scoring?: "cruiser_clash" | "victory_points"   // default "cruiser_clash"
   players: {
     p1: { name: string, faction: FactionId },
     p2: { name: string, faction: FactionId }
@@ -490,7 +492,9 @@ type GameConfig = {
 ```
 
 - Profiles come from a ship catalogue built from `rules/fleets/`. Imperial Navy: `lunar`, `gothic` (p. 70), `tyrant` (p. 69), and the carrier `dictator` (p. 67). Chaos: `murder`, its lance variant `murder_lances` (p. 279), `carnage` (p. 277), `inferno` (p. 278), `slaughter` (p. 280, improved thrusters), and the carrier `devastation` (p. 276). A ship option that changes a profile is its own catalogue class (D13). Their launch bays carry their fleets' attack craft: Fury fighters and Starhawk bombers (Imperial Navy); Swiftdeath fighters, Doomfire bombers and Dreadclaw assault boats (Chaos).
-- Cruiser Clash checks: 1–4 ships per side, the same number each, all `cruiser`, each ≤ 185 points (p. 128). With `carriers` on, each side may also field **at most one** ship with launch bays above that cap ("allow one carrier each", p. 129). A class with a rarity limit is held to it per side: the Murder lance variant, no more than two per 750 points, or part, of that side's fleet (p. 279). A bad config throws; it never produces an invalid state.
+- **Cruiser Clash forces** (`forces.kind = "cruiser_clash"`): 1–4 ships per side, the same number each, all `cruiser`, each ≤ 185 points (p. 128). With `carriers` on, each side may also field **at most one** ship with launch bays above that cap ("allow one carrier each", p. 129).
+- **Points forces** (`forces.kind = "points"`, p. 129): each side's ships total ≤ `limit` points (a positive integer), at least one ship a side, any number, any classes of its fleet. There's no per-ship cap, so carriers need no option (T36). Ship types are still limited to what the catalogue has (cruisers today); the fleet lists' ratios come later (D16). A class with a rarity limit is held to it per side: the Murder lance variant, no more than two per 750 points, or part, of that side's fleet (p. 279). A bad config throws; it never produces an invalid state.
+- `scoring` is copied into `scenario.scoring`, and `forces` into `scenario.forces`. Either scoring goes with either forces (T37).
 - The result is at `stage: "setup"`, `setupStep: "roll_leadership"`, `playerTurn: 0`. Ships are `undeployed`, with ids `ship-1 … ship-n` in config order. `rng.state = seed`.
 
 ---
@@ -532,6 +536,10 @@ type GameConfig = {
 | T32 | **Combined batteries** (pp. 61, 63): a ship's weapons batteries firing at the same target fire as one volley: their effective firepower is added and looked up once on the Gunnery Table, with one column (shared aspect, range band and Blast Marker shift). A battery may still fire alone, and a ship may send different batteries at different targets. |
 | T33 | Lances aren't combined: they roll 1D6 per point of strength whatever the grouping, so there's nothing to add up. |
 | T34 | A volley's target priority: if the target isn't the nearest for **any** battery in it, one priority test covers the volley. A failed test leaves every battery in it unfired. |
+| T36 | **Points battles** (p. 129, "play to a points value") drop Cruiser Clash's per-ship cap and equal numbers: a side spends up to the limit however it likes. With no cap, the carriers option has nothing to do in a points battle. |
+| T37 | **Scoring is its own choice** (p. 129, "use standard victory points"): Cruiser Clash points or victory points, with either kind of forces. The app suggests victory points for points battles. |
+| T38 | **Holding the field** is judged when the game ends: no enemy ship `active` (all destroyed, hulked or disengaged) and at least one of yours `active`. With the game ending as soon as a side has no `active` ship (state D6), the side left fighting holds it. |
+| T39 | Points battles keep Cruiser Clash's 8 rounds and set-up. Fleet Engagement's formations and its play-until-one-side-is-gone length come with that scenario. |
 | T35 | **Rarity limits** count the side's whole fleet: "two per 750 points or part" allows two in any Cruiser Clash fleet (4 × 185 = 740). |
 | T31 | **Launch bays** are weapons at a location (port, starboard): that side's armament critical disables them (p. 67), which lowers the fleet's limit too. |
 
@@ -551,6 +559,8 @@ type GameConfig = {
 | D10 | Massed turrets? | Yes, now, for torpedoes as well as attack craft (George's call). |
 | D11 | Torpedo bombers, resilient craft, boarding torpedoes? | Not in this slice: neither carrier in the box takes them by default. Their rules (pp. 78, 84, 86) slot in as new roles and ordnance kinds later. |
 | D13 | Ship options and refits? | A variant whose profile differs is its own catalogue class (`murder_lances`), with its own points and any rarity limit. Options that would take a cruiser over Cruiser Clash's 185 points (the Tyrant's 45 cm batteries, nova cannons) wait for fleet battles by points. |
+| D15 | "Remove the 185-point cap" on its own (p. 129)? | Not offered: a points battle does the same job and also frees the numbers. |
+| D16 | Fleet commanders at 1,000 points (p. 129) and the fleet lists' ratios? | Later, with the fleet composition rules (battlecruisers and heavy cruisers), as George suggested. A points battle today is any ships of the fleet within the limit. |
 | D14 | Combined batteries: automatic, or the player's choice? | The player's: `combineWith` names the batteries joining the volley, so a ship can still send its long-range battery at one target and its short-range one at another. The app offers the combined volley first. |
 | D12 | One wave entity, or one entity per marker? | One wave with a footprint (T17, state N8). Turrets fire once at a wave and a hit kills it all (p. 85), so the wave is the unit the rules care about. |
 

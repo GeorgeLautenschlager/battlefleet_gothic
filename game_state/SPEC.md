@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.9, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10).
+**Status:** draft v0.10, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12).
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -130,10 +130,17 @@ type Meta = {
 type Scenario = {
   id: "cruiser_clash"
   maxRounds: 8
+  forces: Forces               // absent in older saves: { kind: "cruiser_clash" }
   scoring: "cruiser_clash"     // 1/damage, +1 crippled or +3 destroyed (p. 128)
+         | "victory_points"    // standard victory points (pp. 122–123, §11)
   deploymentZones: { A: Rect, B: Rect }
   deploymentFacing: { A: 180, B: 0 }    // "towards the opposite long table edge"
 }
+
+// How the fleets were chosen (transform §5). Kept for the record: the rules never read it after newGame.
+type Forces =
+  | { kind: "cruiser_clash" }                 // 1–4 cruisers a side, equal numbers, ≤ 185 pts each (p. 128)
+  | { kind: "points", limit: number }         // each side up to `limit` points, any number of ships (p. 129)
 
 type Rect = { x: number, y: number, width: number, height: number }  // x,y = bottom-left
 
@@ -595,7 +602,10 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `targetedAsDefences(s)` | `lastMove.distance < 5` (p. 53) |
 | `commandCheckLd(s)` | `leadership(s) − (bmsInContact non-empty ? 1 : 0) + (any enemy ship has a live specialOrder ? 1 : 0)`, max 10; roll ≤ that, 11–12 always fail |
 | `gunneryColumn(target, aspect)` | defences → A; capital closing → B; capital moving away → C; capital abeam → D; ordnance → E |
-| `score(player)` | Σ over enemy ships: `damage` + (destroyedForScoring ? 3 : crippled ? 1 : 0) (p. 128) |
+| `score(player)` | `scenario.scoring = "cruiser_clash"`: Σ over enemy ships: `damage` + (destroyedForScoring ? 3 : crippled ? 1 : 0) (p. 128). `"victory_points"`: `victoryPoints(player)` |
+| `victoryPoints(player)` | Σ over enemy ships of `shipVP(s)`, plus `holdingTheField(player)` (pp. 122–123, N11–N12) |
+| `shipVP(s)` | `destroyedForScoring(s)` → `points`; `disengaged` → ⌈25%⌉ if `crippled`, else ⌈10%⌉; `active` and `crippled` → ⌈25%⌉; otherwise 0. `points` is `profile.points` |
+| `holdingTheField(player)` | if no enemy ship is `active` and at least one of the player's is: Σ ⌈50% × points⌉ over every **hulk** on the table, friend or foe (N11); otherwise 0 |
 | `destroyedForScoring(s)` | `status ∈ {destroyed, drifting_hulk, blazing_hulk}` (D7) |
 | `actor(state)` | who must submit the next transform (§12) |
 
@@ -660,6 +670,7 @@ Agrippa (p1, Imperial, zone B, Ld 8) vs Unclean (p2, Chaos, zone A, Ld 7). Uncle
   "scenario": {
     "id": "cruiser_clash",
     "maxRounds": 8,
+    "forces": { "kind": "cruiser_clash" },
     "scoring": "cruiser_clash",
     "deploymentZones": {
       "A": { "x": 45, "y": 90, "width": 90, "height": 30 },
@@ -829,6 +840,8 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N6 | **Fire!** deals its damage once per round (game turn), in the **owner's** End Phase after damage control. Both players still roll repairs in every End Phase. | §6 |
 | N7 | A ship that hasn't moved yet (`lastMove: null`) is **not** targeted as Defences. | §11 |
 | N8 | An attack craft marker's footprint is a circle of radius `CRAFT_RADIUS` = 1 cm (a 20 mm square's inscribed circle, p. 79); a wave of `n` markers is a circle of radius `√n` cm, about the area of a compact block. | §10.2 |
+| N11 | **Victory points** read the ship's state at the game's end: a hulk is destroyed (full value, like N5), a crippled ship still fighting gives 25%, a disengaged one 25% if it was crippled, else 10%. Holding the field adds half of every hulk still on the table, friend or foe, to the side that holds it. A ship destroyed outright (exploded, off the table) isn't a hulk on the table. | §11 |
+| N12 | Each percentage is taken per ship and rounded **up** (p. 122). | §11 |
 | N10 | Improved thrusters (Slaughter "+5D6 on All Ahead Full", p. 280; Dauntless and Siluria "+D6", pp. 77–78) all come to **5D6** in place of the usual 4D6. Traits are only added as classes that use them arrive. | §7.1 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
 
@@ -842,7 +855,8 @@ The shapes above leave room for these without breaking changes. Each will add fi
 - **Nova cannon:** weapon kind `nova_cannon`, a `WorkItem` for scatter.
 - **Terrain:** `table.features: Feature[]` (gas clouds, asteroid fields, planets with gravity wells), `table.sunwardEdge`.
 - **Fleet commanders and re-rolls:** `players[].commander: { shipId, rerollsLeft }`.
-- **Other scenarios / victory points:** `scenario.scoring: "victory_points"` plus scenario-specific blocks.
+- **Other scenarios:** new `scenario.id`s with their own set-up blocks (Fleet Engagement next). Victory points are in (§11).
+- **Fleet commanders:** Admirals and Chaos Lords (Leadership, re-rolls), with the fleet composition rules.
 
 ---
 
