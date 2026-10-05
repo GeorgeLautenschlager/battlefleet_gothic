@@ -19,6 +19,9 @@ import { FireControls } from "./fire/FireControls";
 import { FireOverlay } from "./fire/FireOverlay";
 import { liveAim, type Aim } from "./fire/aim";
 import { bearingToward, launch, targets } from "./fire/fire";
+import { useCraftPlot } from "./craft/useCraftPlot";
+import { CraftOverlay } from "./craft/CraftOverlay";
+import { movableWaves } from "./craft/craft";
 
 /** `banner`: anything to show above the controls (online: presence, connection, verification). */
 export function GameView({ source, banner }: { source: GameSource; banner?: ReactNode }) {
@@ -30,6 +33,8 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
   const [highlight, setHighlight] = useState<string[]>([]);
   const [aim, setAim] = useState<Aim | null>(null);
   const [launchBearing, setLaunchBearing] = useState(0);
+  /** The attack craft wave picked to fly next. */
+  const [waveFocus, setWaveFocus] = useState<string | null>(null);
 
   const { state, seat, rejection } = source;
   const run = (t: Transform): Promise<boolean> => source.run(t);
@@ -40,6 +45,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
   const waiting = waitingOn(state, seat);
 
   const plot = usePlot(waiting === null ? state : null, pointer, shift, run, focus);
+  const craftPlot = useCraftPlot(waiting === null ? state : null, pointer, waveFocus);
 
   // Shooting: the weapon being aimed, its targets, and a torpedo bearing that follows the pointer.
   const aimed = waiting !== null ? null : liveAim(state, aim);
@@ -105,7 +111,18 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
             fireAt(id);
             return aimed.weapon.kind !== "torpedoes";
           }}
-          onSelectSalvo={(id) => aimed !== null && fireAt(id)}
+          onSelectSalvo={(id) => {
+            if (aimed !== null) {
+              fireAt(id);
+              return true;
+            }
+            // One of your own waves to fly: pick it. Anything else is a waypoint.
+            if (waiting === null && movableWaves(state).some((w) => w.id === id) && craftPlot?.wave.id !== id) {
+              setWaveFocus(id);
+              return true;
+            }
+            return false;
+          }}
           onPointer={(p, s) => {
             setPointer(p);
             setShift(s);
@@ -114,10 +131,12 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           onTableClick={(p, s) => {
             if (deploy !== null) act({ type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(p) });
             else if (plot !== null) plot.click(p, s);
+            else if (craftPlot !== null) craftPlot.click(p);
             else if (aimed !== null && aimed.weapon.kind === "torpedoes") act(launch(aimed.ship, aimed.weapon, bearingToward(aimed.ship, aimed.weapon, p)));
           }}
         >
           {plot !== null && <PlotOverlay state={state} plot={plot} />}
+          {craftPlot !== null && <CraftOverlay state={state} plot={craftPlot} />}
           {aimed !== null && <FireOverlay state={state} ship={aimed.ship} weapon={aimed.weapon} bearing={aimed.weapon.kind === "torpedoes" ? bearing : null} />}
         </Table>
       </section>
@@ -134,7 +153,16 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           ) : shooting ? (
             <FireControls state={state} aimed={aimed} onAim={setAim} onApply={act} bearing={bearing} />
           ) : state.clock.stage === "battle" ? (
-            <StepControls state={state} onApply={act} onHighlight={setHighlight} plot={plot} seat={seat} onFocus={(id) => choose(id, false)} />
+            <StepControls
+              state={state}
+              onApply={act}
+              onHighlight={setHighlight}
+              plot={plot}
+              seat={seat}
+              onFocus={(id) => choose(id, false)}
+              craftPlot={craftPlot}
+              onFocusWave={setWaveFocus}
+            />
           ) : null}
           {state.result !== null && (
             <p className="result">

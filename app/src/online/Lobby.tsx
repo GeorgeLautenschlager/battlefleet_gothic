@@ -11,10 +11,10 @@ import type { Remote } from "./useRemoteSource";
 const SEAT: Record<PlayerId, string> = { p1: "Player 1", p2: "Player 2" };
 const other = (p: PlayerId): PlayerId => (p === "p1" ? "p2" : "p1");
 
-/** "Cruiser Clash, 2 cruisers a side, ramming allowed, boarding allowed." */
+/** "Cruiser Clash, 2 cruisers a side, ramming allowed, boarding allowed, one carrier each." */
 function rulesLine(lobby: LobbyInfo): string {
-  const { ramming, boarding = false } = lobby.options as LobbyInfo["options"] & { boarding?: boolean };
-  return `Cruiser Clash, ${lobby.count} cruiser${lobby.count === 1 ? "" : "s"} a side, ${ramming ? "ramming allowed" : "no ramming"}, ${boarding ? "boarding allowed" : "no boarding"}.`;
+  const { ramming, boarding = false, carriers = false } = lobby.options as Partial<LobbyInfo["options"]>;
+  return `Cruiser Clash, ${lobby.count} cruiser${lobby.count === 1 ? "" : "s"} a side, ${ramming ? "ramming allowed" : "no ramming"}, ${boarding ? "boarding allowed" : "no boarding"}${carriers ? ", one carrier each" : ""}.`;
 }
 
 /** "Imperial Navy: 2 × Lunar class cruiser (Agrippa, Hammer of Terra)" */
@@ -81,15 +81,16 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
   const [side, setSide] = useState<Side>(() => {
     // Default to the classic matchup: whichever fleet the host didn't pick.
     const fleet = asFleet(host.faction) === "chaos" ? "imperial_navy" : "chaos";
-    return { name: SEAT[seat], fleet, ships: resize([], fleet, lobby.count, hostNames) };
+    return { name: SEAT[seat], fleet, ships: resize([], fleet, lobby.count, hostNames), carrier: true };
   });
+  const carriers = (lobby.options as Partial<LobbyInfo["options"]>).carriers === true;
   const dupes = duplicates([...hostNames, ...side.ships]);
   return (
     <form
       className="new-game"
       onSubmit={(e) => {
         e.preventDefault();
-        if (dupes.length === 0) remote.join(side.name.trim(), side.fleet, shipEntries(side));
+        if (dupes.length === 0) remote.join(side.name.trim(), side.fleet, shipEntries(side, carriers));
       }}
     >
       <h2>You've been invited</h2>
@@ -113,6 +114,7 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
           })
         }
         dupes={dupes}
+        carriers={carriers}
       />
       <DuplicateNames dupes={dupes} />
       {remote.rejection && <p className="rejection">{remote.rejection.message}</p>}

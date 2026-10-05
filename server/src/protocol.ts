@@ -31,8 +31,10 @@ export type ClientMessage = Hello | Join | Propose | Undo | Ping;
 // --- Server → client (§4.2)
 
 export type SeatInfo = { name: string | null; faction: FactionId | null; ships: ShipEntry[]; joined: boolean };
+/** The game's optional rules. `carriers`: one carrier each over the 185-point cap (p. 129). */
+export type RoomOptions = { ramming: boolean; boarding: boolean; carriers: boolean };
 /** `count`: ships a side, set by the host; `options`: the game's optional rules. */
-export type Lobby = { seats: Record<PlayerId, SeatInfo>; count: number; options: { ramming: boolean; boarding: boolean } };
+export type Lobby = { seats: Record<PlayerId, SeatInfo>; count: number; options: RoomOptions };
 export type Presence = Record<PlayerId, boolean>;
 export type RoomStatus = "lobby" | "active" | "ended";
 

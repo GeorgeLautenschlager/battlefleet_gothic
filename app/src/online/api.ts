@@ -11,7 +11,7 @@ const ERRORS: Record<string, string> = {
   RATE_LIMITED: "Too many new games just now; try again in a minute.",
 };
 
-export type CreateGame = { name: string; side: PlayerId; faction: FactionId; ships: ShipEntry[]; ramming: boolean; boarding: boolean };
+export type CreateGame = { name: string; side: PlayerId; faction: FactionId; ships: ShipEntry[]; ramming: boolean; boarding: boolean; carriers: boolean };
 
 export async function createGame(req: CreateGame): Promise<CreatedGame> {
   let res: Response;

@@ -44,13 +44,15 @@ describe("creating a game", () => {
       seats: { p1: { tokenHash: "h1", name: "Ann", shipName: "Agrippa" }, p2: { tokenHash: "h2", name: null, shipName: null } },
     } as unknown as RoomData;
     const v2 = upgradeRoomData(v1);
-    expect(v2).toMatchObject({ count: 1, options: { ramming: true, boarding: false } });
+    expect(v2).toMatchObject({ count: 1, options: { ramming: true, boarding: false, carriers: false } });
     expect(v2.seats.p1).toEqual({ tokenHash: "h1", name: "Ann", faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }] });
     expect(v2.seats.p2).toEqual({ tokenHash: "h2", name: null, faction: null, ships: [] });
     expect(upgradeRoomData(v2)).toEqual(v2);
-    // A protocol 2 room from before boarding existed: boarding stays off.
+    // A protocol 2 room from before boarding or carriers existed: they stay off.
     const before = { ...v2, options: { ramming: false } } as unknown as RoomData;
-    expect(upgradeRoomData(before).options).toEqual({ ramming: false, boarding: false });
+    expect(upgradeRoomData(before).options).toEqual({ ramming: false, boarding: false, carriers: false });
+    const boardingOnly = { ...v2, options: { ramming: true, boarding: true } } as unknown as RoomData;
+    expect(upgradeRoomData(boardingOnly).options).toEqual({ ramming: true, boarding: true, carriers: false });
   });
 });
 
@@ -60,7 +62,7 @@ describe("lobby and start", () => {
     const [welcome] = await h.hello("a", "p1");
     expect(welcome).toMatchObject({ type: "welcome", seat: "p1", status: "lobby", seq: 0, state: null });
     expect(welcome).toMatchObject({
-      lobby: { count: 1, options: { ramming: true, boarding: false }, seats: { p1: { name: "Ann", faction: "imperial_navy", joined: true }, p2: { joined: false } } },
+      lobby: { count: 1, options: { ramming: true, boarding: false, carriers: false }, seats: { p1: { name: "Ann", faction: "imperial_navy", joined: true }, p2: { joined: false } } },
     });
 
     await h.hello("b", "p2");
@@ -107,6 +109,21 @@ describe("lobby and start", () => {
     ]);
     expect(state.players.p2.faction).toBe("imperial_navy");
     expect(state.meta.options).toEqual({ ramming: false, boarding: true, carriers: false });
+  });
+
+  test("carriers: with the option, each side may bring one carrier over the cap", async () => {
+    const withDictator = { faction: "imperial_navy", ships: [{ name: "Fortitude", classId: "dictator" }, { name: "Agrippa", classId: "lunar" }] } as const;
+    const withDevastation = { faction: "chaos", ships: [{ name: "Deathbane", classId: "devastation" }, { name: "Unclean", classId: "murder" }] } as const;
+    await expect(Harness.create({ fleet: withDictator })).rejects.toThrow("INVALID_FLEET"); // no option, no carrier
+    const h = await Harness.create({ fleet: withDictator, carriers: true });
+    await h.hello("a", "p1");
+    await h.hello("b", "p2");
+    const two = { faction: "chaos", ships: [{ name: "Deathbane", classId: "devastation" }, { name: "Unforgivable", classId: "devastation" }] } as const;
+    expect(rejection(await h.join("b", "p2", "Bo", two))?.reason.code).toBe("INVALID_FLEET");
+    await h.join("b", "p2", "Bo", withDevastation);
+    const state = h.stateOf("b")!;
+    expect(state.meta.options.carriers).toBe(true);
+    expect(state.ships.map((s) => s.profile.classId)).toEqual(["dictator", "lunar", "devastation", "murder"]);
   });
 
   test("proposals before the start are refused", async () => {

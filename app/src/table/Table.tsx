@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
-import { constants, craft, type GameState, type Point } from "@bfg/engine";
+import { constants, craft, type AttackCraftWave, type GameState, type Point } from "@bfg/engine";
+import { capOffset, markerOffset, ROLE_LETTER } from "../craft/craft";
 import { ShipGlyph } from "./ShipGlyph";
 import { pointerToTable, toSvg, type View } from "./view";
 
@@ -14,7 +15,8 @@ type Props = {
   highlight?: string[];
   /** Return true if the click was used up, so it doesn't also count as a table click. */
   onSelectShip?: (id: string) => boolean;
-  onSelectSalvo?: (id: string) => void;
+  /** A salvo or wave clicked. Return true if the click was used up. */
+  onSelectSalvo?: (id: string) => boolean;
   /** `shift`: the Shift key was held. */
   onPointer?: (p: Point | null, shift: boolean) => void;
   onTableClick?: (p: Point, shift: boolean) => void;
@@ -93,23 +95,19 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
 
       {state.ordnance.map((o) => {
         const p = toSvg(view, o.position);
-        if (o.kind === "attack_craft") {
-          // Placeholder until the attack craft UI: the wave's footprint and its squadron count.
-          return (
-            <g key={o.id} className={`wave ${o.owner}${highlight.includes(o.id) ? " highlight" : ""}`} transform={`translate(${p.x} ${p.y})`}>
-              <circle r={craft.waveRadius(o)} />
-              <text y={0.5} textAnchor="middle">
-                {o.squadrons.length}
-              </text>
-            </g>
-          );
-        }
+        if (o.kind === "attack_craft") return null; // drawn above the ships, below
         return (
           <g
             key={o.id}
             className={`salvo ${o.owner}${highlight.includes(o.id) ? " highlight" : ""}`}
             transform={`translate(${p.x} ${p.y}) rotate(${o.heading})`}
-            onClick={onSelectSalvo ? () => onSelectSalvo(o.id) : undefined}
+            onClick={
+              onSelectSalvo
+                ? (e) => {
+                    if (onSelectSalvo(o.id)) e.stopPropagation();
+                  }
+                : undefined
+            }
           >
             <line x1={-o.width / 2} y1={0} x2={o.width / 2} y2={0} />
             <path d="M-0.8,-0.4 L0,-2 L0.8,-0.4" />
@@ -145,6 +143,9 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
         ),
       )}
 
+      {/* Attack craft above the ships, so a wave on its carrier's base (or CAP) stays visible. */}
+      {state.ordnance.map((o) => (o.kind === "attack_craft" ? <Wave key={o.id} state={state} wave={o} highlight={highlight.includes(o.id)} onSelect={onSelectSalvo} /> : null))}
+
       {ghost !== null && ghostShip !== undefined && (
         <ShipGlyph ship={{ ...ghostShip, position: ghost.position, heading: ghost.heading }} view={view} ghost={ghost.status} />
       )}
@@ -157,5 +158,49 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
         </text>
       )}
     </svg>
+  );
+}
+
+/**
+ * An attack craft wave: its footprint, and a marker per squadron lettered by
+ * role (F fighter, B bomber, A assault boat). CAP fighters ring their ship.
+ */
+function Wave({ state, wave, highlight, onSelect }: { state: GameState; wave: AttackCraftWave; highlight: boolean; onSelect?: ((id: string) => boolean) | undefined }) {
+  const view: View = state.table;
+  let at = toSvg(view, wave.position);
+  if (wave.cap !== null) {
+    const ship = state.ships.find((x) => x.id === wave.cap);
+    const ring = state.ordnance.filter((x) => x.kind === "attack_craft" && x.cap === wave.cap);
+    const i = ring.findIndex((x) => x.id === wave.id);
+    const off = capOffset(i, ring.length, constants.BASE_RADIUS[ship?.profile.baseSize ?? "small"]);
+    at = { x: at.x + off.x, y: at.y - off.y };
+  }
+  const n = wave.squadrons.length;
+  return (
+    <g
+      className={`wave ${wave.owner}${wave.cap !== null ? " cap" : ""}${highlight ? " highlight" : ""}`}
+      transform={`translate(${at.x} ${at.y})`}
+      data-wave={wave.id}
+      onClick={
+        onSelect
+          ? (e) => {
+              if (onSelect(wave.id)) e.stopPropagation();
+            }
+          : undefined
+      }
+    >
+      {wave.cap === null && <circle className="footprint" r={craft.waveRadius(wave)} />}
+      {wave.squadrons.map((sq, i) => {
+        const o = markerOffset(i, n);
+        return (
+          <g key={i} transform={`translate(${o.x} ${-o.y})`}>
+            <rect className={`marker ${sq.role}`} x={-0.6} y={-0.6} width={1.2} height={1.2} />
+            <text y={0.4} textAnchor="middle">
+              {ROLE_LETTER[sq.role]}
+            </text>
+          </g>
+        );
+      })}
+    </g>
   );
 }

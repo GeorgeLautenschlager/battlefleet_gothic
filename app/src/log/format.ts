@@ -19,6 +19,14 @@ export function describe(state: GameState, entry: LogEntry): string {
     const id = d[key];
     return state.ships.find((s) => s.id === id)?.name ?? String(id);
   };
+  const names = (v: JsonValue | undefined): string => (Array.isArray(v) && v.length > 0 ? v.join(", ") : "none");
+  /** A wave by id, while it's still on the table: "Fortitude's Fury, Starhawk". */
+  const wave = (key: string): string => {
+    const o = state.ordnance.find((x) => x.id === d[key]);
+    if (o === undefined || o.kind !== "attack_craft") return "Attack craft";
+    const from = state.ships.find((x) => x.id === o.launchedBy)?.name;
+    return `${from ? `${from}'s ` : ""}${o.squadrons.map((q) => q.name).join(", ")}`;
+  };
   const player = (key: string): string => {
     const p = d[key];
     return p === "p1" || p === "p2" ? state.players[p].name : "nobody";
@@ -80,8 +88,11 @@ export function describe(state: GameState, entry: LogEntry): string {
       return `${ship("shipId")} critical ${dice(d["rolls"])}: ${words(String(d["kind"]))}`;
     case "catastrophic":
       return `${ship("shipId")} catastrophic damage ${dice(d["rolls"])}: ${words(String(d["outcome"]))}`;
-    case "turrets":
-      return `${ship("shipId")} turrets ${dice(d["rolls"])}: ${num(d["stopped"])} torpedoes stopped`;
+    case "turrets": {
+      const massed = Array.isArray(d["massed"]) ? d["massed"].length : 0;
+      const what = d["against"] === "attack_craft" ? (d["stopped"] === 1 ? "squadron" : "squadrons") : "torpedoes";
+      return `${ship("shipId")} turrets${massed > 0 ? ` (+${massed} massed)` : ""} ${dice(d["rolls"])}: ${num(d["stopped"])} ${what} stopped`;
+    }
     case "bm_test":
       return `Blast Marker test ${dice(d["rolls"])}: ${words(String(d["effect"]))}`;
     case "ordnance_launch":
@@ -89,7 +100,48 @@ export function describe(state: GameState, entry: LogEntry): string {
     case "ordnance_move":
       return "Torpedoes move";
     case "ordnance_removed":
-      return `Torpedo salvo removed (${words(String(d["reason"]))})`;
+      return `Ordnance removed (${words(String(d["reason"]))})`;
+    case "craft_launch": {
+      const n = Array.isArray(d["ordnanceIds"]) ? d["ordnanceIds"].length : 0;
+      const recalled = Array.isArray(d["recalled"]) ? d["recalled"].length : 0;
+      return `${ship("shipId")} launches attack craft (${n} wave${n === 1 ? "" : "s"})${recalled > 0 ? `, recalling ${recalled}` : ""}`;
+    }
+    case "craft_move":
+      return `${wave("ordnanceId")} ${d["stoppedBy"] === null ? "fly" : `fly into ${ship("stoppedBy")}`}`;
+    case "intercept":
+      return `${names(d["lost"])} intercepts torpedoes: the salvo is destroyed`;
+    case "dogfight": {
+      const lost = Array.isArray(d["lost"]) ? d["lost"] : [];
+      return `Dogfight: ${names(lost[0])} lost against ${names(lost[1])}`;
+    }
+    case "cap_formed": {
+      const n = Array.isArray(d["ordnanceIds"]) ? d["ordnanceIds"].length : 0;
+      return `${n} fighter${n === 1 ? "" : "s"} fly CAP over ${ship("shipId")}`;
+    }
+    case "cap_released":
+      return d["reason"] === "ship_lost"
+        ? `${ship("shipId")} is gone: its CAP fighters fly on alone`
+        : `Fighters leave CAP over ${ship("shipId")}`;
+    case "cap_screen":
+      return `CAP over ${ship("shipId")} intercepts torpedoes: one fighter and the salvo are lost`;
+    case "craft_meets_ship":
+      return `Fighters reach ${ship("targetId")}, but fighters alone do no harm`;
+    case "craft_attack": {
+      const bombers = typeof d["bombers"] === "number" ? d["bombers"] : 0;
+      const boats = typeof d["boats"] === "number" ? d["boats"] : 0;
+      const parts = [];
+      if (bombers > 0) {
+        parts.push(
+          `${bombers} bomber${bombers === 1 ? "" : "s"} ${dice(d["bomberRolls"])} − ${num(d["own"])} turrets${num(d["escorts"]) !== "0" ? `, +${Math.min(Number(d["escorts"]), bombers)} escorts` : ""}: ${num(d["attacks"])} attacks ${dice(d["attackRolls"])} need ${num(d["need"])}+, ${num(d["hits"])} hit${d["hits"] === 1 ? "" : "s"}`,
+        );
+      }
+      if (boats > 0) parts.push(`${boats} assault boat${boats === 1 ? "" : "s"} go${boats === 1 ? "es" : ""} in`);
+      return `Attack craft strike ${ship("targetId")}: ${parts.join("; ") || "nothing left to attack"}`;
+    }
+    case "hit_and_run":
+      return `Assault boats hit ${ship("targetId")} ${dice(d["rolls"])}: ${
+        d["result"] === "failed" ? "beaten off" : d["result"] === "saved" ? `braced, saved ${dice(d["saveRolls"])}` : "critical hit"
+      }`;
     case "hulk_drift":
       return `${ship("shipId")} drifts ${dice(d["rolls"])} ${num(d["distance"])} cm`;
     case "hulk_lost":

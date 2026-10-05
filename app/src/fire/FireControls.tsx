@@ -1,4 +1,5 @@
-import { activePlayer, effectiveStrength, weaponDisabled, type GameState, type Ship, type Transform, type Weapon } from "@bfg/engine";
+import { activePlayer, craft, effectiveStrength, weaponDisabled, type GameState, type Ship, type Transform, type Weapon } from "@bfg/engine";
+import { LaunchCraft } from "../craft/LaunchCraft";
 import { Act } from "../controls/Act";
 import { describeBearing, launch, targets } from "./fire";
 import type { Aim } from "./aim";
@@ -22,7 +23,8 @@ export function FireControls({ state, aimed, onAim, onApply, bearing }: Props) {
   const ships = state.ships.filter((s) => s.owner === player && s.status === "active");
   // With several ships, those with nothing left to fire this step fold into one line.
   const kinds: readonly Weapon["kind"][] = KINDS[step];
-  const ready = ships.filter((s) => s.profile.weapons.some((w) => kinds.includes(w.kind) && available(state, s, w)));
+  const launches = (s: Ship) => step === "launch_ordnance" && craft.canLaunchCraft(state, s);
+  const ready = ships.filter((s) => s.profile.weapons.some((w) => kinds.includes(w.kind) && available(state, s, w)) || launches(s));
   const done = ships.filter((s) => !ready.includes(s));
   return (
     <>
@@ -57,6 +59,7 @@ function ShipWeapons({
 }: Omit<Props, "aimed"> & { ship: Ship; kinds: readonly Weapon["kind"][]; aimed: Props["aimed"] }) {
   const turn = state.turnState.ships[ship.id];
   const weapons = ship.profile.weapons.filter((w) => kinds.includes(w.kind));
+  const carrier = state.clock.step === "launch_ordnance" && craft.canLaunchCraft(state, ship);
   const note =
     turn?.disengage === "failed"
       ? "Failed to disengage: can't fire this turn."
@@ -92,6 +95,7 @@ function ShipWeapons({
           );
         })}
       </div>
+      {carrier && <LaunchCraft key={`${ship.id}/${state.clock.playerTurn}`} state={state} ship={ship} onApply={onApply} />}
       {aimed !== null && aimed.ship.id === ship.id && aimed.weapon.kind !== "torpedoes" && (
         <TargetList state={state} ship={ship} weapon={aimed.weapon} onApply={onApply} />
       )}

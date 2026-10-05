@@ -103,12 +103,20 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .salvo.p2 line, .salvo.p2 path { stroke: var(--p2); }
 .salvo.p1 text { fill: var(--p1); }
 .salvo.p2 text { fill: var(--p2); }
-.wave circle { fill: none; stroke-width: 0.3; }
-.wave text { font-size: 1.4px; }
-.wave.p1 circle { stroke: var(--p1); }
-.wave.p2 circle { stroke: var(--p2); }
+.wave { cursor: pointer; }
+.wave .footprint { fill: none; stroke-width: 0.15; stroke-dasharray: 0.4 0.3; }
+.wave .marker { fill: var(--bg); stroke-width: 0.2; }
+.wave text { font-size: 1px; font-weight: 700; pointer-events: none; }
+.wave.p1 .footprint, .wave.p1 .marker { stroke: var(--p1); }
+.wave.p2 .footprint, .wave.p2 .marker { stroke: var(--p2); }
 .wave.p1 text { fill: var(--p1); }
 .wave.p2 text { fill: var(--p2); }
+.wave.highlight .marker { stroke-width: 0.45; }
+.wave.highlight .footprint { stroke-width: 0.35; }
+.craft-ghost { fill: none; stroke: var(--ok); stroke-width: 0.2; stroke-dasharray: 0.4 0.3; }
+.launch-craft .counter { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.launch-craft .counter input { width: 4rem; }
+.launch-craft .recall { border: none; padding: 0; margin: 0.25rem 0; }
 
 /* --- Side panel */
 .hint { margin: 0; color: var(--muted); }

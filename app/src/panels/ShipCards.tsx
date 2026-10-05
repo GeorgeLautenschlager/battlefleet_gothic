@@ -27,6 +27,7 @@ function ShipCard({ ship, state, selected, onSelect }: { ship: Ship; state: Game
   const left = remainingHits(ship);
   const status = STATUS[ship.status];
   const boarding = state.turnState.ships[ship.id]?.boardingDeclared ?? null;
+  const cap = state.ordnance.filter((o) => o.kind === "attack_craft" && o.cap === ship.id).length;
   return (
     <button type="button" className={`card ${playerClass(ship.owner)} ${selected ? "selected" : ""}`} onClick={() => onSelect(ship.id)}>
       <div className="card-head">
@@ -43,6 +44,8 @@ function ShipCard({ ship, state, selected, onSelect }: { ship: Ship; state: Game
         <span>Shields {maxShields(ship)}</span>
         <span>Speed {ship.profile.speed}</span>
         {ship.loaded.torpedoes !== undefined && <span>{ship.loaded.torpedoes ? "Torps loaded" : "Torps empty"}</span>}
+        {ship.loaded.launchBays !== undefined && <span>{ship.loaded.launchBays ? "Bays ready" : "Bays spent"}</span>}
+        {cap > 0 && <span>CAP {cap}</span>}
       </div>
       {status !== "" && <div className="status">{status}</div>}
       {ship.specialOrder !== null && <div className="order">{words(ship.specialOrder.kind)}</div>}

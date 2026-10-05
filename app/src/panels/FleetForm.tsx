@@ -1,5 +1,5 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
-import { defaultNames, FLEETS, MAX_SHIPS, shipClass, type Fleet, type Side } from "../game/config";
+import { carrierClass, classIds, defaultNames, FLEETS, MAX_SHIPS, profileOf, type Fleet, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
 export function duplicates(names: string[]): string[] {
@@ -39,9 +39,9 @@ export function CountSelect({ value, onChange }: { value: number; onChange: (n: 
   );
 }
 
-export type Rules = { ramming: boolean; boarding: boolean };
+export type Rules = { ramming: boolean; boarding: boolean; carriers: boolean };
 
-/** The game's rule switches: ramming (optional, pp. 55–56) and boarding with teleport attacks (pp. 89–92). */
+/** The game's rule switches: ramming (pp. 55–56), boarding with teleport attacks (pp. 89–92), and carriers (p. 129). */
 export function RulesChecks({ value, onChange }: { value: Rules; onChange: (rules: Rules) => void }) {
   return (
     <>
@@ -52,6 +52,10 @@ export function RulesChecks({ value, onChange }: { value: Rules; onChange: (rule
       <label className="check">
         <input type="checkbox" checked={value.boarding} onChange={(e) => onChange({ ...value, boarding: e.target.checked })} />
         Boarding and teleport attacks (pp. 89–92)
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={value.carriers} onChange={(e) => onChange({ ...value, carriers: e.target.checked })} />
+        One carrier each, over the points cap (p. 129)
       </label>
     </>
   );
@@ -65,12 +69,26 @@ type FieldsProps = {
   onChange: (patch: Partial<Side>) => void;
   /** Names to flag as clashing. */
   dupes: string[];
+  /** The game allows one carrier each (p. 129). */
+  carriers?: boolean;
 };
 
-/** One side: commander, fleet, and a name per ship. */
-export function FleetFields({ legend, className, side, onChange, dupes }: FieldsProps) {
+/** "2 × Lunar class cruiser, 1 × Dictator class cruiser · 580 pts" */
+function fleetSummary(side: Side, carriers: boolean): string {
+  const counts = new Map<string, { n: number; points: number }>();
+  for (const id of classIds(side, carriers)) {
+    const p = profileOf(id);
+    const c = counts.get(p.className) ?? { n: 0, points: p.points };
+    counts.set(p.className, { ...c, n: c.n + 1 });
+  }
+  const total = [...counts.values()].reduce((t, c) => t + c.n * c.points, 0);
+  return `${[...counts].map(([name, c]) => `${c.n} × ${name} (${c.points} pts)`).join(", ")} · ${total} pts`;
+}
+
+/** One side: commander, fleet, its carrier if allowed, and a name per ship. */
+export function FleetFields({ legend, className, side, onChange, dupes, carriers = false }: FieldsProps) {
   const count = side.ships.length;
-  const profile = shipClass(side.fleet);
+  const carrier = carrierClass(side.fleet);
   return (
     <fieldset className={className}>
       <legend>
@@ -90,9 +108,13 @@ export function FleetFields({ legend, className, side, onChange, dupes }: Fields
           ))}
         </select>
       </label>
-      <p className="muted small">
-        {count} × {profile.className}, {profile.points} pts each · {count * profile.points} pts
-      </p>
+      {carriers && (
+        <label className="check">
+          <input type="checkbox" checked={side.carrier === true} onChange={(e) => onChange({ carrier: e.target.checked })} />
+          Bring a carrier: {side.ships[0]?.trim() || "ship 1"} is a {carrier.className}
+        </label>
+      )}
+      <p className="muted small">{fleetSummary(side, carriers)}</p>
       {side.ships.map((name, i) => (
         <label key={i}>
           {count === 1 ? "Ship name" : `Ship ${i + 1}`}

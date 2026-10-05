@@ -6,8 +6,8 @@ import type { MyGame } from "./myGames";
 
 /** New online game: you're Player 1 and set the size of the battle; your opponent joins with a link and brings their own fleet. */
 export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }) {
-  const [side, setSide] = useState<Side>({ name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1) });
-  const [rules, setRules] = useState<Rules>({ ramming: true, boarding: true });
+  const [side, setSide] = useState<Side>({ name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1), carrier: true });
+  const [rules, setRules] = useState<Rules>({ ramming: true, boarding: true, carriers: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dupes = duplicates(side.ships);
@@ -20,7 +20,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         setBusy(true);
         setError(null);
         const name = side.name.trim();
-        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side), ...rules })
+        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, rules.carriers), ...rules })
           .then((g) => onCreated({ gameId: g.gameId, token: g.token, seat: g.seat, name, joinedAt: new Date().toISOString(), inviteToken: g.inviteToken }))
           .catch((err: unknown) => setError((err as Error).message))
           .finally(() => setBusy(false));
@@ -37,6 +37,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
           setSide({ ...side, ...patch, ...(patch.fleet !== undefined && patch.fleet !== side.fleet ? { ships: defaultNames(patch.fleet, side.ships.length) } : {}) })
         }
         dupes={dupes}
+        carriers={rules.carriers}
       />
       <RulesChecks value={rules} onChange={setRules} />
       <DuplicateNames dupes={dupes} />
