@@ -5,6 +5,7 @@ import { controls, waitingOn, type GameSource } from "./game/source";
 import { Table, type Ghost } from "./table/Table";
 import { mm } from "./table/view";
 import { ShipCards } from "./panels/ShipCards";
+import { Result } from "./panels/Result";
 import { LogFeed } from "./panels/LogFeed";
 import { Console } from "./panels/Console";
 import { SetupControls } from "./panels/SetupControls";
@@ -166,11 +167,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
               onFocusWave={setWaveFocus}
             />
           ) : null}
-          {state.result !== null && (
-            <p className="result">
-              {state.result.winner === null ? "A draw" : `${state.players[state.result.winner].name} wins`} · {state.result.scores.p1}–{state.result.scores.p2}
-            </p>
-          )}
+          <Result state={state} />
           {rejection && (
             <p className="rejection" role="alert">
               {rejection.message}

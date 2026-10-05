@@ -92,6 +92,21 @@ describe("full games with carriers", () => {
   });
 });
 
+describe("full games, points battles with victory points", () => {
+  const battle = (p1: string[], p2: string[], limit: number): GameConfig => ({ ...mixed(p1, p2), forces: { kind: "points", limit }, scoring: "victory_points" });
+  const matchups: [string, GameConfig][] = [
+    ["750 pts: Dictator, Gothic, Lunar vs Devastation, Slaughter ×2, Murder", battle(["dictator", "gothic", "lunar"], ["devastation", "slaughter", "slaughter", "murder"], 750)],
+    ["500 pts: two Tyrants vs three Slaughters", battle(["tyrant", "tyrant"], ["slaughter", "slaughter", "slaughter"], 500)],
+  ];
+  for (const [name, config] of matchups) {
+    test.each([1, 2, 3, 4])(`${name}, seed %i, plays to a result`, (seed) => {
+      const s = playOut(seed, config);
+      expect(s.result).not.toBeNull();
+      expect(s.log.at(-1)?.data["scoring"]).toBe("victory_points");
+    });
+  }
+});
+
 test("in those games the new cruisers fire combined battery volleys", () => {
   const config = mixed(["gothic", "tyrant", "lunar"], ["carnage", "inferno", "slaughter"]);
   const volleys = [1, 2, 3].flatMap((seed) => playOut(seed, config).log.filter((e) => e.kind === "attack" && Array.isArray(e.data["weaponIds"])));

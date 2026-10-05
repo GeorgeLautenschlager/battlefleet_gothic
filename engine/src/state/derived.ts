@@ -272,8 +272,13 @@ export function gunneryColumn(target: Ship | "ordnance", aspect: Quadrant): Gunn
 export const destroyedForScoring = (ship: Ship): boolean =>
   ship.status === "destroyed" || isHulk(ship);
 
-/** Cruiser Clash points for `player`: 1 per damage on enemy ships, +3 destroyed, or +1 crippled. */
+/** The game's score for `player`: Cruiser Clash points or victory points, per `scenario.scoring` (state §11). */
 export function score(state: GameState, player: PlayerId): number {
+  return state.scenario.scoring === "victory_points" ? victoryPoints(state, player).total : cruiserClashScore(state, player);
+}
+
+/** Cruiser Clash points for `player`: 1 per damage on enemy ships, +3 destroyed, or +1 crippled (p. 128). */
+export function cruiserClashScore(state: GameState, player: PlayerId): number {
   let total = 0;
   for (const ship of state.ships) {
     if (ship.owner === player) continue;
@@ -282,6 +287,37 @@ export function score(state: GameState, player: PlayerId): number {
     else if (isCrippled(ship)) total += 1;
   }
   return total;
+}
+
+// --- Victory points (pp. 122–123, state §11, N11–N12)
+
+export type ShipVP = { shipId: string; vp: number; why: "destroyed" | "crippled" | "disengaged" };
+export type VictoryPoints = { total: number; ships: ShipVP[]; field: number };
+
+const percent = (points: number, pct: number): number => Math.ceil((points * pct) / 100); // per ship, rounded up (N12)
+
+/** What an enemy ship is worth to its opponent now, or null if nothing. */
+export function shipVP(ship: Ship): ShipVP | null {
+  const points = ship.profile.points;
+  if (destroyedForScoring(ship)) return { shipId: ship.id, vp: points, why: "destroyed" };
+  if (ship.status === "disengaged") return { shipId: ship.id, vp: percent(points, isCrippled(ship) ? 25 : 10), why: "disengaged" };
+  if (ship.status === "active" && isCrippled(ship)) return { shipId: ship.id, vp: percent(points, 25), why: "crippled" };
+  return null;
+}
+
+/** Half of every hulk on the table, friend or foe, if `player` holds the field: no enemy active, one of theirs is (T38). */
+export function holdingTheField(state: GameState, player: PlayerId): number {
+  const mine = state.ships.some((s) => s.owner === player && s.status === "active");
+  const theirs = state.ships.some((s) => s.owner !== player && s.status === "active");
+  if (!mine || theirs) return 0;
+  return state.ships.filter(isHulk).reduce((n, s) => n + percent(s.profile.points, 50), 0);
+}
+
+/** Victory points for `player`: enemy ships destroyed, crippled or disengaged, plus holding the field. */
+export function victoryPoints(state: GameState, player: PlayerId): VictoryPoints {
+  const ships = state.ships.filter((s) => s.owner !== player).flatMap((s) => shipVP(s) ?? []);
+  const field = holdingTheField(state, player);
+  return { total: ships.reduce((n, s) => n + s.vp, 0) + field, ships, field };
 }
 
 // --- Whose move is it? (§5, §12)

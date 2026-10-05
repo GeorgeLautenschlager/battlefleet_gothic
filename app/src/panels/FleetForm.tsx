@@ -1,5 +1,5 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
-import { classChoices, classIds, defaultNames, FLEETS, MAX_SHIPS, profileOf, type Fleet, type Side } from "../game/config";
+import { classChoices, classIds, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, POINTS_LIMITS, profileOf, type Fleet, type NewGameOptions, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
 export function duplicates(names: string[]): string[] {
@@ -41,8 +41,49 @@ export function CountSelect({ value, onChange }: { value: number; onChange: (n: 
 
 export type Rules = { ramming: boolean; boarding: boolean; carriers: boolean };
 
-/** The game's rule switches: ramming (pp. 55–56), boarding with teleport attacks (pp. 89–92), and carriers (p. 129). */
-export function RulesChecks({ value, onChange }: { value: Rules; onChange: (rules: Rules) => void }) {
+/** The game's size: classic Cruiser Clash, or a points battle (p. 129); and how it's scored (T37). */
+export function BattleFields({
+  value,
+  onChange,
+}: {
+  value: Pick<NewGameOptions, "forces" | "scoring">;
+  onChange: (patch: Pick<NewGameOptions, "forces" | "scoring">) => void;
+}) {
+  const limit = value.forces?.kind === "points" ? value.forces.limit : null;
+  return (
+    <div className="battle-fields">
+      <label>
+        Battle
+        <select
+          value={limit === null ? "cruiser_clash" : String(limit)}
+          onChange={(e) => {
+            const v = e.target.value;
+            // Points battles default to victory points; Cruiser Clash to its own scoring.
+            if (v === "cruiser_clash") onChange({ forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
+            else onChange({ forces: { kind: "points", limit: Number(v) }, scoring: limit === null ? "victory_points" : (value.scoring ?? "victory_points") });
+          }}
+        >
+          <option value="cruiser_clash">Cruiser Clash (1–4 cruisers each, up to 185 pts)</option>
+          {POINTS_LIMITS.map((p) => (
+            <option key={p} value={p}>
+              {p} points a side
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Scoring
+        <select value={value.scoring ?? "cruiser_clash"} onChange={(e) => onChange({ ...value, scoring: e.target.value as NonNullable<NewGameOptions["scoring"]> })}>
+          <option value="victory_points">Victory points (pp. 122–123)</option>
+          <option value="cruiser_clash">Cruiser Clash: damage, crippled, destroyed (p. 128)</option>
+        </select>
+      </label>
+    </div>
+  );
+}
+
+/** The game's rule switches: ramming (pp. 55–56), boarding with teleport attacks (pp. 89–92), and carriers (p. 129, Cruiser Clash only). */
+export function RulesChecks({ value, onChange, points = false }: { value: Rules; onChange: (rules: Rules) => void; points?: boolean }) {
   return (
     <>
       <label className="check">
@@ -53,10 +94,12 @@ export function RulesChecks({ value, onChange }: { value: Rules; onChange: (rule
         <input type="checkbox" checked={value.boarding} onChange={(e) => onChange({ ...value, boarding: e.target.checked })} />
         Boarding and teleport attacks (pp. 89–92)
       </label>
-      <label className="check">
-        <input type="checkbox" checked={value.carriers} onChange={(e) => onChange({ ...value, carriers: e.target.checked })} />
-        One carrier each, over the points cap (p. 129)
-      </label>
+      {!points && (
+        <label className="check">
+          <input type="checkbox" checked={value.carriers} onChange={(e) => onChange({ ...value, carriers: e.target.checked })} />
+          One carrier each, over the points cap (p. 129)
+        </label>
+      )}
     </>
   );
 }
@@ -69,12 +112,16 @@ type FieldsProps = {
   onChange: (patch: Partial<Side>) => void;
   /** Names to flag as clashing. */
   dupes: string[];
-  /** The game allows one carrier each (p. 129). */
+  /** The game allows carriers: one each in Cruiser Clash (p. 129), any in a points battle. */
   carriers?: boolean;
+  /** A points battle: the side sets its own number of ships, up to the limit (shown against its total). */
+  pointsLimit?: number | null;
+  /** Names the other side has taken, for new ships' defaults. */
+  taken?: string[];
 };
 
 /** "2 × Lunar class cruiser, 1 × Dictator class cruiser · 580 pts" */
-function fleetSummary(side: Side, carriers: boolean): string {
+function fleetSummary(side: Side, carriers: boolean, limit: number | null = null): string {
   const counts = new Map<string, { n: number; points: number }>();
   for (const id of classIds(side, carriers)) {
     const p = profileOf(id);
@@ -82,11 +129,11 @@ function fleetSummary(side: Side, carriers: boolean): string {
     counts.set(p.className, { ...c, n: c.n + 1 });
   }
   const total = [...counts.values()].reduce((t, c) => t + c.n * c.points, 0);
-  return `${[...counts].map(([name, c]) => `${c.n} × ${name} (${c.points} pts)`).join(", ")} · ${total} pts`;
+  return `${[...counts].map(([name, c]) => `${c.n} × ${name} (${c.points} pts)`).join(", ")} · ${total}${limit === null ? "" : ` of ${limit}`} pts`;
 }
 
 /** One side: commander, fleet, and a name and class per ship. */
-export function FleetFields({ legend, className, side, onChange, dupes, carriers = false }: FieldsProps) {
+export function FleetFields({ legend, className, side, onChange, dupes, carriers = false, pointsLimit = null, taken = [] }: FieldsProps) {
   const count = side.ships.length;
   const choices = classChoices(side.fleet, carriers);
   const classes = classIds(side, carriers);
@@ -110,7 +157,7 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
           ))}
         </select>
       </label>
-      <p className="muted small">{fleetSummary(side, carriers)}</p>
+      <p className="muted small">{fleetSummary(side, carriers, pointsLimit)}</p>
       {side.ships.map((name, i) => (
         <div key={i} className="ship-row">
           <label>
@@ -138,6 +185,16 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
           </label>
         </div>
       ))}
+      {pointsLimit !== null && (
+        <div className="buttons">
+          <button type="button" disabled={count >= MAX_POINTS_SHIPS} onClick={() => onChange({ ships: resize(side.ships, side.fleet, count + 1, taken) })}>
+            Add a ship
+          </button>
+          <button type="button" disabled={count <= 1} onClick={() => onChange({ ships: side.ships.slice(0, -1) })}>
+            Remove the last
+          </button>
+        </div>
+      )}
     </fieldset>
   );
 }

@@ -155,8 +155,11 @@ export function describe(state: GameState, entry: LogEntry): string {
       return `${ship("shipId")} burns (${num(d["fires"])} fire${d["fires"] === 1 ? "" : "s"})`;
     case "bm_removal":
       return `Blast Marker removal ${dice(d["rolls"])}: ${Array.isArray(d["removed"]) ? d["removed"].length : 0} removed`;
-    case "game_end":
-      return `Game over (${words(String(d["reason"]))}): ${d["winner"] === null ? "a draw" : `${player("winner")} wins`}`;
+    case "game_end": {
+      const scores = d["scores"] as { p1?: number; p2?: number } | undefined;
+      const vp = d["scoring"] === "victory_points" ? " victory points" : "";
+      return `Game over (${words(String(d["reason"]))}): ${d["winner"] === null ? "a draw" : `${player("winner")} wins`}, ${num(scores?.p1)}–${num(scores?.p2)}${vp}`;
+    }
     case "boarding_declared":
       return `${ship("shipId")} closes to board ${ship("targetId")}`;
     case "boarding_lapsed":

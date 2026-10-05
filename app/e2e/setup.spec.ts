@@ -117,3 +117,29 @@ test("classes: a class per ship, carriers with the option, and the engine's limi
   await expect(page.locator(".card").filter({ hasText: "Hammer of Terra" })).toContainText("Tyrant class cruiser");
   await expect(page.locator(".card").filter({ hasText: "Carrion Hymn" })).toContainText("Slaughter class cruiser");
 });
+
+test("points battle: each side spends its points, any number of ships, scored in victory points", async ({ page }) => {
+  await page.goto("/");
+  const form = page.locator("form", { hasText: "Hot-seat" });
+  await form.getByLabel("Battle").selectOption("750");
+  await expect(form.getByLabel("Scoring")).toHaveValue("victory_points");
+  await expect(form.getByLabel("Cruisers a side")).toHaveCount(0);
+  await expect(form.getByText("One carrier each")).toHaveCount(0); // no cap, so no carrier option
+  const [p1, p2] = [form.locator("fieldset.p1"), form.locator("fieldset.p2")];
+  await p1.getByRole("button", { name: "Add a ship" }).click();
+  await p1.getByRole("button", { name: "Add a ship" }).click();
+  await p1.getByLabel("Ship 1 class").selectOption("dictator"); // a carrier, no option needed
+  await p1.getByLabel("Ship 2 class").selectOption("gothic");
+  await expect(p1).toContainText("· 580 of 750 pts");
+  await p1.getByRole("button", { name: "Add a ship" }).click();
+  await p1.getByLabel("Ship 4 class").selectOption("tyrant");
+  await expect(form.locator(".rejection")).toContainText("765 pts, over the 750 pt limit");
+  await expect(form.getByRole("button", { name: "Start" })).toBeDisabled();
+  await p1.getByRole("button", { name: "Remove the last" }).click();
+  await p2.getByRole("button", { name: "Add a ship" }).click();
+  await p2.getByLabel("Ship 2 class").selectOption("slaughter");
+  await form.screenshot({ path: "e2e-results/points-form.png" });
+  await form.getByRole("button", { name: "Start" }).click();
+  await expect(page.locator(".card")).toHaveCount(5);
+  await expect(page.locator(".card").filter({ hasText: "Dictator class cruiser" })).toHaveCount(1);
+});

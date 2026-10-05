@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { PlayerId } from "@bfg/engine";
-import { configProblem, defaultNames, type NewGameOptions, type Side } from "../game/config";
-import { CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks } from "./FleetForm";
+import { carriersAllowed, configProblem, defaultNames, MAX_SHIPS, type NewGameOptions, type Side } from "../game/config";
+import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks } from "./FleetForm";
 
 const PLAYERS: PlayerId[] = ["p1", "p2"];
 
@@ -13,10 +13,11 @@ const INITIAL: NewGameOptions = {
   carriers: false,
 };
 
-/** Hot-seat Cruiser Clash: each side picks a fleet; both field the same number of cruisers. */
+/** Hot-seat: Cruiser Clash (the same number of cruisers each) or a points battle (each side spends its points). */
 export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart: (o: NewGameOptions) => void; onCancel?: () => void; cancelLabel?: string }) {
   const [o, setO] = useState<NewGameOptions>(INITIAL);
   const count = o.p1.ships.length;
+  const points = o.forces?.kind === "points" ? o.forces.limit : null;
   const dupes = duplicates([...o.p1.ships, ...o.p2.ships]);
   const problem = dupes.length > 0 ? null : configProblem(o);
 
@@ -25,8 +26,8 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
     // A new fleet brings its own default names; in a mirror match p2 takes the second half of the list.
     if (patch.fleet !== undefined && patch.fleet !== o[p].fleet) {
       const mirror = next.p1.fleet === next.p2.fleet;
-      next.p1 = { ...next.p1, ships: defaultNames(next.p1.fleet, count), ...(p === "p1" ? { classes: [] } : {}) };
-      next.p2 = { ...next.p2, ships: defaultNames(next.p2.fleet, count, mirror), ...(p === "p2" ? { classes: [] } : {}) };
+      next.p1 = { ...next.p1, ships: defaultNames(next.p1.fleet, next.p1.ships.length), ...(p === "p1" ? { classes: [] } : {}) };
+      next.p2 = { ...next.p2, ships: defaultNames(next.p2.fleet, next.p2.ships.length, mirror), ...(p === "p2" ? { classes: [] } : {}) };
     }
     setO(next);
   };
@@ -44,8 +45,17 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
       }}
     >
       <h2>Hot-seat</h2>
-      <p className="muted">Cruiser Clash on this device: up to four cruisers a side, the same number each. Pass it over when it says so.</p>
-      <CountSelect value={count} onChange={setCount} />
+      <p className="muted">Two players on this device: pass it over when it says so.</p>
+      <BattleFields
+        value={o}
+        onChange={(patch) => {
+          // Back to Cruiser Clash: equal numbers again, the larger side trimmed to fit.
+          const toClash = patch.forces?.kind !== "points" && points !== null;
+          const n = Math.min(MAX_SHIPS, Math.max(o.p1.ships.length, o.p2.ships.length));
+          setO(toClash ? { ...o, ...patch, p1: { ...o.p1, ships: resize(o.p1.ships, o.p1.fleet, n, o.p2.ships) }, p2: { ...o.p2, ships: resize(o.p2.ships, o.p2.fleet, n, o.p1.ships) } } : { ...o, ...patch });
+        }}
+      />
+      {points === null && <CountSelect value={count} onChange={setCount} />}
       {PLAYERS.map((p) => (
         <FleetFields
           key={p}
@@ -54,10 +64,12 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
           side={o[p]}
           onChange={(patch) => change(p, patch)}
           dupes={dupes}
-          carriers={o.carriers === true}
+          carriers={carriersAllowed(o)}
+          pointsLimit={points}
+          taken={o[p === "p1" ? "p2" : "p1"].ships}
         />
       ))}
-      <RulesChecks value={{ ...o, carriers: o.carriers === true }} onChange={(rules) => setO({ ...o, ...rules })} />
+      <RulesChecks value={{ ...o, carriers: o.carriers === true }} onChange={(rules) => setO({ ...o, ...rules })} points={points !== null} />
       <DuplicateNames dupes={dupes} />
       <FleetProblem problem={problem} />
       <div className="buttons">
