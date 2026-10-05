@@ -1,0 +1,25 @@
+{
+  "name": "@bfg/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Battlefleet Gothic network play: the server-authoritative game room (network/SPEC.md).",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm run test"
+  },
+  "dependencies": {
+    "@bfg/engine": "file:../engine"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^22.20.5",
+    "eslint": "^9.39.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
+  }
+}
