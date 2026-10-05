@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.4, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side). Builds on [Game State v0.7](../game_state/SPEC.md) and [Transforms v0.5](../transforms/SPEC.md). v0.4 adds the boarding checks: `move`'s `boardTargetId`, `board`, `teleport`, and shooting by grappled or boarding ships.
+**Status:** draft v0.5, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.8](../game_state/SPEC.md) and [Transforms v0.6](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves.
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -46,6 +46,7 @@ Shared by validator and reducer: one module, one definition. Everything is 2D, i
 | `TURN_DISTANCE.battleship` / `.cruiser` / `.escort` | 15 / 10 / 0 cm | p. 54 |
 | `BM_SLOWDOWN` | 5 cm | p. 69 |
 | `TELEPORT_RANGE` | 10 cm | teleport attacks, pp. 91–92 |
+| `CRAFT_RADIUS` | 1 cm | one attack craft marker's footprint (state N8) |
 
 ### 2.2 Tolerant comparison
 
@@ -175,7 +176,8 @@ lineOfFireBlocked(shooter, target) =
 ```
 nearestShipTargets(ship, weapon)     = among enemy ships with status "active" for which canEngage holds,
                                        those within EPS of the minimum distance
-nearestOrdnanceTargets(ship, weapon) = the same over enemy torpedo salvoes
+nearestOrdnanceTargets(ship, weapon) = the same over enemy torpedo salvoes and enemy attack craft waves not on CAP
+                                       (distance to a wave is to its centre)
 isNearest(ship, weapon, target)      = target ∈ the matching set above
 ```
 
@@ -270,6 +272,15 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 | 9 | If `ramTargetId` is given: `order = "all_ahead_full"` and `meta.options.ramming` | `RAM_NOT_ALLOWED` |
 | 10 | If `ramTargetId` is given: it names an enemy ship that's `onTable` (hulks allowed, transform D2) | `INVALID_RAM_TARGET` |
 
+**`release_cap`**
+
+| # | Check | Code |
+|---|---|---|
+| 1 | The ordnance exists and is an attack craft wave | `UNKNOWN_ORDNANCE` |
+| 2 | `owner = player` | `NOT_YOUR_ORDNANCE` |
+| 3 | `cap ≠ null` | `NOT_ON_CAP` |
+| 4 | `activation = null`, and no active-player ship has moved this turn other than grappled ones (transform §4.2) | `TOO_LATE_TO_RELEASE` |
+
 **`move`**
 
 First, identify the move:
@@ -361,7 +372,7 @@ Grappled ships never reach the `declare_order` or `move` checks: they're marked 
 | 9 | Weapon not in `weaponsFired` | `WEAPON_ALREADY_FIRED` |
 | 10 | Weapon not disabled (state §11 `weaponDisabled`) | `WEAPON_DISABLED` |
 | 11 | Target exists: a ship id for `kind: "ship"`, a salvo id for `kind: "ordnance"` | `UNKNOWN_TARGET` |
-| 12 | Target is the enemy's. A ship target must be `onTable` (so friendly hulks are out). | `INVALID_TARGET` |
+| 12 | Target is the enemy's. A ship target must be `onTable` (so friendly hulks are out). An attack craft target must not be on CAP (T27). | `INVALID_TARGET` |
 | 13 | `distance(ship, target) ≤ weapon.range` | `OUT_OF_RANGE` |
 | 14 | Let `Q = quadrantsOfPoint(ship, target.position) ∩ weapon.arcs`. `Q` is non-empty. | `OUT_OF_ARC` |
 | 15 | If `|quadrantsOfPoint(ship, target.position)| > 1` and `|Q| > 1`, `arc` is supplied | `ARC_CHOICE_REQUIRED` |
@@ -385,6 +396,22 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 | 11 | `ship.loaded.torpedoes = true` | `NOT_LOADED` |
 | 12 | `0 ≤ bearing < 360` and `quadrantsOf(bearing) ∩ weapon.arcs ≠ ∅` | `BEARING_OUT_OF_ARC` |
 
+**`launch_attack_craft`**
+
+| # | Check | Code |
+|---|---|---|
+| 1–6 | As `fire` 1–6 | as `fire` |
+| 7 | The ship has at least one `launch_bay` weapon | `NO_LAUNCH_BAYS` |
+| 8 | `ship.loaded.launchBays = true` | `NOT_LOADED` |
+| 9 | `waves` is non-empty, and no wave is empty | `EMPTY_WAVE` |
+| 10 | Every role is one the ship's bays carry | `CRAFT_NOT_CARRIED` |
+| 11 | A wave with `cap: true` holds only fighters | `CAP_NOT_FIGHTERS` |
+| 12 | Total squadrons ≤ `launchCapacity(ship)` | `TOO_MANY_SQUADRONS` |
+| 13 | Every `recall` id is one of the player's attack craft waves, not on CAP, named once | `INVALID_RECALL` |
+| 14 | `craftInPlay − recalled squadrons + launched squadrons ≤ fleetBays(player)` | `FLEET_LIMIT` |
+
+`TOO_MANY_SQUADRONS.details` is `{ launching, capacity }`; `FLEET_LIMIT.details` is `{ inPlay, recalled, launching, limit }`.
+
 **`end_step`**: G6 already limits it to `direct_fire`, `launch_ordnance` and `boarding`. In `boarding`, one check:
 
 | # | Check | Code |
@@ -397,9 +424,18 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 
 | # | Check | Code |
 |---|---|---|
-| 1 | Salvo exists | `UNKNOWN_ORDNANCE` |
-| 2 | `salvo.owner = player` | `NOT_YOUR_ORDNANCE` |
+| 1 | The ordnance exists | `UNKNOWN_ORDNANCE` |
+| 2 | `owner = player` | `NOT_YOUR_ORDNANCE` |
 | 3 | Not in `turnState.ordnanceMoved` | `ORDNANCE_ALREADY_MOVED` |
+| 4 | A torpedo salvo has no `path` and no `cap`; an attack craft wave has a `path` | `WRONG_ORDNANCE_MOVE` |
+| 5 | A CAP fighter moves only in `inactive_ordnance` (transform §4.4) | `ON_CAP` |
+| 6 | The path's total length (from the wave's position through every waypoint) ≤ the wave's speed | `PATH_TOO_LONG` |
+| 7 | Every waypoint is on the table | `PATH_OFF_TABLE` |
+| 8 | If `cap`: the wave is all fighters | `CAP_NOT_FIGHTERS` |
+| 9 | If `cap`: it names a friendly ship that's `active` | `INVALID_CAP_SHIP` |
+| 10 | If `cap`: at the path's end, the wave's footprint touches that ship's base | `NOT_IN_CONTACT` |
+
+`PATH_TOO_LONG.details` is `{ total, limit }`, as for ship moves. The path isn't checked for the contacts it will meet: those are outcomes, resolved by the reducer as the wave flies (V8).
 
 ### 4.5 Brace
 
@@ -513,6 +549,14 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 | `BOARDING_UNRESOLVED` | `end_step` while a declared boarding action is still to be fought |
 | `ALREADY_TELEPORTED` / `CANNOT_TELEPORT` | One teleport per ship per turn; escorts, crippled ships and ships on other orders can't |
 | `SHIELDS_UP` / `TARGET_TOO_LARGE` | Teleport target still has shields, or more hits left than the attacker |
+| `NO_LAUNCH_BAYS` | `launch_attack_craft` from a ship without launch bays |
+| `EMPTY_WAVE` / `CRAFT_NOT_CARRIED` | A launch with an empty wave, or a craft role the ship's bays don't carry |
+| `TOO_MANY_SQUADRONS` / `FLEET_LIMIT` | More squadrons than the ship's bays, or than the fleet's ordnance limit (p. 73) |
+| `INVALID_RECALL` | Recalling something that isn't one of your free-flying attack craft waves |
+| `CAP_NOT_FIGHTERS` / `INVALID_CAP_SHIP` | Only fighters fly CAP, and only for a friendly active ship |
+| `NOT_ON_CAP` / `ON_CAP` / `TOO_LATE_TO_RELEASE` | CAP release and movement rules (p. 82) |
+| `WRONG_ORDNANCE_MOVE` | A path for torpedoes, or none for attack craft |
+| `PATH_OFF_TABLE` | An attack craft waypoint off the table |
 
 ---
 
@@ -554,6 +598,7 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V5 | **No overlapping bases at deployment.** Bases may touch but not overlap. Overlap during play is still legal (p. 57). |
 | V6 | **Deterministic maths.** Engine code uses only IEEE-exact operations and the `dmath` module; platform trig is forbidden (§2.8). |
 | V7 | **Boarding contact is `basesTouch`** at the end of the path: inclusive, and overlapping bases count (overlap is legal in play, V5). |
+| V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |
 
 ## 8. Decisions
 

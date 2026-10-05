@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.7, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 adds boarding actions, grapples and teleport attacks (pp. 89–92): §7 `Grapple`, §8, §9.1, §11, §13.
+**Status:** draft v0.8, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13.
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -122,6 +122,8 @@ type Meta = {
     ramming: boolean           // default true
     boarding: boolean          // boarding actions and teleport attacks (pp. 89–92). Default false when
                                // a config doesn't say, so older saves replay unchanged; the app turns it on
+    carriers: boolean          // "one carrier each" (p. 129): each side may field one ship with launch bays
+                               // above the 185-point cap. Default false (transform §5)
   }
 }
 
@@ -235,7 +237,7 @@ type Ship = {
   damage: number                     // hull damage taken, 0..profile.hits
   criticals: Critical[]              // currently in effect
   specialOrder: SpecialOrder | null
-  loaded: { torpedoes?: boolean }    // one key per launcher kind the ship has; true at game start (p. 74)
+  loaded: { torpedoes?: boolean, launchBays?: boolean }   // one key per launcher kind the ship has; true at game start (p. 74)
   lastMove: { playerTurn: number, distance: number } | null
   grapple: Grapple | null            // locked in a drawn boarding action (pp. 90–91)
 }
@@ -285,13 +287,17 @@ type ShipProfile = {
 type Weapon = {
   id: string                         // unique within the profile: "port_lances"
   name: string                       // "Port lance battery"
-  kind: "battery" | "lance" | "torpedoes"   // later: "nova_cannon", "launch_bay", …
+  kind: "battery" | "lance" | "torpedoes" | "launch_bay"   // later: "nova_cannon", …
   location: "prow" | "port" | "starboard" | "dorsal" | "keel" | "aft"
   arcs: Quadrant[]                   // ["left"]; dorsal mounts e.g. ["left","front","right"]
   range: number | null               // direct fire: max range in cm; ordnance: null
   speed: number | null               // ordnance: marker speed in cm; direct fire: null
-  strength: number                   // firepower (batteries) or strength (lances, torpedoes)
+  strength: number                   // firepower (batteries), strength (lances, torpedoes), squadrons (launch bays)
+  craft?: CraftOption[]              // launch bays only: the attack craft they carry (fleet rules)
 }
+
+type CraftRole = "fighter" | "bomber" | "assault_boat"
+type CraftOption = { role: CraftRole, name: string, speed: number }   // { "fighter", "Fury", 30 }
 
 type Quadrant = "front" | "left" | "rear" | "right"
 ```
@@ -375,6 +381,9 @@ type ShipTurnState = {
   boardingDeclared: string | null    // target ship id: declared with the move that made contact (p. 89)
   boarded: boolean                   // its boarding action has been fought this End Phase
   teleported: boolean                // made its teleport attack this End Phase (pp. 91–92)
+  turrets: { phase: Phase, against: "torpedoes" | "attack_craft" } | null
+                                     // what its turrets (own, or massed for a friend) fired at this phase:
+                                     // torpedoes or attack craft, never both in one phase (p. 80)
   repaired: boolean                  // damage control rolled this End Phase
 }
 
@@ -474,10 +483,10 @@ type BlastMarker = {
 - Blast Markers are circles of diameter **2.5 cm** (engine constant). The rulebook only says a BM is smaller than a small base (p. 71).
 - Placement (in the line of fire, fanned around the base without stacking, p. 68) is the reducer's job. The state only stores where they ended up. BMs never move once placed.
 
-### 10.2 Ordnance (Phase 1: torpedo salvoes)
+### 10.2 Ordnance: torpedo salvoes and attack craft
 
 ```ts
-type Ordnance = TorpedoSalvo         // later: AttackCraftWave, …
+type Ordnance = TorpedoSalvo | AttackCraftWave
 
 type TorpedoSalvo = {
   id: string
@@ -497,6 +506,26 @@ type TorpedoSalvo = {
 - A salvo is modelled as a **line segment** `width` cm wide, centred on `position`, perpendicular to `heading`. Moving it sweeps a rectangle, and contact is "the swept rectangle intersects a base circle".
 - On launch the marker sits at the launcher's stem facing the chosen heading. It moves its full speed in the same player turn's Ordnance Phase (interpretation #4) and in every later Ordnance Phase of both players.
 - A salvo whose strength reaches 0, that detonates, or that leaves the table is **removed from the array**. The log keeps the history.
+
+```ts
+type AttackCraftWave = {
+  id: string
+  kind: "attack_craft"
+  owner: PlayerId
+  launchedBy: string                 // ship id
+  launched: number                   // playerTurn
+  position: Point                    // centre of the wave's footprint
+  squadrons: Squadron[]              // one per marker, in launch order; never empty while in play
+  cap: string | null                 // ship id it flies Combat Air Patrol for (then a single fighter)
+}
+
+type Squadron = { role: CraftRole, name: string, speed: number }
+```
+
+- A **wave** is one entity, however many markers it has. Its markers move together at the slowest one's speed, and a wave can't be re-formed once it splits (p. 85). A single squadron is a wave of one.
+- **Footprint:** a circle of radius `CRAFT_RADIUS × √n` for `n` squadrons, centred on `position` (ruling N8). Contact is that circle touching a ship's base, a salvo's segment or another wave's circle.
+- **CAP:** a fighter on Combat Air Patrol (pp. 81–82) has `cap` set to the ship it screens. Its `position` is that ship's stem, updated whenever the ship moves, and it doesn't move in the Ordnance Phase. CAP fighters are always single squadrons ("independent markers, not a wave", p. 82).
+- **Marker to marker:** interactions remove squadrons one for one (p. 85), fighters first where the rules say so. When a wave's last squadron goes, the wave is removed from the array.
 
 ### 10.3 Random numbers
 
@@ -548,6 +577,9 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `bmsInContact(s)` | Blast Markers whose circle touches or overlaps the ship's base circle |
 | `shieldCapacity(s)` | `max(0, maxShields − |bmsInContact|)` (interpretation #11) |
 | `turrets(s)` | hulks 0; crippled `⌈turrets/2⌉`; else `turrets`. Not affected by Brace. |
+| `launchCapacity(s)` | Σ over the ship's `launch_bay` weapons that aren't disabled: `effectiveStrength` (crippled and braced halve it, p. 73) |
+| `craftInPlay(player)` | the number of squadrons in the player's attack craft waves, CAP included |
+| `fleetBays(player)` | Σ `launchCapacity` over the player's `active` ships: the fleet's ordnance limit (p. 73) |
 | `armourFacing(target, from)` | quadrant of `target` containing `from`; armour = `profile.armour[quadrant]`. Bombers use the minimum. |
 | `canTurn(s)` | `!has(engine_room)` |
 | `weaponDisabled(s, w)` | a matching `<location>_armament` critical exists, or the ship failed its disengage test this turn, is grappled, or declared a boarding action this turn (p. 89) |
@@ -596,6 +628,7 @@ Properties every valid state satisfies. These are good property-test fodder.
 10. `turnState.playerTurn = clock.playerTurn`.
 11. `clock.stage = "ended"` ⇔ `result ≠ null`.
 12. Grapples are consistent. A ship with `grapple ≠ null` is `active`. Every ship its grapple names is `active` and carries an identical `grapple`. `defenderId ∉ attackerIds`, `attackerIds` is non-empty, and the attackers are all the defender's enemies. No ship is in two grapples.
+13. Attack craft are consistent: every wave has ≥ 1 squadron. A wave with `cap ≠ null` is a single fighter, its ship is the owner's and `active`, and its `position` is that ship's stem.
 
 ```ts
 type GameResult = {
@@ -617,7 +650,7 @@ Agrippa (p1, Imperial, zone B, Ld 8) vs Unclean (p2, Chaos, zone A, Ld 7). Uncle
     "schemaVersion": 1,
     "ruleset": "bfg-remastered-1.10",
     "createdAt": "2026-10-03T20:00:00Z",
-    "options": { "ramming": true, "boarding": false }
+    "options": { "ramming": true, "boarding": false, "carriers": false }
   },
   "scenario": {
     "id": "cruiser_clash",
@@ -717,8 +750,8 @@ Agrippa (p1, Imperial, zone B, Ld 8) vs Unclean (p2, Chaos, zone A, Ld 7). Uncle
     "playerTurn": 1,
     "commandCheckFailed": false,
     "ships": {
-      "ship-1": { "moved": false, "drifted": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "boarded": false, "teleported": false, "repaired": false },
-      "ship-2": { "moved": false, "drifted": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "boarded": false, "teleported": false, "repaired": false }
+      "ship-1": { "moved": false, "drifted": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "boarded": false, "teleported": false, "turrets": null, "repaired": false },
+      "ship-2": { "moved": false, "drifted": false, "priorityTest": null, "weaponsFired": [], "disengage": null, "boardingDeclared": null, "boarded": false, "teleported": false, "turrets": null, "repaired": false }
     },
     "ordnanceMoved": [],
     "braceFailures": [],
@@ -790,6 +823,7 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N5 | Hulks count as **destroyed** for Cruiser Clash's +3. | §11 |
 | N6 | **Fire!** deals its damage once per round (game turn), in the **owner's** End Phase after damage control. Both players still roll repairs in every End Phase. | §6 |
 | N7 | A ship that hasn't moved yet (`lastMove: null`) is **not** targeted as Defences. | §11 |
+| N8 | An attack craft marker's footprint is a circle of radius `CRAFT_RADIUS` = 1 cm (a 20 mm square's inscribed circle, p. 79); a wave of `n` markers is a circle of radius `√n` cm, about the area of a compact block. | §10.2 |
 
 ---
 
@@ -798,7 +832,6 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 The shapes above leave room for these without breaking changes. Each will add fields or union members, never repurpose existing ones.
 
 - **Squadrons:** a top-level `squadrons: { id, owner, shipIds, leadership }[]`; orders move to the squadron.
-- **Attack craft:** new `Ordnance` variants (`attack_craft` with role fighter/bomber/assault boat, `onCap` ship id); `loaded.launchBays`.
 - **Nova cannon:** weapon kind `nova_cannon`, a `WorkItem` for scatter.
 - **Terrain:** `table.features: Feature[]` (gas clouds, asteroid fields, planets with gravity wells), `table.sunwardEdge`.
 - **Fleet commanders and re-rolls:** `players[].commander: { shipId, rerollsLeft }`.

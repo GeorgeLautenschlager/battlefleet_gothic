@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.5, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side). Builds on [Game State v0.7](../game_state/SPEC.md). v0.5 adds boarding actions, grapples and teleport attacks (pp. 89–92): `move`'s `boardTargetId`, `board`, `teleport`, and the `boarding` step (§2.3, §4.6, T8–T16).
+**Status:** draft v0.6, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.8](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -63,17 +63,17 @@ check for game end
 | setup / `roll_first_turn` | either | `roll_first_turn` | no | `firstTurnChooser` set | — |
 | setup / `choose_first_turn` | chooser | `choose_first_turn` | no | `firstPlayer` set | on leaving: start the battle (§2.5) |
 | movement / `hulks_drift` | active | `drift_hulk` | no | every active-player hulk has `drifted` | — |
-| movement / `move_ships` | active | `declare_order`, `move` | no | every active-player `active` ship has `moved` | grappled ships stay put (state §6) |
+| movement / `move_ships` | active | `declare_order`, `move`, `release_cap` | no | every active-player `active` ship has `moved` | grappled ships stay put (state §6) |
 | shooting / `direct_fire` | active | `fire` | **yes** | no active-player ship has an unfired, undisabled battery or lance | — |
-| shooting / `launch_ordnance` | active | `launch_torpedoes` | **yes** | no active-player ship can launch (§4.3) | — |
-| ordnance / `active_ordnance` | active | `move_ordnance` | no | every active-player salvo moved this step | reset `ordnanceMoved` |
-| ordnance / `inactive_ordnance` | inactive | `move_ordnance` | no | every inactive-player salvo moved this step | reset `ordnanceMoved` |
+| shooting / `launch_ordnance` | active | `launch_torpedoes`, `launch_attack_craft` | **yes** | no active-player ship can launch torpedoes or attack craft (§4.3) | — |
+| ordnance / `active_ordnance` | active | `move_ordnance` | no | every active-player salvo and wave (CAP aside) moved this step | reset `ordnanceMoved` |
+| ordnance / `inactive_ordnance` | inactive | `move_ordnance` | no | every inactive-player salvo and wave (CAP aside) moved this step | reset `ordnanceMoved` |
 | end / `boarding` | active | `board`, `teleport` | **yes** | `options.boarding` is off; or no boarding action is left to fight (§4.6) and no ship can teleport | **grapples fight** (§4.6) |
 | end / `damage_control` | ship owners | `repair` | no | every ship needing repair has `repaired` (§4.6) | — |
 | end / `blast_marker_removal` | active | `remove_blast_markers` | no | `blastMarkersRemoved`, or nothing is removable | **fires burn** (§4.6) |
 | leaving `blast_marker_removal` | | | | | end the player turn (§2.5) |
 
-Movement and Ordnance steps have no `end_step`: every ship must move (p. 53) and torpedoes must move their full speed (p. 201).
+Movement and Ordnance steps have no `end_step`: every ship must move (p. 53), torpedoes must move their full speed (p. 201), and an attack craft wave that stays put still sends a `move_ordnance` with an empty path. CAP fighters don't count: they stay with their ship unless their owner moves them off CAP (§4.4).
 
 ### 2.4 Owner-ordered automatic actions
 
@@ -95,7 +95,7 @@ Wherever a summary below says **offer brace (X)**, the reducer checks whether sh
 
 Ship X **can brace** when it is `active` (not a hulk), its `specialOrder` is not already Brace For Impact!, and `turnState.braceFailures` has no entry for X against the current source.
 
-Brace is offered **before** every roll that can damage a ship: direct-fire to-hit rolls, torpedo attacks (before turrets), rams (target first, then rammer), explosion lance hits, and a 0-shield ship's Blast Marker roll. It is also offered before a **teleport attack**'s roll, since Brace protects against Hit-and-Run critical damage (p. 66). It is **not** offered against fire damage or critical extra damage, which follow from hits already rolled, nor in a boarding action (p. 66, p. 90).
+Brace is offered **before** every roll that can damage a ship: direct-fire to-hit rolls, torpedo attacks (before turrets), rams (target first, then rammer), explosion lance hits, and a 0-shield ship's Blast Marker roll. It is also offered before an **attack craft** attack on a ship (before turrets, like torpedoes), and before a **teleport attack**'s roll, since Brace protects against Hit-and-Run critical damage (p. 66). It is **not** offered against fire damage or critical extra damage, which follow from hits already rolled, nor in a boarding action (p. 66, p. 90).
 
 ---
 
@@ -112,9 +112,11 @@ Brace is offered **before** every roll that can damage a ship: direct-fire to-hi
 | `drift_hulk` | `shipId` | movement / `hulks_drift` |
 | `declare_order` | `shipId`, `order`, `ramTargetId?` | movement / `move_ships` |
 | `move` | `shipId`, `path`, `disengage`, `boardTargetId?` | movement / `move_ships` |
+| `release_cap` | `ordnanceId` | movement / `move_ships` |
 | `fire` | `shipId`, `weaponId`, `target`, `arc?`, `aspect?` | shooting / `direct_fire` |
 | `launch_torpedoes` | `shipId`, `weaponId`, `bearing` | shooting / `launch_ordnance` |
-| `move_ordnance` | `ordnanceId` | ordnance / either step |
+| `launch_attack_craft` | `shipId`, `waves`, `recall` | shooting / `launch_ordnance` |
+| `move_ordnance` | `ordnanceId`, `path?`, `cap?` | ordnance / either step |
 | `board` | `targetId`, `together`, `priority` | end / `boarding` |
 | `teleport` | `shipId`, `targetId` | end / `boarding` |
 | `repair` | `shipId`, `priority` | end / `damage_control` |
@@ -187,6 +189,13 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 
   Either way, open an `activation` with `stage: "ordered"` (state §9.1) and fill in `maxDistance`, `minDistance` and `ram`.
 
+#### `release_cap`
+```ts
+{ type: "release_cap", player, ordnanceId: string }
+```
+- **Legal when:** the wave is the active player's CAP fighter, and it's the **start** of the Movement Phase: `activation` is null and no active-player ship has moved yet (grappled ships, set `moved` on entry, don't count) (p. 82).
+- **Reducer:** `cap = null`. The fighter stays at the ship's stem as an ordinary wave, and moves in the Ordnance Phase. No dice.
+
 #### `move`
 ```ts
 {
@@ -212,6 +221,8 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 - **Reducer:** execute the path from the start, in order of contact along each advance:
   - **Ram target base** (if `ram.testPassed` and not yet `resolved`): stop at contact. Offer brace (target), then offer brace (rammer). Draw **D6 × rammer's starting hits** against the target's armour on the struck facing. Then draw **D6 × target's starting hits** (head-on or Defence) or **half** (side/rear), rounded up, against the rammer's **front** armour. Shields don't apply. Damage, criticals and catastrophic damage resolve as in the reducer spec. Set `ram.resolved`.
   - **Torpedo salvo** (any owner; a salvo ignores its own launcher during its launch turn): the salvo attacks the ship (as `move_ordnance`, minus the salvo's own move).
+  - **Enemy attack craft wave** (not CAP): the wave meets the ship as in §4.4: CAP screens, turrets fire (unmassed: massing never helps during the Movement Phase, p. 80), and bombers and assault boats attack. A fighters-only wave has no effect and stays where it is (p. 82).
+  - **CAP fighters ride along:** when the ship's move ends (or it pauses), its CAP fighters' `position` is set to its stem.
   - **Blast Marker, first contact:** if the ship has 0 shields, offer brace, then draw **1D6**; a 6 is 1 damage (once per move).
   - **Table edge:** `status = "disengaged"`, `position`/`heading` null, stop.
 
@@ -239,7 +250,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 - **Legal when:**
   - **Shooter:** the active player's, `active`, its disengage test didn't fail this turn, it isn't grappled, and it hasn't declared a boarding action this turn (p. 89; drawn combats, pp. 90–91).
   - **Weapon:** a `battery` or `lance` not in `weaponsFired` and not disabled by a critical.
-  - **Target:** an enemy ship on the table (hulks included), or an enemy torpedo salvo. Never a friendly hulk.
+  - **Target:** an enemy ship on the table (hulks included), an enemy torpedo salvo, or an enemy attack craft wave that isn't on CAP (T27). Never a friendly hulk.
   - **Range:** stem-to-stem distance ≤ `range`.
   - **Arc:** the target's bearing from the shooter falls in one of the weapon's `arcs`. On a boundary, `arc` must be supplied, must be one of the two adjacent quadrants, and must be one of the weapon's arcs. `aspect` follows the same rule for the target's quadrant facing the shooter.
   - **Line of fire:** the stem-to-stem line doesn't cross the base of a hulk other than the target (p. 71).
@@ -248,7 +259,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   1. **Priority test** (Ld test on **2D6**, no modifiers; pass if ≤ Ld): only if the target isn't the nearest and `priorityTest` is null. On a fail, record `"failed"`. The shot doesn't happen and the weapon isn't spent, so the player can fire it at the nearest target instead. On a pass, record `"passed"` and carry on.
   2. **Offer brace** (target), if it's a ship.
   3. **To hit:** draw the dice. Batteries roll the Gunnery Table result with column shifts; lances roll 1D6 per point of strength. Strength is `effectiveStrength` (state §11). A hit is ≥ armour on the aspect facing (batteries), 4+ (lances), or 6 (any weapon against ordnance). Lock On re-rolls the misses, drawn straight after the first roll.
-  4. **Against ordnance:** any hit removes the salvo.
+  4. **Against ordnance:** any hit removes the salvo, or the **whole** attack craft wave (p. 85). A wave's range and bearing are measured to its centre.
   5. **Against a ship:**
      - Shields absorb hits up to `shieldCapacity`; a Blast Marker is placed for each.
      - If braced, draw **1D6 per remaining hit**; each 4+ is saved.
@@ -268,6 +279,23 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - `bearing` falls inside the weapon's arcs (Front = 315°–45°).
 - **Reducer:** create a `TorpedoSalvo` at the launcher's stem with `heading = (ship.heading + bearing) mod 360` and `strength = effectiveStrength` (crippled and braced halve it, p. 65). Set `launched = playerTurn`, `loaded.torpedoes = false`, and add the weapon to `weaponsFired`. No dice.
 
+#### `launch_attack_craft`
+```ts
+{
+  type: "launch_attack_craft", player,
+  shipId: string,
+  waves: { roles: CraftRole[], cap: boolean }[],   // each entry: one wave (or one squadron), its squadrons by role
+  recall: string[]                                 // own attack craft waves to remove first (p. 73)
+}
+```
+- **Legal when:**
+  - the ship is as for `launch_torpedoes`, and `loaded.launchBays` is true;
+  - `waves` is non-empty, every wave has ≥ 1 squadron, and every role is one the ship's bays carry (`craft`);
+  - the total squadrons ≤ `launchCapacity(ship)` (state §11);
+  - **fleet limit:** `craftInPlay(player) − recalled + launched ≤ fleetBays(player)` (p. 73). `recall` names own waves, not CAP (T29), each once;
+  - a wave with `cap: true` holds fighters only (T28).
+- **Reducer:** remove the recalled waves. For each entry of `waves`, in order: a wave at the launcher's stem, its squadrons in the order given with each role's `name` and `speed` from the ship's bays, `launched = playerTurn`. A `cap: true` entry instead becomes one CAP fighter per squadron on the launcher. Then `loaded.launchBays = false` (launching any amount expends the bays, p. 73) and add every launch bay weapon to `weaponsFired`. No dice.
+
 #### `end_step`
 ```ts
 { type: "end_step", player }
@@ -279,23 +307,63 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 
 #### `move_ordnance`
 ```ts
-{ type: "move_ordnance", player, ordnanceId: string }
+{
+  type: "move_ordnance", player,
+  ordnanceId: string,
+  path?: Point[],            // attack craft only: waypoints, flown in order from the wave's position
+  cap?: string               // attack craft only: fighters ending in base contact with this friendly ship go on CAP
+}
 ```
-- **Legal when:** the salvo belongs to the acting player (the active player in `active_ordnance`, the other one in `inactive_ordnance`) and isn't in `ordnanceMoved`.
-- **Reducer:** move the salvo its full `speed` straight along `heading`. The swept segment resolves contacts in the order it meets them:
+- **Legal when:** the ordnance belongs to the acting player (the active player in `active_ordnance`, the other one in `inactive_ordnance`) and isn't in `ordnanceMoved`.
+  - **Torpedo salvo:** no `path`, no `cap`.
+  - **Attack craft wave:** `path` is required (`[]` stays put). Its total length is ≤ the wave's speed (its slowest squadron's), and it stays on the table (T20). A CAP fighter may move only in its owner's part of the **opponent's** Ordnance Phase (`inactive_ordnance`), which takes it off CAP (p. 82).
+  - **`cap`:** the wave is all fighters, and at the end of `path` its footprint touches the base of `cap`, a friendly `active` ship (p. 82).
+- **Reducer, torpedo salvo:** move the salvo its full `speed` straight along `heading`. The swept segment resolves contacts in the order it meets them:
   - **Blast Marker, first one this move:** draw **1D6**; on a 6 the salvo is removed. One roll per move, and it covers BMs in contact with a target ship too (p. 75).
   - **Another torpedo salvo:** both are removed.
-  - **A ship base** (friend, foe or hulk; never the launcher in the launch turn; never a ship it has already attacked this round):
-    1. Offer brace (ship).
-    2. Turrets: draw **1D6 per `turrets`**; each 4+ reduces strength by 1. If strength reaches 0, the salvo is removed.
-    3. Attack: draw **1D6 per strength** against the armour of the facing struck first; shields are ignored.
-    4. If braced, draw saves.
-    5. Apply damage and criticals as for `fire`.
-    6. Strength drops by the number of hits inflicted. Record the attack in `attacks`.
-    7. Continue the move.
+  - **An enemy wave with fighters:** one fighter and the whole salvo are removed (p. 82). A wave without fighters doesn't stop torpedoes, and they don't stop it.
+  - **A ship base** (friend, foe or hulk; never the launcher in the launch turn; never a ship it has already attacked this round): the salvo **meets the ship** (below), then continues its move if it survives.
   - **Table edge:** the salvo is removed.
+- **Reducer, attack craft wave:** fly the footprint along `path`, leg by leg. Contacts resolve in the order the footprint meets them:
+  - **Blast Marker, first one this move:** draw **1D6**; on a 6 the **whole** wave is removed (p. 75, p. 85).
+  - **An enemy torpedo salvo:** if the wave has fighters, one fighter and the whole salvo are removed. Otherwise nothing.
+  - **An enemy wave** (not on CAP): the two **dogfight** (below), and whatever survives flies on.
+  - **An enemy ship base:** the wave stops there (it can't fly through, p. 79) and **meets the ship** (below). Hulks count as ships: bombers and assault boats attack them, which can only re-roll catastrophic damage (reducer R3).
+  - Friendly ships and ordnance are ignored (p. 82).
 
-  Finally, add the salvo to `ordnanceMoved`. A salvo whose strength reaches 0 is removed.
+  After the move: if `cap` is given, the fighters go on CAP for that ship, one CAP fighter per squadron. Add the wave to `ordnanceMoved`.
+
+#### Dogfights: waves meeting waves
+
+Interactions go marker to marker (p. 85). When waves A and B meet:
+
+1. Fighters engage fighters first: `k = min(fighters(A), fighters(B))` of each are removed.
+2. Each side's remaining fighters then remove the other side's bombers and assault boats one for one, each fighter removed with its kill: bombers and assault boats lose to fighters (pp. 83, 85). Enemy fighters always remove fighters first in a wave (p. 85), so step 1 already did that.
+3. Bombers and assault boats do nothing to each other or to torpedoes (pp. 83, 85).
+
+No dice. Which squadrons go within a role is the wave's launch order, last first (T25).
+
+#### Ordnance meeting a ship
+
+When a torpedo salvo contacts any ship, or an attack craft wave contacts an enemy ship (by its own move or the ship's), in this order:
+
+1. **CAP screens** (enemy ordnance only; never the protected ship's own torpedoes, p. 82). CAP fighters sit at their ship's stem, so ordnance always meets the ship's base, and its CAP, before anything else of it. Against a salvo, one CAP fighter and the whole salvo are removed. Against a wave, the ship's CAP fighters dogfight it as one wave. A wave with no bombers or assault boats left stops here: fighters alone have no effect on a ship and stay where they are (p. 82).
+2. **Blast Markers:** if the target has BMs in base contact and the ordnance hasn't rolled for BMs this move, draw **1D6**; on a 6 it's removed (p. 75).
+3. **Offer brace** (target), unless it's a hulk.
+4. **Turrets** (p. 80): the target's `turrets(ship)`, plus **massed** dice: +1 for each friendly ship in base contact that is `active`, not crippled and has turrets, up to +3 (p. 80). Massing never applies during the Movement Phase. Turrets fire at torpedoes **or** at attack craft in one phase, not both: a ship (target or helper) whose `turrets` this phase is already set to the other kind doesn't fire; one that fires is set to this kind.
+   - Against a salvo: **1D6 per die**; each 4+ reduces strength by 1.
+   - Against a wave: **1D6 per die**, once for the whole wave; each 4+ removes one squadron, **fighters first** (p. 85).
+5. **The attack.**
+   - **Torpedoes:** **1D6 per strength** against the armour of the facing struck first; shields are ignored. Brace saves, damage and criticals as for `fire`. Strength drops by the hits inflicted; record the attack in `attacks`.
+   - **Bombers:** each surviving bomber makes **D6 − the target's own turrets** attacks, minimum 0 (massed turrets don't count, and turrets always count, even if they fired at torpedoes this phase, p. 83). Each fighter in the wave adds **+1 attack**, whether or not turrets shot it down, up to the number of surviving bombers (turret suppression, p. 83). Draw **1D6 per bomber** for its attacks, in order, then **1D6 per attack** against the target's **lowest armour**; each hit is 1 damage. Shields are ignored; Brace saves on 4+.
+   - **Assault boats:** each surviving assault boat makes a **Hit-and-Run** attack, in order: as a teleport attack (§4.6), D6, 1 fails, 2–6 a critical, Brace saves on 4+ (p. 85).
+   - The whole wave is then removed: fighters with it (p. 85).
+
+#### CAP fighters
+
+- A fighter goes on CAP at launch (`launch_attack_craft` with `cap: true`) or at the end of an ordnance move (`cap`).
+- It leaves CAP with `release_cap` at the start of its owner's Movement Phase, or by moving in its owner's part of the opponent's Ordnance Phase (p. 82).
+- If its ship stops being `active`, it leaves CAP where the ship was, as an ordinary single fighter (T30).
 
 ### 4.5 Answering a Brace
 
@@ -409,7 +477,8 @@ newGame(config: GameConfig) → GameState
 type GameConfig = {
   seed: number                               // uint32
   createdAt: string
-  options?: { ramming?: boolean, boarding?: boolean }   // defaults: true, false (false keeps older saves replaying unchanged)
+  options?: { ramming?: boolean, boarding?: boolean, carriers?: boolean }   // defaults: true, false, false
+                                                                           // (false keeps older saves replaying unchanged)
   players: {
     p1: { name: string, faction: FactionId },
     p2: { name: string, faction: FactionId }
@@ -418,8 +487,8 @@ type GameConfig = {
 }
 ```
 
-- Profiles come from a ship catalogue built from `rules/fleets/`. Phase 1 needs only `lunar` and `murder`, and no options.
-- Cruiser Clash checks: 1–4 ships per side, the same number each, all `cruiser`, each ≤ 185 points (p. 128). A bad config throws; it never produces an invalid state.
+- Profiles come from a ship catalogue built from `rules/fleets/`: `lunar`, `murder`, and the carriers `dictator` (Imperial Navy, p. 67) and `devastation` (Chaos, p. 276). Their launch bays carry their fleets' attack craft: Fury fighters and Starhawk bombers (Imperial Navy); Swiftdeath fighters, Doomfire bombers and Dreadclaw assault boats (Chaos).
+- Cruiser Clash checks: 1–4 ships per side, the same number each, all `cruiser`, each ≤ 185 points (p. 128). With `carriers` on, each side may also field **at most one** ship with launch bays above that cap ("allow one carrier each", p. 129). A bad config throws; it never produces an invalid state.
 - The result is at `stage: "setup"`, `setupStep: "roll_leadership"`, `playerTurn: 0`. Ships are `undeployed`, with ids `ship-1 … ship-n` in config order. `rng.state = seed`.
 
 ---
@@ -444,6 +513,21 @@ type GameConfig = {
 | T14 | **Teleport range is stem to stem**, ≤ 10 cm, like weapon ranges. "No shields" means shield capacity 0 (state R#11), which covers ships with collapsed or no shields too. |
 | T15 | `options.boarding` switches boarding actions and teleport attacks on together. |
 | T16 | **Boarding separately** resolves in the attacker's `priority` order; once the target is no longer `active`, the rest lapse. **Boarding together**, the attackers take damage in `priority` order. |
+| T17 | **A wave is one entity** with a list of squadrons (state §10.2). Waves form only at launch, and lose squadrons marker by marker (p. 85). |
+| T18 | **Attack craft move in both players' Ordnance Phases**, the launch turn's included, like torpedoes (R#4). |
+| T19 | **An attack craft move is a list of waypoints**, flown in order, with a total length ≤ the wave's speed (its slowest squadron's). An empty path stays put. |
+| T20 | Attack craft can't leave the table. |
+| T21 | **A wave stops at the first enemy ship base it touches**, whatever it carries (p. 79: it can't fly through). To attack a ship, fly into it. |
+| T22 | **A fighter meeting a torpedo salvo** removes the whole salvo and itself: one fighter, however many the wave has (p. 82). |
+| T23 | **Turrets fire at torpedoes or attack craft, per ship, per phase**: whichever comes first that phase decides, for the target and any ship massing for it (p. 80). Bomber attacks are always reduced by the target's own turrets. |
+| T24 | **Massed turrets**: +1 die for each friendly `active`, non-crippled ship with turrets in base contact with the target, up to +3; never during the Movement Phase (p. 80). |
+| T25 | **Which squadron goes**: within a role, the last launched goes first. There's no player choice to make. |
+| T26 | **Fighter escorts** add +1 bomber attack each if they reach the target: after CAP and dogfights, before turrets (p. 83). |
+| T27 | **CAP fighters can't be shot at** by direct fire: they're on their ship's base. Enemy ordnance has to go through them instead. |
+| T28 | Only fighters fly CAP, one squadron per CAP marker: a wave going on CAP splits into single fighters. |
+| T29 | **Recall** (p. 73) is part of a launch, removes whole waves, and never CAP fighters. |
+| T30 | CAP fighters whose ship stops being `active` stay where it was, as ordinary single fighters. |
+| T31 | **Launch bays** are weapons at a location (port, starboard): that side's armament critical disables them (p. 67), which lowers the fleet's limit too. |
 
 ## 7. Decisions
 
@@ -456,5 +540,10 @@ type GameConfig = {
 | D5 | Can other ships board a grappled ship? | No (T9). It keeps every grapple a single fight, and it's rare with four cruisers a side. |
 | D6 | Who decides how a group of attackers takes damage? | The attacker, up front, in `board.priority` (T16), the same way repairs and Blast Marker removals are ordered. No decision mid-fight. |
 | D7 | Teleport attacks too? | Yes. They're in the same End Phase step (p. 88), under the same option (T15), and any Lunar or Murder can make them. |
+| D8 | How do carriers fit Cruiser Clash's 185-point cap? | The book's own alternative, as an option: "allow one carrier each" (p. 129). George's call. |
+| D9 | Combat Air Patrol in this slice? | Yes (George's call): escorting a carrier is core fighter play. |
+| D10 | Massed turrets? | Yes, now, for torpedoes as well as attack craft (George's call). |
+| D11 | Torpedo bombers, resilient craft, boarding torpedoes? | Not in this slice: neither carrier in the box takes them by default. Their rules (pp. 78, 84, 86) slot in as new roles and ordnance kinds later. |
+| D12 | One wave entity, or one entity per marker? | One wave with a footprint (T17, state N8). Turrets fire once at a wave and a hit kills it all (p. 85), so the wave is the unit the rules care about. |
 
 No open questions.
