@@ -21,6 +21,8 @@ Battlefleet Gothic in the browser: hot-seat Cruiser Clash (one Lunar vs one Murd
 ```
 src/
   game/history.ts   config + initial state + applied transforms; apply, undo, saves
+  game/source.ts    GameSource: where the game comes from (hot-seat now, online next); seats
+  game/useLocalSource.ts  hot-seat: the history behind the GameSource interface
   game/storage.ts   localStorage autosave
   game/config.ts    the Cruiser Clash config (Lunar vs Murder)
   table/            the SVG table: view maths, ship glyphs, ghosts

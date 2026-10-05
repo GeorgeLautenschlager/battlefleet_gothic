@@ -204,3 +204,6 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .step-entry { display: grid; gap: 6px; }
 .step-entry > * { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .step-entry input { width: 4.5em; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+.waiting { margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--panel-2); border-left: 4px solid var(--muted); color: var(--muted); }
+.waiting.p1 { border-left-color: var(--p1); }
+.waiting.p2 { border-left-color: var(--p2); }

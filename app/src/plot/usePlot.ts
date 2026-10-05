@@ -38,7 +38,7 @@ export function plottingShip(state: GameState): Ship | null {
   return state.ships.find((s) => s.owner === player && s.status === "active" && state.turnState.ships[s.id]?.moved !== true) ?? null;
 }
 
-export function usePlot(state: GameState | null, pointer: Point | null, straight: boolean, run: (t: Transform) => boolean): Plot | null {
+export function usePlot(state: GameState | null, pointer: Point | null, straight: boolean, run: (t: Transform) => Promise<boolean>): Plot | null {
   const [plan, setPlan] = useState<Plan | null>(null);
   const ship = state === null ? null : plottingShip(state);
 
@@ -94,7 +94,9 @@ export function usePlot(state: GameState | null, pointer: Point | null, straight
       if (rest > 0) update({ path: append(path, [{ kind: "advance", distance: rest }]) });
     },
     commit: () => {
-      if (run(move(path))) setPlan(null);
+      void run(move(path)).then((ok) => {
+        if (ok) setPlan(null);
+      });
     },
   };
 }
