@@ -1,4 +1,5 @@
 import { actor, type GameState, type Transform } from "@bfg/engine";
+import { sendAs, type Seat } from "../game/source";
 import { playerName } from "../players";
 
 const ROLLS = {
@@ -9,7 +10,7 @@ const ROLLS = {
 } as const;
 
 /** The setup steps: four dice rolls, deployment, and the first-turn choice. */
-export function SetupControls({ state, onApply }: { state: GameState; onApply: (t: Transform) => void }) {
+export function SetupControls({ state, seat, onApply }: { state: GameState; seat: Seat; onApply: (t: Transform) => void }) {
   const step = state.clock.setupStep;
   if (step === null) return null;
   if (step === "deploy") {
@@ -40,7 +41,7 @@ export function SetupControls({ state, onApply }: { state: GameState; onApply: (
   }
   return (
     <div className="buttons">
-      <button type="button" className="primary" onClick={() => onApply({ type: step, player: "p1" })}>
+      <button type="button" className="primary" onClick={() => onApply({ type: step, player: sendAs(seat) })}>
         {ROLLS[step]}
       </button>
     </div>

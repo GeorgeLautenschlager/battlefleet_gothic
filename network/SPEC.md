@@ -1,6 +1,6 @@
 # Network Play Specification
 
-**Status:** v0.3, accepted ([ADR 0003](../docs/adr/0003-network-play.md)). The server (game room, Worker and Durable Object, deploy) is implemented in [`server/`](../server/README.md); the app is next. **Scope:** two players on two devices playing the Phase 1 game (Cruiser Clash, Lunar vs Murder), live or turn-by-turn. Builds on [Game State](../game_state/SPEC.md), [Transforms](../transforms/SPEC.md), the [engine](../engine/README.md) and the [browser app](../app/README.md) ([ADR 0002](../docs/adr/0002-browser-app.md)).
+**Status:** v0.3, accepted ([ADR 0003](../docs/adr/0003-network-play.md)). The server (game room, Worker and Durable Object, deploy) is implemented in [`server/`](../server/README.md) and live; the app has its `GameSource` split (§7.1); the online UI is next. **Scope:** two players on two devices playing the Phase 1 game (Cruiser Clash, Lunar vs Murder), live or turn-by-turn. Builds on [Game State](../game_state/SPEC.md), [Transforms](../transforms/SPEC.md), the [engine](../engine/README.md) and the [browser app](../app/README.md) ([ADR 0002](../docs/adr/0002-browser-app.md)).
 
 Hot-seat stays exactly as it is. Network play is a second way to drive the same UI.
 

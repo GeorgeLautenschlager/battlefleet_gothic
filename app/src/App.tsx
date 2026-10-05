@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { actor, validate, type Point, type Reason, type Transform } from "@bfg/engine";
+import { controls, waitingOn } from "./game/source";
+import { useLocalSource } from "./game/useLocalSource";
+import { Waiting } from "./controls/Waiting";
 import { cruiserClash, type NewGameOptions } from "./game/config";
-import { apply, canUndo, current, fromSave, start, toSave, undo, type History } from "./game/history";
+import { fromSave, start, toSave, type History } from "./game/history";
 import { autosave, loadAutosave } from "./game/storage";
 import { Table, type Ghost } from "./table/Table";
 import { mm } from "./table/view";
@@ -24,7 +27,7 @@ import { bearingToward, launch, targets } from "./fire/fire";
 export function App() {
   const [history, setHistory] = useState<History | null>(() => loadAutosave());
   const [choosing, setChoosing] = useState(history === null);
-  const [rejection, setRejection] = useState<Reason | null>(null);
+  const [notice, setNotice] = useState<Reason | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [pointer, setPointer] = useState<Point | null>(null);
   const [shift, setShift] = useState(false);
@@ -37,31 +40,28 @@ export function App() {
     autosave(history);
   }, [history]);
 
-  const state = history === null ? null : current(history);
-
-  const run = (t: Transform): boolean => {
-    if (history === null) return false;
-    const r = apply(history, t);
-    if (r.ok) {
-      setHistory(r.history);
-      setRejection(null);
-    } else {
-      setRejection(r.reason);
-    }
-    return r.ok;
+  const source = useLocalSource(history, setHistory);
+  const state = source?.state ?? null;
+  const seat = source?.seat ?? "both";
+  const rejection = source?.rejection ?? notice;
+  const run = (t: Transform): Promise<boolean> => source?.run(t) ?? Promise.resolve(false);
+  const act = (t: Transform): void => {
+    void run(t);
   };
+  // Online, only one seat's controls belong on this screen (spec §7.2).
+  const waiting = state === null ? null : waitingOn(state, seat);
 
-  const plot = usePlot(state, pointer, shift, run);
+  const plot = usePlot(waiting === null ? state : null, pointer, shift, run);
 
   // Shooting: the weapon being aimed, its targets, and a torpedo bearing that follows the pointer.
-  const aimed = state === null ? null : liveAim(state, aim);
+  const aimed = state === null || waiting !== null ? null : liveAim(state, aim);
   const aimTargets = state !== null && aimed !== null && aimed.weapon.kind !== "torpedoes" ? targets(state, aimed.ship, aimed.weapon) : [];
   const pointerBearing = aimed !== null && aimed.weapon.kind === "torpedoes" && pointer !== null ? bearingToward(aimed.ship, aimed.weapon, pointer) : null;
   const bearing = pointerBearing ?? launchBearing;
   const fireAt = (id: string) => {
     const t = aimTargets.find((x) => x.id === id);
     const only = t?.options.length === 1 ? t.options[0] : undefined;
-    if (only !== undefined) run(only.transform);
+    if (only !== undefined) act(only.transform);
   };
   const shooting = state !== null && (state.clock.step === "direct_fire" || state.clock.step === "launch_ordnance") && state.pending.length === 0;
 
@@ -69,12 +69,12 @@ export function App() {
   const deploy = useMemo(() => {
     if (state === null || state.clock.setupStep !== "deploy") return null;
     const who = actor(state);
-    if (who !== "p1" && who !== "p2") return null;
+    if ((who !== "p1" && who !== "p2") || !controls(seat, who)) return null;
     const ship = state.ships.find((s) => s.owner === who && s.status === "undeployed");
     const zone = state.setup.zones?.[who];
     if (ship === undefined || zone === undefined) return null;
     return { player: who, ship, heading: state.scenario.deploymentFacing[zone] };
-  }, [state]);
+  }, [state, seat]);
 
   let ghost: Ghost | null = null;
   if (state !== null && deploy !== null && pointer !== null) {
@@ -89,7 +89,7 @@ export function App() {
   const startGame = (o: NewGameOptions) => {
     setHistory(start(cruiserClash(o)));
     setChoosing(false);
-    setRejection(null);
+    setNotice(null);
   };
 
   const exportGame = () => {
@@ -111,12 +111,12 @@ export function App() {
     }
     const loaded = fromSave(parsed);
     if (loaded === null) {
-      setRejection({ code: "MALFORMED", message: "That file isn't a saved game this version can replay." });
+      setNotice({ code: "MALFORMED", message: "That file isn't a saved game this version can replay." });
       return;
     }
     setHistory(loaded);
     setChoosing(false);
-    setRejection(null);
+    setNotice(null);
   };
 
   return (
@@ -125,9 +125,9 @@ export function App() {
         <h1>Battlefleet Gothic</h1>
         {state !== null && !choosing && <ClockBar state={state} />}
         <nav className="buttons">
-          {history !== null && !choosing && (
+          {source !== null && history !== null && !choosing && (
             <>
-              <button type="button" disabled={!canUndo(history)} onClick={() => setHistory(undo(history))} title="Undo, back to the last dice roll">
+              <button type="button" disabled={!source.canUndo} onClick={source.undo} title="Undo, back to the last dice roll">
                 Undo
               </button>
               <button type="button" onClick={exportGame}>
@@ -178,9 +178,9 @@ export function App() {
                 if (p !== null && aimed !== null && aimed.weapon.kind === "torpedoes") setLaunchBearing(bearingToward(aimed.ship, aimed.weapon, p));
               }}
               onTableClick={(p, s) => {
-                if (deploy !== null) run({ type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(p) });
+                if (deploy !== null) act({ type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(p) });
                 else if (plot !== null) plot.click(p, s);
-                else if (aimed !== null && aimed.weapon.kind === "torpedoes") run(launch(aimed.ship, aimed.weapon, bearingToward(aimed.ship, aimed.weapon, p)));
+                else if (aimed !== null && aimed.weapon.kind === "torpedoes") act(launch(aimed.ship, aimed.weapon, bearingToward(aimed.ship, aimed.weapon, p)));
               }}
             >
               {plot !== null && <PlotOverlay state={state} plot={plot} />}
@@ -190,14 +190,16 @@ export function App() {
           <aside className="side">
             <section className="actions">
               <TurnBanner state={state} />
-              {state.pending.length > 0 ? (
-                <BracePrompt state={state} onApply={run} />
+              {waiting !== null ? (
+                <Waiting state={state} player={waiting} />
+              ) : state.pending.length > 0 ? (
+                <BracePrompt state={state} onApply={act} />
               ) : state.clock.stage === "setup" ? (
-                <SetupControls state={state} onApply={run} />
+                <SetupControls state={state} seat={seat} onApply={act} />
               ) : shooting ? (
-                <FireControls state={state} aimed={aimed} onAim={setAim} onApply={run} bearing={bearing} />
+                <FireControls state={state} aimed={aimed} onAim={setAim} onApply={act} bearing={bearing} />
               ) : state.clock.stage === "battle" ? (
-                <StepControls state={state} onApply={run} onHighlight={setHighlight} plot={plot} />
+                <StepControls state={state} onApply={act} onHighlight={setHighlight} plot={plot} seat={seat} />
               ) : null}
               {state.result !== null && (
                 <p className="result">
@@ -209,7 +211,7 @@ export function App() {
                   {rejection.message}
                 </p>
               )}
-              <Console state={state} onApply={run} />
+              <Console state={state} onApply={act} />
             </section>
             <ShipCards state={state} selectedShipId={selected} onSelect={setSelected} />
             <LogFeed state={state} />
