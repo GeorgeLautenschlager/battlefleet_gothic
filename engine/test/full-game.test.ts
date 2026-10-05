@@ -55,3 +55,24 @@ describe("full games with fleets", () => {
     });
   }
 });
+
+describe("full games with boarding on", () => {
+  const withBoarding = (c: GameConfig): GameConfig => ({ ...c, options: { boarding: true } });
+  const matchups: [string, GameConfig][] = [
+    ["Lunar vs Murder", withBoarding(LUNAR_VS_MURDER)],
+    ["4 Lunars vs 4 Murders", withBoarding(fleets({ ...IMPERIAL, n: 4 }, { ...CHAOS, n: 4 }))],
+  ];
+  for (const [name, config] of matchups) {
+    test.each([1, 2, 3, 4, 5, 6])(`${name}, seed %i, plays to a result`, (seed) => {
+      const s = playOut(seed, config);
+      expect(s.result).not.toBeNull();
+      expect(s.queue).toEqual([]);
+    });
+  }
+
+  test("across those games the bot boards, grapples, boards ships to hulks and teleports", () => {
+    const kinds = new Set<string>();
+    for (const [, config] of matchups) for (const seed of [1, 2, 3, 4, 5, 6]) for (const e of playOut(seed, config).log) kinds.add(e.kind);
+    for (const k of ["boarding_declared", "boarding", "boarding_critical", "teleport"]) expect(kinds).toContain(k);
+  });
+});

@@ -73,7 +73,7 @@ const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>
   choose_first_turn: { required: { goFirst: bool } },
   drift_hulk: { required: { shipId: str } },
   declare_order: { required: { shipId: str, order: oneOf(ORDER_KINDS) }, optional: { ramTargetId: str } },
-  move: { required: { shipId: str, path: arrayOf(pathStep), disengage: bool } },
+  move: { required: { shipId: str, path: arrayOf(pathStep), disengage: bool }, optional: { boardTargetId: str } },
   fire: {
     required: { shipId: str, weaponId: str, target },
     optional: { arc: oneOf(QUADRANTS), aspect: oneOf(QUADRANTS) },
@@ -84,6 +84,8 @@ const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>
   answer_brace: { required: { pendingId: str, attempt: bool } },
   repair: { required: { shipId: str, priority: arrayOf(str) } },
   remove_blast_markers: { required: { priority: arrayOf(str) } },
+  board: { required: { targetId: str, together: bool, priority: arrayOf(str) } },
+  teleport: { required: { shipId: str, targetId: str } },
 };
 
 /**

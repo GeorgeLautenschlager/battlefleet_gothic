@@ -153,8 +153,20 @@ const ARMAMENT_CRITICAL: Partial<Record<Weapon["location"], CriticalKind>> = {
 export function weaponDisabled(state: GameState, ship: Ship, weapon: Weapon): boolean {
   const critical = ARMAMENT_CRITICAL[weapon.location];
   if (critical !== undefined && hasCritical(ship, critical)) return true;
-  return state.turnState.ships[ship.id]?.disengage === "failed";
+  const turn = state.turnState.ships[ship.id];
+  // Grappled ships and ships attempting to board can't fire or launch (p. 89; drawn combats, pp. 90–91).
+  return turn?.disengage === "failed" || isGrappled(ship) || (turn?.boardingDeclared ?? null) !== null;
 }
+
+// --- Boarding (state §7, §11)
+
+export const isGrappled = (ship: Ship): boolean => ship.grapple !== null;
+
+/** Boarding value (p. 89): damage points remaining. Later fleets modify it (Mark of Khorne, Tau). */
+export const boardingValue = (ship: Ship): number => remainingHits(ship);
+
+/** Shields down: the ship can be teleported onto (pp. 91–92). */
+export const shieldsDown = (state: GameState, ship: Ship): boolean => shieldCapacity(state, ship) === 0;
 
 const HALVES_DIRECT_FIRE: readonly OrderKind[] = ["all_ahead_full", "come_to_new_heading", "burn_retros"];
 

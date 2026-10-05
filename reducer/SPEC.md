@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** v0.4. v0.3 is implemented in [`engine/`](../engine/README.md); v0.4 adds boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15), not yet implemented. **Scope:** Cruiser Clash (1–4 cruisers a side). Builds on [Game State v0.7](../game_state/SPEC.md), [Transforms v0.5](../transforms/SPEC.md) and [Validator v0.4](../validator/SPEC.md).
+**Status:** v0.4, implemented in [`engine/`](../engine/README.md). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). **Scope:** Cruiser Clash (1–4 cruisers a side). Builds on [Game State v0.7](../game_state/SPEC.md), [Transforms v0.5](../transforms/SPEC.md) and [Validator v0.4](../validator/SPEC.md).
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState

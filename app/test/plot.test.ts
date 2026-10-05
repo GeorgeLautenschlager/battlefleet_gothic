@@ -63,7 +63,7 @@ describe("propose", () => {
       kind: "move", shipId: "ship-2", stage: "ordered", order: "come_to_new_heading", aafExtra: null, ram: null,
       maxDistance: 25, minDistance: 12.5, start: { position: { x: 95, y: 15 }, heading: 0 }, distanceMoved: 0,
       distanceSinceTurn: 0, turnsMade: 0, truncated: false, remainingPath: [], slowedByBlastMarkers: false,
-      zeroShieldBMTestDone: false, disengage: false,
+      zeroShieldBMTestDone: false, disengage: false, boardTargetId: null,
     };
     const ship = unclean(ordered);
     // First click: just past the first turn point and off to starboard (a short leg after the turn).

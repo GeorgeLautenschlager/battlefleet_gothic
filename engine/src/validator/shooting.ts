@@ -7,7 +7,7 @@ import type { Fire, LaunchTorpedoes } from "../transforms/types";
 import { isResult, ownActiveShip } from "./movement";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
 
-/** Shared checks 1–4: own active ship whose disengage test didn't fail. */
+/** Shared checks 1–6: own active ship whose disengage test didn't fail, not grappled and not boarding. */
 function shooter(state: GameState, shipId: string, player: string): Ship | ValidationResult {
   const ship = ownActiveShip(state, shipId, player);
   if (isResult(ship)) return ship;
@@ -15,6 +15,12 @@ function shooter(state: GameState, shipId: string, player: string): Ship | Valid
     return reject("DISENGAGE_FAILED", `${ship.name} failed to disengage: it can't fire or launch this turn`, {
       shipId: ship.id,
     });
+  }
+  if (ship.grapple !== null) {
+    return reject("GRAPPLED", `${ship.name} is locked in a boarding action: it can't fire or launch`, { shipId: ship.id });
+  }
+  if ((state.turnState.ships[ship.id]?.boardingDeclared ?? null) !== null) {
+    return reject("BOARDING_SHIP", `${ship.name} is boarding this turn: it can't fire or launch`, { shipId: ship.id });
   }
   return ship;
 }
@@ -43,14 +49,14 @@ function readyWeapon(
 const isWeapon = (x: Weapon | ValidationResult): x is Weapon => !("ok" in x);
 
 export function checkFire(state: GameState, t: Fire): ValidationResult {
-  // 1–4
+  // 1–6
   const ship = shooter(state, t.shipId, t.player);
   if (isResult(ship)) return ship;
-  // 5–8
+  // 7–10
   const weapon = readyWeapon(state, ship, t.weaponId, ["battery", "lance"]);
   if (!isWeapon(weapon)) return weapon;
 
-  // 9–10: target exists and is a legal enemy
+  // 11–12: target exists and is a legal enemy
   let target: Target;
   if (t.target.kind === "ship") {
     const s = state.ships.find((x) => x.id === t.target.id);
@@ -68,7 +74,7 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
   const from = ship.position as Point;
   const at = target.kind === "ship" ? (target.ship.position as Point) : target.salvo.position;
 
-  // 11: range
+  // 13: range
   const range = weapon.range ?? 0;
   const d = distance(from, at);
   if (!approxLe(d, range)) {
@@ -78,7 +84,7 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
     });
   }
 
-  // 12–14: arc
+  // 14–16: arc
   const bearingQuadrants = quadrantsOfPoint(from, ship.heading as number, at);
   const q = bearingQuadrants.filter((x) => weapon.arcs.includes(x));
   if (q.length === 0) {
@@ -94,7 +100,7 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
     return reject("INVALID_ARC_CHOICE", `The target isn't in the ${t.arc} arc of ${weapon.name}`, { options: q });
   }
 
-  // 15–16: aspect
+  // 17–18: aspect
   if (target.kind === "ship") {
     const aspects = quadrantsOfPoint(at, target.ship.heading as number, from);
     if (aspects.length > 1 && t.aspect === undefined) {
@@ -105,7 +111,7 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
     if (t.aspect !== undefined && !aspects.includes(t.aspect)) {
       return reject("INVALID_ASPECT_CHOICE", `The target's ${t.aspect} quadrant doesn't face you`, { options: aspects });
     }
-    // 17: line of fire
+    // 19: line of fire
     if (lineOfFireBlocked(state, ship, target.ship)) {
       return reject("LINE_OF_FIRE_BLOCKED", "A hulk blocks the line of fire", { targetId: target.ship.id });
     }
@@ -113,7 +119,7 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
     return reject("INVALID_ASPECT_CHOICE", "Ordnance has no aspect", { options: [] });
   }
 
-  // 18: target priority
+  // 20: target priority
   if (state.turnState.ships[ship.id]?.priorityTest === "failed" && !isNearest(state, ship, weapon, target)) {
     return reject("MUST_TARGET_NEAREST", `${ship.name} failed its Leadership test: it must fire at the nearest target`);
   }
@@ -121,17 +127,17 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
 }
 
 export function checkLaunchTorpedoes(state: GameState, t: LaunchTorpedoes): ValidationResult {
-  // 1–4
+  // 1–6
   const ship = shooter(state, t.shipId, t.player);
   if (isResult(ship)) return ship;
-  // 5–8
+  // 7–10
   const weapon = readyWeapon(state, ship, t.weaponId, ["torpedoes"]);
   if (!isWeapon(weapon)) return weapon;
-  // 9
+  // 11
   if (ship.loaded.torpedoes !== true) {
     return reject("NOT_LOADED", `${ship.name}'s torpedoes need reloading`, { shipId: ship.id });
   }
-  // 10
+  // 12
   const inArc = t.bearing >= 0 && t.bearing < 360 && quadrantsOf(t.bearing).some((q) => weapon.arcs.includes(q));
   if (!inArc) {
     return reject("BEARING_OUT_OF_ARC", `Bearing ${t.bearing}° is outside ${weapon.name}'s arc`, {

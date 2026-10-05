@@ -1,10 +1,10 @@
 /** Movement checks (validator spec §4.2): drift_hulk, declare_order, move. */
 import { BM_SLOWDOWN } from "../geometry/constants";
-import { approxEq, approxGe, approxLe } from "../geometry/basic";
+import { approxEq, approxGe, approxLe, baseRadius, basesTouch, distance } from "../geometry/basic";
 import { exitDistance, touchesAnyBm, walkShipPath } from "../geometry/path";
 import { allAheadFullEnd, moveParameters } from "../rules/move";
 import { isHulk, onTable } from "../state/derived";
-import type { GameState, Ship } from "../state/types";
+import type { GameState, Point, Ship } from "../state/types";
 import type { DeclareOrder, DriftHulk, Move } from "../transforms/types";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
 
@@ -153,21 +153,39 @@ export function checkMove(state: GameState, t: Move): ValidationResult {
         required: aaf.end,
       });
     }
-    return OK;
+  } else {
+    // 12: maximum
+    if (!approxLe(walk.total, limit)) {
+      return reject("PATH_TOO_LONG", `${ship.name} can move at most ${cm(limit)}`, { total: walk.total, limit, slowed });
+    }
+    // 13: minimum, unless leaving the table
+    const minimum = Math.min(p.minDistance, limit);
+    if (exit === null && !approxGe(walk.total, minimum)) {
+      return reject("PATH_TOO_SHORT", `${ship.name} must move at least ${cm(minimum)}`, {
+        total: walk.total,
+        limit: minimum,
+        slowed,
+      });
+    }
   }
 
-  // 12: maximum
-  if (!approxLe(walk.total, limit)) {
-    return reject("PATH_TOO_LONG", `${ship.name} can move at most ${cm(limit)}`, { total: walk.total, limit, slowed });
+  // 15–19: a boarding declaration (transform T8)
+  if (t.boardTargetId === undefined) return OK;
+  if (!state.meta.options.boarding) return reject("BOARDING_OFF", "Boarding isn't in play in this game");
+  const target = state.ships.find((s) => s.id === t.boardTargetId);
+  if (target === undefined || target.owner === ship.owner || target.status !== "active") {
+    return reject("INVALID_BOARDING_TARGET", "Only an active enemy ship can be boarded", { targetId: t.boardTargetId });
   }
-  // 13: minimum, unless leaving the table
-  const minimum = Math.min(p.minDistance, limit);
-  if (exit === null && !approxGe(walk.total, minimum)) {
-    return reject("PATH_TOO_SHORT", `${ship.name} must move at least ${cm(minimum)}`, {
-      total: walk.total,
-      limit: minimum,
-      slowed,
-    });
+  if (target.grapple !== null) {
+    return reject("TARGET_GRAPPLED", `${target.name} is already locked in a boarding action`, { targetId: target.id });
+  }
+  if (exit !== null || t.disengage) {
+    return reject("CANNOT_BOARD_AND_LEAVE", "A ship can't board on a move that leaves the table or disengages");
+  }
+  const needed = baseRadius(ship.profile.baseSize) + baseRadius(target.profile.baseSize);
+  const gap = distance(walk.end.position, target.position as Point);
+  if (!basesTouch(walk.end.position, ship.profile.baseSize, target.position as Point, target.profile.baseSize)) {
+    return reject("NOT_IN_CONTACT", `${ship.name} must end its move touching ${target.name}`, { distance: gap, needed });
   }
   return OK;
 }

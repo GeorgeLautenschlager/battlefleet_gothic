@@ -10,6 +10,7 @@ import type { AttackSource, CriticalKind, Point, Ship } from "../state/types";
 import { sum, type Ctx } from "./context";
 import { placeAtStem, placeCluster, placeShieldBlastMarkers } from "./blast";
 import { enqueueFront } from "./queue";
+import { leaveGrapple } from "./grapple";
 
 export type DamageSource = {
   source: AttackSource;
@@ -82,7 +83,11 @@ function hasWeaponAt(ship: Ship, location: string): boolean {
 
 export function critical(ctx: Ctx, ship: Ship): void {
   const rolls = ctx.nD6(2);
-  const rolled = sum(rolls);
+  applyCritical(ctx, ship, sum(rolls), rolls);
+}
+
+/** A result on the Critical Hits table: 2D6, or a Hit-and-Run's single D6 read as the total (§6, §10.5). */
+export function applyCritical(ctx: Ctx, ship: Ship, rolled: number, rolls: number[]): void {
   let applied = rolled;
   while (!(CRITICALS[applied]?.applies(ship) ?? true)) applied += 1; // "next highest" (p. 67)
   const kind = CRITICALS[applied]?.kind ?? "bulkhead_collapse"; // 12 always applies
@@ -122,6 +127,7 @@ function resolveCatastrophic(ctx: Ctx, ship: Ship, rolls: number[], result: numb
   if (result <= 8) {
     ship.status = result <= 6 ? "drifting_hulk" : "blazing_hulk";
     ship.specialOrder = null;
+    leaveGrapple(ctx, ship);
     const blastMarkerIds = placeHulkMarker ? [placeAtStem(ctx, ship)] : [];
     ctx.log("catastrophic", { shipId: ship.id, rolls, result, outcome: ship.status, blastMarkerIds });
     return;
@@ -140,6 +146,7 @@ function explode(ctx: Ctx, ship: Ship, rolls: number[], result: number, strength
   ship.position = null;
   ship.heading = null;
   ship.specialOrder = null;
+  leaveGrapple(ctx, ship);
   const blastMarkerIds = placeCluster(ctx, centre, strength);
   ctx.log("catastrophic", {
     shipId: ship.id,
