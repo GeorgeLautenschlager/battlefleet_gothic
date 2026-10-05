@@ -13,6 +13,7 @@ The Battlefleet Gothic Remastered rules engine: pure TypeScript, no DOM or Node 
 | Reducer: pipeline, work queue, setup, turn structure, game end, orders, Brace, repairs, BM removal | [reducer §1–2, §8.1, §10–12](../reducer/SPEC.md) | `src/reducer/` ✅ |
 | Reducer: damage pipeline, direct fire, fires | [reducer §3–7](../reducer/SPEC.md#3-the-damage-pipeline) | `src/reducer/` ✅ |
 | Reducer: movement, rams, hulks, torpedoes | [reducer §8–9](../reducer/SPEC.md#8-movement) | `src/reducer/` ✅ |
+| Boarding actions, grapples, teleport attacks (`options.boarding`) | [transforms §4.6](../transforms/SPEC.md#46-end-phase), [reducer §10.4–10.5](../reducer/SPEC.md#104-boarding) | `src/rules/boarding.ts`, `src/reducer/boarding.ts`, `src/validator/boarding.ts` ✅ |
 
 ## Layout
 

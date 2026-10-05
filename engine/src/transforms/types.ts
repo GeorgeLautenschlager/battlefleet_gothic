@@ -18,7 +18,7 @@ export type ChooseFirstTurn = Base<"choose_first_turn"> & { goFirst: boolean };
 export type DriftHulk = Base<"drift_hulk"> & { shipId: string };
 /** `order` is any OrderKind so that a declared Brace is well-formed and rejected as INVALID_ORDER. */
 export type DeclareOrder = Base<"declare_order"> & { shipId: string; order: OrderKind; ramTargetId?: string };
-export type Move = Base<"move"> & { shipId: string; path: PathStep[]; disengage: boolean };
+export type Move = Base<"move"> & { shipId: string; path: PathStep[]; disengage: boolean; boardTargetId?: string };
 
 // Shooting (§4.3)
 export type FireTarget = { kind: "ship" | "ordnance"; id: string };
@@ -41,6 +41,9 @@ export type AnswerBrace = Base<"answer_brace"> & { pendingId: string; attempt: b
 // End Phase (§4.6)
 export type Repair = Base<"repair"> & { shipId: string; priority: string[] };
 export type RemoveBlastMarkers = Base<"remove_blast_markers"> & { priority: string[] };
+/** `priority`: the boarding ships, in fight order (separately) or damage order (together). */
+export type Board = Base<"board"> & { targetId: string; together: boolean; priority: string[] };
+export type Teleport = Base<"teleport"> & { shipId: string; targetId: string };
 
 export type Transform =
   | RollLeadership
@@ -58,6 +61,8 @@ export type Transform =
   | MoveOrdnance
   | AnswerBrace
   | Repair
-  | RemoveBlastMarkers;
+  | RemoveBlastMarkers
+  | Board
+  | Teleport;
 
 export type TransformType = Transform["type"];

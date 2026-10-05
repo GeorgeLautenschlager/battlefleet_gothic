@@ -74,6 +74,11 @@ export function circlesTouch(a: Point, ra: number, b: Point, rb: number): boolea
   return approxLe(distance(a, b), ra + rb);
 }
 
+/** Two ship bases touch or overlap (validator §2.4; boarding contact, V7). */
+export function basesTouch(a: Point, sizeA: BaseSize, b: Point, sizeB: BaseSize): boolean {
+  return circlesTouch(a, baseRadius(sizeA), b, baseRadius(sizeB));
+}
+
 /** A Blast Marker at `bm` touches a base of the given size at `stem`. */
 export function bmTouchesBase(bm: Point, stem: Point, size: BaseSize): boolean {
   return circlesTouch(bm, BM_RADIUS, stem, baseRadius(size));

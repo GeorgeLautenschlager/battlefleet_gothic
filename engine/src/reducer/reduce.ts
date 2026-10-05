@@ -17,6 +17,7 @@ import { driftHulk, move } from "./movement";
 import { launchTorpedoes, moveOrdnance } from "./torpedoes";
 import { advanceStep, eliminatedSide, endGame, stepComplete } from "./steps";
 import { runWorkItem } from "./work";
+import { board, teleport } from "./boarding";
 
 export function reduce(state: GameState, transform: Transform): GameState {
   const ctx = new Ctx(cloneJson(state));
@@ -77,6 +78,10 @@ function handle(ctx: Ctx, t: Transform): void {
       return launchTorpedoes(ctx, t);
     case "move_ordnance":
       return moveOrdnance(ctx, t.ordnanceId);
+    case "board":
+      return board(ctx, t);
+    case "teleport":
+      return teleport(ctx, t);
   }
 }
 

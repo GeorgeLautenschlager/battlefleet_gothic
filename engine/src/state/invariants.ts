@@ -9,7 +9,7 @@ import { nonJsonPaths } from "./json";
 import type { GameState, Phase, Step } from "./types";
 
 export type Violation = {
-  /** "I1"…"I11" for the numbered invariants in §13; "J" plain JSON; "C" consistency. */
+  /** "I1"…"I12" for the numbered invariants in §13; "J" plain JSON; "C" consistency. */
   rule: string;
   message: string;
 };
@@ -132,6 +132,29 @@ export function checkInvariants(state: GameState): Violation[] {
 
   // I11: ended ⇔ result
   if ((clock.stage === "ended") !== (state.result !== null)) fail("I11", `stage ${clock.stage} with result ${state.result === null ? "unset" : "set"}`);
+
+  // I12: grapples are consistent
+  const shipsById = new Map(state.ships.map((sh) => [sh.id, sh]));
+  const grappledIn = new Map<string, string>();
+  for (const ship of state.ships) {
+    const g = ship.grapple;
+    if (g === null) continue;
+    if (ship.status !== "active") fail("I12", `${ship.id} is ${ship.status} but grappled`);
+    if (g.attackerIds.length === 0 || g.attackerIds.includes(g.defenderId)) fail("I12", `${ship.id} has a malformed grapple`);
+    const key = JSON.stringify(g);
+    for (const id of [g.defenderId, ...g.attackerIds]) {
+      const member = shipsById.get(id);
+      if (member === undefined || member.status !== "active") fail("I12", `${ship.id}'s grapple names ${id}, which isn't active`);
+      else if (JSON.stringify(member.grapple) !== key) fail("I12", `${id} and ${ship.id} disagree about their grapple`);
+      const seen = grappledIn.get(id);
+      if (seen !== undefined && seen !== key) fail("I12", `${id} is in two grapples`);
+      grappledIn.set(id, key);
+    }
+    const defender = shipsById.get(g.defenderId);
+    if (defender !== undefined && g.attackerIds.some((id) => shipsById.get(id)?.owner === defender.owner)) {
+      fail("I12", `${ship.id}'s grapple has the defender's own ship as an attacker`);
+    }
+  }
 
   // C: clock shape
   if (clock.stage === "setup") {

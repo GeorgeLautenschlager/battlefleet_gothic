@@ -9,6 +9,8 @@ import { emptyTurnState } from "../state/newGame";
 import { activePlayer, isHulk, onTable, otherPlayer, score, weaponDisabled } from "../state/derived";
 import type { GameState, Phase, PlayerId, SetupStep, Step } from "../state/types";
 import type { Ctx } from "./context";
+import { anyTeleport, boardingsToFight } from "../rules/boarding";
+import { grappledStayPut, grapplesFight } from "./boarding";
 
 const SETUP_ORDER: readonly SetupStep[] = [
   "roll_leadership",
@@ -101,7 +103,8 @@ export function stepComplete(state: GameState): boolean {
     case "inactive_ordnance":
       return state.ordnance.filter((o) => o.owner !== active).every((o) => turnState.ordnanceMoved.includes(o.id));
     case "boarding":
-      return true; // Phase 1: meta.options.boarding is always false
+      // Reducer §10.4: nothing left to fight and no teleport to make (or the player ends the step).
+      return !state.meta.options.boarding || (boardingsToFight(state).length === 0 && !anyTeleport(state));
     case "damage_control":
       return state.ships.every(
         (s) => s.status !== "active" || !s.criticals.some((c) => !UNREPAIRABLE.has(c.kind)) || shipTurn(s.id)?.repaired === true,
@@ -142,6 +145,12 @@ function enterStep(ctx: Ctx, phase: Phase, step: Step): void {
   state.clock.step = step;
   ctx.log("step", { phase, step });
   switch (step) {
+    case "move_ships":
+      grappledStayPut(ctx);
+      break;
+    case "boarding":
+      grapplesFight(ctx);
+      break;
     case "active_ordnance":
     case "inactive_ordnance":
       state.turnState.ordnanceMoved = [];

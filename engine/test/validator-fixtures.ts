@@ -32,7 +32,7 @@ export const nextId = (kind: string): string => `${kind}-${counter++}`;
 export function addShip(s: GameState, template: Ship, patch: Partial<Ship>): Ship {
   const ship: Ship = { ...cloneJson(template), id: nextId("ship"), ...patch };
   s.ships.push(ship);
-  s.turnState.ships[ship.id] = { moved: false, drifted: false, priorityTest: null, weaponsFired: [], disengage: null, boardingDeclared: null, repaired: false };
+  s.turnState.ships[ship.id] = { moved: false, drifted: false, priorityTest: null, weaponsFired: [], disengage: null, boardingDeclared: null, boarded: false, teleported: false, repaired: false };
   return ship;
 }
 
@@ -56,7 +56,7 @@ export function ordered(shipId: string, patch: Partial<Activation> = {}): Activa
     kind: "move", shipId, stage: "ordered", order: null, aafExtra: null, ram: null,
     maxDistance: 0, minDistance: 0, start: { position: { x: 0, y: 0 }, heading: 0 },
     distanceMoved: 0, distanceSinceTurn: 0, turnsMade: 0, truncated: false, remainingPath: [],
-    slowedByBlastMarkers: false, zeroShieldBMTestDone: false, disengage: false, ...patch,
+    slowedByBlastMarkers: false, zeroShieldBMTestDone: false, disengage: false, boardTargetId: null, ...patch,
   };
 }
 

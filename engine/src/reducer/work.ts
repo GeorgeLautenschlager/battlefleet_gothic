@@ -9,6 +9,7 @@ import { explosionHit, fireDamage } from "./damage";
 import { resolveDirectFire } from "./gunnery";
 import { continueMove, hulkDrift, ram, zeroShieldBm } from "./movement";
 import { ordnanceMove, torpedoAttack, torpedoHit } from "./torpedoes";
+import { boardingCritical, boardingFight, teleportAttack } from "./boarding";
 
 export { enqueueFront } from "./queue";
 
@@ -53,6 +54,12 @@ export function runWorkItem(ctx: Ctx, item: WorkItem): void {
       return torpedoAttack(ctx, item.ordnanceId, item.targetId, item.bmTested);
     case "torpedo_hit":
       return torpedoHit(ctx, item.ordnanceId, item.targetId);
+    case "boarding_fight":
+      return boardingFight(ctx, item.defenderId, item.attackerIds);
+    case "boarding_critical":
+      return boardingCritical(ctx, item.shipId, item.need);
+    case "teleport_attack":
+      return teleportAttack(ctx, item.shipId, item.targetId);
   }
 }
 

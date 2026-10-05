@@ -57,7 +57,7 @@ export const REASON_CODES = [
   "ALREADY_REPAIRED",
   "NOTHING_TO_REPAIR",
   "INVALID_PRIORITY",
-  // Boarding and teleport attacks (validator spec v0.4): specified, not yet produced.
+  // Boarding and teleport attacks (validator spec v0.4)
   "BOARDING_OFF",
   "INVALID_BOARDING_TARGET",
   "TARGET_GRAPPLED",

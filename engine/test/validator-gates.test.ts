@@ -11,7 +11,7 @@ describe("G1 well-formed", () => {
     ["not an object", 42, "$"],
     ["an array", [], "$"],
     ["no type", { player: "p2" }, "type"],
-    ["an unknown type", { type: "teleport", player: "p2" }, "type"],
+    ["an unknown type", { type: "exterminatus", player: "p2" }, "type"],
     ["a bad player", { type: "end_step", player: "p3" }, "player"],
     ["an extra field", { type: "end_step", player: "p2", please: true }, "please"],
     ["a missing field", { type: "move", player: "p2", shipId: "ship-2", disengage: false }, "path"],

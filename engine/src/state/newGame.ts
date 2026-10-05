@@ -30,6 +30,8 @@ export function emptyShipTurnState(): ShipTurnState {
     weaponsFired: [],
     disengage: null,
     boardingDeclared: null,
+    boarded: false,
+    teleported: false,
     repaired: false,
   };
 }

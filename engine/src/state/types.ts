@@ -148,7 +148,14 @@ export type Ship = {
   specialOrder: SpecialOrder | null;
   loaded: { torpedoes?: boolean };
   lastMove: { playerTurn: number; distance: number } | null;
-  grapple: { withShipId: string } | null;
+  grapple: Grapple | null;
+};
+
+/** A drawn boarding action, still being fought (state §7). Every member carries an identical copy. */
+export type Grapple = {
+  defenderId: string;
+  /** Also the order in which the attackers take boarding damage. */
+  attackerIds: string[];
 };
 
 export type ShipType = "battleship" | "cruiser" | "escort";
@@ -229,6 +236,8 @@ export type ShipTurnState = {
   weaponsFired: string[];
   disengage: "passed" | "failed" | null;
   boardingDeclared: string | null;
+  boarded: boolean;
+  teleported: boolean;
   repaired: boolean;
 };
 
@@ -266,6 +275,7 @@ export type Activation = {
   slowedByBlastMarkers: boolean;
   zeroShieldBMTestDone: boolean;
   disengage: boolean;
+  boardTargetId: string | null;
 };
 
 export type PendingDecision = {
@@ -295,7 +305,10 @@ export type WorkItem =
   | { kind: "ordnance_move"; ordnanceId: string; travelled: number; bmTested: boolean }
   | { kind: "explosion_hit"; shipId: string; centre: Point; strength: number; targetId: string }
   | { kind: "hulk_drift"; shipId: string; distance: number; travelled: number }
-  | { kind: "fire_damage"; shipId: string };
+  | { kind: "fire_damage"; shipId: string }
+  | { kind: "boarding_fight"; defenderId: string; attackerIds: string[] }
+  | { kind: "boarding_critical"; shipId: string; need: number | "auto" | "none" }
+  | { kind: "teleport_attack"; shipId: string; targetId: string };
 
 // --- Blast markers, ordnance, RNG, log (§10)
 

@@ -3,7 +3,7 @@
  * rams, the 0-shield Blast Marker roll, finishing a move, and drifting hulks.
  */
 import { BM_RADIUS, BM_SLOWDOWN, EPS } from "../geometry/constants";
-import { approxGe, approxLe, baseRadius, distance, headingVector, norm } from "../geometry/basic";
+import { approxGe, approxLe, baseRadius, basesTouch, distance, headingVector, norm } from "../geometry/basic";
 import { exitT, sweptCircleVsCircle, sweptCircleVsSegment } from "../geometry/sweep";
 import { moveParameters } from "../rules/move";
 import {
@@ -34,6 +34,7 @@ export function move(ctx: Ctx, t: Move): void {
   a.stage = "moving";
   a.remainingPath = cloneJson(t.path);
   a.disengage = t.disengage;
+  a.boardTargetId = t.boardTargetId ?? null;
   state.queue.push({ kind: "continue_move" });
 }
 
@@ -58,6 +59,7 @@ function newActivation(ship: Ship): Activation {
     slowedByBlastMarkers: false,
     zeroShieldBMTestDone: false,
     disengage: false,
+    boardTargetId: null,
   };
 }
 
@@ -261,6 +263,24 @@ function handleEvent(ctx: Ctx, ship: Ship, a: Activation, event: Event): WorkIte
 }
 
 /** §8.2 finish_move: lastMove, the disengage test, and close the activation. */
+/** A boarding declaration stands only if the whole path ended in base contact with the target (T8). */
+function declareBoarding(ctx: Ctx, ship: Ship, a: Activation, targetId: string): void {
+  const target = getShip(ctx.state, targetId);
+  const gone = target.status !== "active" || target.grapple !== null;
+  const touching =
+    ship.position !== null &&
+    target.position !== null &&
+    basesTouch(ship.position, ship.profile.baseSize, target.position, target.profile.baseSize);
+  if (!a.truncated && ship.status === "active" && !gone && touching) {
+    const entry = ctx.state.turnState.ships[ship.id];
+    if (entry !== undefined) entry.boardingDeclared = targetId;
+    ctx.log("boarding_declared", { shipId: ship.id, targetId });
+    return;
+  }
+  const reason = a.truncated ? "truncated" : gone ? "target_gone" : "no_contact";
+  ctx.log("boarding_lapsed", { shipId: ship.id, targetId, reason });
+}
+
 function finishMove(ctx: Ctx, ship: Ship, a: Activation): void {
   const { state } = ctx;
   if (ship.status === "active") {
@@ -268,6 +288,9 @@ function finishMove(ctx: Ctx, ship: Ship, a: Activation): void {
     if (a.disengage) disengageTest(ctx, ship);
   }
   const entry = state.turnState.ships[ship.id];
+  // `?? null`: an activation saved before boarding existed has no boardTargetId at all.
+  const boardTargetId = a.boardTargetId ?? null;
+  if (boardTargetId !== null) declareBoarding(ctx, ship, a, boardTargetId);
   if (entry !== undefined) entry.moved = true;
   ctx.log("move", {
     shipId: ship.id,

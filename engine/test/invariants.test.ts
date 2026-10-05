@@ -67,6 +67,6 @@ function activation(shipId: string): NonNullable<GameState["activation"]> {
     kind: "move", shipId, stage: "ordered", order: null, aafExtra: null, ram: null,
     maxDistance: 25, minDistance: 12.5, start: { position: { x: 0, y: 0 }, heading: 0 },
     distanceMoved: 0, distanceSinceTurn: 0, turnsMade: 0, truncated: false, remainingPath: [],
-    slowedByBlastMarkers: false, zeroShieldBMTestDone: false, disengage: false,
+    slowedByBlastMarkers: false, zeroShieldBMTestDone: false, disengage: false, boardTargetId: null,
   };
 }

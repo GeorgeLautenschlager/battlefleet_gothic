@@ -6,7 +6,8 @@
  */
 import { actor, onTable, weaponDisabled } from "../src/state/derived";
 import { removableBlastMarkers } from "../src/reducer/steps";
-import { distance, quadrantsOfPoint } from "../src/geometry/basic";
+import { baseRadius, distance, headingVector, quadrantsOfPoint } from "../src/geometry/basic";
+import { boardingsToFight } from "../src/rules/boarding";
 import { exitDistance, walkShipPath } from "../src/geometry/path";
 import { allAheadFullEnd, moveParameters } from "../src/rules/move";
 import type { GameState, PathStep, PlayerId } from "../src/state/types";
@@ -78,6 +79,14 @@ export function candidates(s: GameState, n: number): Transform[] {
         };
         const params = moveParameters(ship, s.activation?.shipId === ship.id ? s.activation : null);
         const aaf = params.order === "all_ahead_full" ? [[a(allAheadFullEnd(s, ship, params.d0).end)]] : [];
+        // With boarding on, try first to end the move touching an enemy and board it.
+        if (s.meta.options.boarding) {
+          for (const e of enemies.filter((x) => x.status === "active" && x.grapple === null)) {
+            for (const path of boardingPaths(ship, e)) {
+              out.push({ type: "move", player: p, shipId: ship.id, path, disengage: false, boardTargetId: e.id });
+            }
+          }
+        }
         const ranked = [...aaf, ...PATHS].sort((x, y) => score(x) - score(y));
         for (const path of ranked) out.push({ type: "move", player: p, shipId: ship.id, path, disengage: false });
       }
@@ -108,6 +117,15 @@ export function candidates(s: GameState, n: number): Transform[] {
     case "inactive_ordnance":
       for (const o of s.ordnance) out.push({ type: "move_ordnance", player: o.owner, ordnanceId: o.id });
       break;
+    case "boarding":
+      for (const g of boardingsToFight(s)) {
+        out.push({ type: "board", player: p, targetId: g.targetId, together: n % 2 === 0, priority: g.shipIds });
+      }
+      for (const ship of mine.filter((x) => x.status === "active")) {
+        for (const e of enemies.filter((x) => x.status === "active")) out.push({ type: "teleport", player: p, shipId: ship.id, targetId: e.id });
+      }
+      out.push({ type: "end_step", player: p });
+      break;
     case "damage_control":
       for (const ship of s.ships.filter((x) => x.status === "active")) {
         out.push({ type: "repair", player: ship.owner, shipId: ship.id, priority: ship.criticals.filter((c) => c.kind !== "bridge_smashed" && c.kind !== "shields_collapse").map((c) => c.id) });
@@ -122,3 +140,24 @@ export function candidates(s: GameState, n: number): Transform[] {
   return out;
 }
 
+/**
+ * Paths that end with the ship's base just overlapping the target's: straight
+ * on, or after a 45° turn either way. The validator decides which are legal.
+ */
+function boardingPaths(ship: GameState["ships"][number], target: GameState["ships"][number]): PathStep[][] {
+  const reach = baseRadius(ship.profile.baseSize) + baseRadius(target.profile.baseSize) - 0.2;
+  const out: PathStep[][] = [];
+  for (const prefix of [[], [a(10), turn(45)], [a(10), turn(-45)]] as PathStep[][]) {
+    const end = walkShipPath(ship, prefix).end;
+    const dir = headingVector(end.heading);
+    const dx = target.position!.x - end.position.x;
+    const dy = target.position!.y - end.position.y;
+    const along = dx * dir.x + dy * dir.y;
+    const lateral = Math.abs(dx * dir.y - dy * dir.x);
+    if (lateral >= reach) continue;
+    const d = Math.round((along - Math.sqrt(reach * reach - lateral * lateral)) * 100) / 100;
+    if (d > 0.01) out.push([...prefix, a(d)]);
+    else if (prefix.length === 0 && d > -0.01) out.push([]);
+  }
+  return out;
+}

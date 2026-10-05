@@ -68,6 +68,7 @@ export function declareOrder(ctx: Ctx, t: DeclareOrder): void {
     slowedByBlastMarkers: false,
     zeroShieldBMTestDone: false,
     disengage: false,
+    boardTargetId: null,
   };
   const p = moveParameters(ship, activation);
   activation.maxDistance = p.maxIfBR;

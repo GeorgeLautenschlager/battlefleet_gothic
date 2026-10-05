@@ -55,7 +55,7 @@ export function checkAnswerBrace(state: GameState, t: AnswerBrace): ValidationRe
 }
 
 /** Exactly the required set: no extras, no duplicates, none missing. */
-function priorityProblem(given: readonly string[], required: readonly string[]): ValidationResult {
+export function priorityProblem(given: readonly string[], required: readonly string[]): ValidationResult {
   const want = new Set(required);
   const seen = new Set<string>();
   const duplicates: string[] = [];
