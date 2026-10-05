@@ -103,10 +103,10 @@ test("fleets online: two a side, a Chaos mirror match, names checked against the
   // The default names steer clear of Ann's; a clash is caught before it's sent.
   const annShips = (await ann.locator(".seats li.p1 .small").innerText()).match(/\((.*)\)/)?.[1]?.split(", ") ?? [];
   expect(annShips).toHaveLength(2);
-  for (const n of annShips) await expect(form.getByLabel("Ship 1")).not.toHaveValue(n);
-  await form.getByLabel("Ship 1").fill(annShips[0] ?? "");
+  for (const n of annShips) await expect(form.getByLabel("Ship 1", { exact: true })).not.toHaveValue(n);
+  await form.getByLabel("Ship 1", { exact: true }).fill(annShips[0] ?? "");
   await expect(form.getByRole("button", { name: "Join the battle" })).toBeDisabled();
-  await form.getByLabel("Ship 1").fill("Woe Unending");
+  await form.getByLabel("Ship 1", { exact: true }).fill("Woe Unending");
   await form.getByLabel("Commander").fill("Bo");
   await form.getByRole("button", { name: "Join the battle" }).click();
 

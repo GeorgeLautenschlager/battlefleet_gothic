@@ -78,7 +78,7 @@ const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>
   release_cap: { required: { ordnanceId: str } },
   fire: {
     required: { shipId: str, weaponId: str, target },
-    optional: { arc: oneOf(QUADRANTS), aspect: oneOf(QUADRANTS) },
+    optional: { arc: oneOf(QUADRANTS), aspect: oneOf(QUADRANTS), combineWith: arrayOf(str) },
   },
   launch_torpedoes: { required: { shipId: str, weaponId: str, bearing: num } },
   launch_attack_craft: {

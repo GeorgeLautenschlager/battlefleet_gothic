@@ -3,7 +3,7 @@
  * aspect choices the validator asks for, and torpedo bearings. Legality is
  * always the engine's; this only enumerates candidates and asks it.
  */
-import { geometry, onTable, validate } from "@bfg/engine";
+import { effectiveStrength, geometry, onTable, validate, weaponDisabled } from "@bfg/engine";
 import type { Fire, GameState, Point, Quadrant, Ship, Transform, Weapon } from "@bfg/engine";
 
 /** Each quadrant's bearings off the bow, as [from, to] clockwise (aviation style). */
@@ -53,6 +53,30 @@ export function fireOptions(state: GameState, base: Fire): FireOption[] | { reas
   return { reason: message };
 }
 
+/**
+ * The same shots with every other ready battery that can join them in one
+ * volley (T32), offered first: firepower adds up before the Gunnery Table.
+ */
+export function withVolleys(state: GameState, ship: Ship, weapon: Weapon, options: FireOption[]): FireOption[] {
+  if (weapon.kind !== "battery") return options;
+  const fired = state.turnState.ships[ship.id]?.weaponsFired ?? [];
+  const others = ship.profile.weapons.filter((w) => w.kind === "battery" && w.id !== weapon.id && !fired.includes(w.id) && !weaponDisabled(state, ship, w));
+  const out: FireOption[] = [];
+  for (const o of options) {
+    const joining = others.filter((w) => validate(state, { ...o.transform, combineWith: [w.id] }).ok);
+    if (joining.length > 0) {
+      const transform = { ...o.transform, combineWith: joining.map((w) => w.id) };
+      if (validate(state, transform).ok) {
+        const fp = [weapon, ...joining].reduce((n, w) => n + effectiveStrength(ship, w), 0);
+        const label = o.label === "Fire" ? `Fire with ${joining.map((w) => w.name).join(" and ")} (${fp})` : `${o.label}, with ${joining.length} more (${fp})`;
+        out.push({ transform, label });
+      }
+    }
+    out.push(o);
+  }
+  return out;
+}
+
 /** Enemy ships and salvos this weapon might shoot at, nearest first, each with its options or the reason it can't. */
 export function targets(state: GameState, ship: Ship, weapon: Weapon): TargetChoice[] {
   const from = ship.position;
@@ -62,18 +86,20 @@ export function targets(state: GameState, ship: Ship, weapon: Weapon): TargetCho
   for (const s of state.ships) {
     if (s.owner === ship.owner || !onTable(s) || s.position === null) continue;
     const r = fireOptions(state, { ...base, target: { kind: "ship", id: s.id } });
-    out.push({ kind: "ship", id: s.id, name: s.name, distance: geometry.distance(from, s.position), options: Array.isArray(r) ? r : [], reason: Array.isArray(r) ? null : r.reason });
+    const options = Array.isArray(r) ? withVolleys(state, ship, weapon, r) : [];
+    out.push({ kind: "ship", id: s.id, name: s.name, distance: geometry.distance(from, s.position), options, reason: Array.isArray(r) ? null : r.reason });
   }
   for (const o of state.ordnance) {
     if (o.owner === ship.owner || (o.kind === "attack_craft" && o.cap !== null)) continue; // CAP can't be shot at
     const launcher = state.ships.find((s) => s.id === o.launchedBy)?.name;
     const r = fireOptions(state, { ...base, target: { kind: "ordnance", id: o.id } });
+    const options = Array.isArray(r) ? withVolleys(state, ship, weapon, r) : [];
     out.push({
       kind: "ordnance",
       id: o.id,
       name: `${launcher ? `${launcher}'s ` : ""}${o.kind === "torpedo_salvo" ? `torpedoes (${o.strength})` : o.squadrons.map((q) => q.name).join(", ")}`,
       distance: geometry.distance(from, o.position),
-      options: Array.isArray(r) ? r : [],
+      options,
       reason: Array.isArray(r) ? null : r.reason,
     });
   }

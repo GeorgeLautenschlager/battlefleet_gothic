@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { newGame, type Transform } from "@bfg/engine";
 import { apply, current, start, type History } from "../src/game/history";
-import { cruiserClash, defaultNames, type NewGameOptions } from "../src/game/config";
+import { configProblem, cruiserClash, defaultNames, sideProblem, type NewGameOptions } from "../src/game/config";
 import { pick } from "../src/game/pick";
 import { movableShips, plottingShip } from "../src/plot/usePlot";
 
@@ -24,17 +24,26 @@ describe("cruiserClash config", () => {
     expect(new Set(s.ships.map((x) => x.name)).size).toBe(6);
   });
 
-  test("carriers: with the option, a side that brings one fields it first; without it, the carrier flag is ignored", () => {
+  test("a class per ship; a carrier only with the carriers option (otherwise it reads as the standard cruiser)", () => {
     const sides = (): [NewGameOptions["p1"], NewGameOptions["p2"]] => [
-      { name: "A", fleet: "imperial_navy", ships: ["Fortitude", "Agrippa"], carrier: true },
-      { name: "B", fleet: "chaos", ships: ["Deathbane", "Unclean"], carrier: false },
+      { name: "A", fleet: "imperial_navy", ships: ["Fortitude", "Invincible", "Zealous"], classes: ["dictator", "gothic", "tyrant"] },
+      { name: "B", fleet: "chaos", ships: ["Deathbane", "Excessive", "Killfrenzy"], classes: ["murder", "carnage", "slaughter"] },
     ];
     const on = cruiserClash({ ...options(...sides()), carriers: true }, when);
     expect(on.options?.carriers).toBe(true);
-    expect(on.ships.map((s) => s.classId)).toEqual(["dictator", "lunar", "murder", "murder"]);
+    expect(on.ships.map((s) => s.classId)).toEqual(["dictator", "gothic", "tyrant", "murder", "carnage", "slaughter"]);
     expect(newGame(on).ships[0]!.loaded.launchBays).toBe(true);
     const off = cruiserClash(options(...sides()), when);
-    expect(off.ships.map((s) => s.classId)).toEqual(["lunar", "lunar", "murder", "murder"]);
+    expect(off.ships.map((s) => s.classId)).toEqual(["lunar", "gothic", "tyrant", "murder", "carnage", "slaughter"]);
+  });
+
+  test("the engine's reason a fleet can't play shows in the form", () => {
+    const lances = (n: number): NewGameOptions["p2"] => ({ name: "B", fleet: "chaos", ships: defaultNames("chaos", n), classes: Array<string>(n).fill("murder_lances") });
+    const imperial = (n: number): NewGameOptions["p1"] => ({ name: "A", fleet: "imperial_navy", ships: defaultNames("imperial_navy", n) });
+    expect(configProblem(options(imperial(2), lances(2)))).toBeNull();
+    expect(configProblem(options(imperial(3), lances(3)))).toMatch(/at most 2/);
+    expect(sideProblem(lances(3), false)).toMatch(/at most 2/);
+    expect(sideProblem({ ...imperial(2), classes: ["dictator", "dictator"] }, true)).toMatch(/one carrier each/);
   });
 
   test("default names never repeat across a 4-a-side mirror match", () => {

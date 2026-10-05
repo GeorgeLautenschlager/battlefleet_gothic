@@ -54,7 +54,9 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
   const bearing = pointerBearing ?? launchBearing;
   const fireAt = (id: string) => {
     const t = aimTargets.find((x) => x.id === id);
-    const only = t?.options.length === 1 ? t.options[0] : undefined;
+    // One option fires; so does a combined volley when the battery alone is the only alternative.
+    const volley = t?.options.length === 2 && t.options[0]?.transform.combineWith !== undefined ? t.options[0] : undefined;
+    const only = t?.options.length === 1 ? t.options[0] : volley;
     if (only !== undefined) act(only.transform);
   };
   const shooting = (state.clock.step === "direct_fire" || state.clock.step === "launch_ordnance") && state.pending.length === 0;

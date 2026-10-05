@@ -39,12 +39,20 @@ describe("full games", () => {
 const IMPERIAL = { faction: "imperial_navy", classId: "lunar" } as const;
 const CHAOS = { faction: "chaos", classId: "murder" } as const;
 
+/** Any classes a side, in config order. */
+const mixed = (p1: string[], p2: string[]): GameConfig => ({
+  ...cloneJson(LUNAR_VS_MURDER),
+  ships: [...p1.map((classId, i) => ({ owner: "p1" as const, name: `I${i}`, classId })), ...p2.map((classId, i) => ({ owner: "p2" as const, name: `C${i}`, classId }))],
+});
+
 describe("full games with fleets", () => {
   const matchups: [string, GameConfig][] = [
     ["4 Lunars vs 4 Murders", fleets({ ...IMPERIAL, n: 4 }, { ...CHAOS, n: 4 })],
     ["3 Murders vs 3 Lunars", fleets({ ...CHAOS, n: 3 }, { ...IMPERIAL, n: 3 })],
     ["mirror: 2 Lunars a side", fleets({ ...IMPERIAL, n: 2 }, { ...IMPERIAL, n: 2 })],
     ["mirror: 4 Murders a side", fleets({ ...CHAOS, n: 4 }, { ...CHAOS, n: 4 })],
+    ["Gothic, Tyrant and Lunar vs Carnage, Inferno and Slaughter", mixed(["gothic", "tyrant", "lunar"], ["carnage", "inferno", "slaughter"])],
+    ["Tyrants vs Murder lance variants", mixed(["tyrant", "tyrant"], ["murder_lances", "murder_lances"])],
   ];
   for (const [name, config] of matchups) {
     test.each([1, 2, 3, 4, 5, 6])(`${name}, seed %i, plays to a result`, (seed) => {
@@ -82,6 +90,12 @@ describe("full games with carriers", () => {
     for (const [, config] of matchups) for (const seed of [1, 2, 3, 4, 5, 6]) for (const e of playOut(seed, config).log) kinds.add(e.kind);
     for (const k of ["craft_launch", "craft_move", "cap_formed", "dogfight", "craft_attack", "hit_and_run", "turrets"]) expect(kinds).toContain(k);
   });
+});
+
+test("in those games the new cruisers fire combined battery volleys", () => {
+  const config = mixed(["gothic", "tyrant", "lunar"], ["carnage", "inferno", "slaughter"]);
+  const volleys = [1, 2, 3].flatMap((seed) => playOut(seed, config).log.filter((e) => e.kind === "attack" && Array.isArray(e.data["weaponIds"])));
+  expect(volleys.length).toBeGreaterThan(0);
 });
 
 describe("full games with boarding on", () => {

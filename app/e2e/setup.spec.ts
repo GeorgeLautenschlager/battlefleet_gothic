@@ -47,9 +47,9 @@ test("fleets: a two-a-side Chaos mirror match, deploying and moving ships in the
   await expect(p1).toContainText("2 × Murder class cruiser");
   await expect(form.locator("fieldset.p2")).toContainText("2 × Murder class cruiser");
   // Duplicate names are refused.
-  const first = p1.getByLabel("Ship 1");
+  const first = p1.getByLabel("Ship 1", { exact: true });
   const original = await first.inputValue();
-  await first.fill(await form.locator("fieldset.p2").getByLabel("Ship 1").inputValue());
+  await first.fill(await form.locator("fieldset.p2").getByLabel("Ship 1", { exact: true }).inputValue());
   await expect(form.getByRole("button", { name: "Start" })).toBeDisabled();
   await first.fill(original);
   await form.getByRole("button", { name: "Start" }).click();
@@ -91,19 +91,29 @@ test("fleets: a two-a-side Chaos mirror match, deploying and moving ships in the
   await page.screenshot({ path: "e2e-results/fleets.png" });
 });
 
-test("carriers: with the option on, each side brings its carrier first", async ({ page }) => {
+test("classes: a class per ship, carriers with the option, and the engine's limits", async ({ page }) => {
   await page.goto("/");
   const form = page.locator("form", { hasText: "Hot-seat" });
   await form.getByLabel("Cruisers a side").selectOption("2");
-  await expect(form.locator("fieldset.p1")).toContainText("2 × Lunar class cruiser");
+  const [p1, p2] = [form.locator("fieldset.p1"), form.locator("fieldset.p2")];
+  await expect(p1).toContainText("2 × Lunar class cruiser");
+  await p1.getByLabel("Ship 2 class").selectOption("tyrant");
+  await expect(p1).toContainText("1 × Lunar class cruiser (180 pts), 1 × Tyrant class cruiser (185 pts) · 365 pts");
+  // No carriers without the option.
+  await expect(p1.getByLabel("Ship 1 class").locator("option", { hasText: "Dictator" })).toHaveCount(0);
   await form.getByLabel("One carrier each, over the points cap (p. 129)").check();
-  await expect(form.locator("fieldset.p1")).toContainText("1 × Dictator class cruiser (220 pts), 1 × Lunar class cruiser (180 pts) · 400 pts");
-  await expect(form.locator("fieldset.p2")).toContainText("1 × Devastation class cruiser (190 pts), 1 × Murder class cruiser (170 pts) · 360 pts");
-  // Player 2 leaves theirs at home.
-  await form.locator("fieldset.p2").getByLabel(/Bring a carrier/).uncheck();
-  await expect(form.locator("fieldset.p2")).toContainText("2 × Murder class cruiser");
+  await p1.getByLabel("Ship 1 class").selectOption("dictator");
+  await expect(p1).toContainText("1 × Dictator class cruiser (220 pts), 1 × Tyrant class cruiser (185 pts) · 405 pts");
+  // Two carriers a side is the engine's no.
+  await p2.getByLabel("Ship 1 class").selectOption("devastation");
+  await p2.getByLabel("Ship 2 class").selectOption("devastation");
+  await expect(form.locator(".rejection")).toContainText("only one carrier each");
+  await expect(form.getByRole("button", { name: "Start" })).toBeDisabled();
+  await p2.getByLabel("Ship 2 class").selectOption("slaughter");
+  await form.screenshot({ path: "e2e-results/classes-form.png" });
   await form.getByRole("button", { name: "Start" }).click();
   await expect(page.locator(".card").filter({ hasText: "Agrippa" })).toContainText("Dictator class cruiser");
   await expect(page.locator(".card").filter({ hasText: "Agrippa" })).toContainText("Bays ready");
-  await expect(page.locator(".card").filter({ hasText: "Unclean" })).toContainText("Murder class cruiser");
+  await expect(page.locator(".card").filter({ hasText: "Hammer of Terra" })).toContainText("Tyrant class cruiser");
+  await expect(page.locator(".card").filter({ hasText: "Carrion Hymn" })).toContainText("Slaughter class cruiser");
 });

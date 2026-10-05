@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { cloneJson, type GameState } from "@bfg/engine";
+import { CATALOGUE, cloneJson, type GameState } from "@bfg/engine";
 import { apply, current, start, type History } from "../src/game/history";
 import { cruiserClash } from "../src/game/config";
-import { bearingToward, clampToArcs, describeBearing, fireOptions, inArcs, targets } from "../src/fire/fire";
+import { bearingToward, clampToArcs, describeBearing, fireOptions, inArcs, targets, withVolleys } from "../src/fire/fire";
 import type { Transform } from "@bfg/engine";
 
 const config = cruiserClash({ p1: { name: "A", fleet: "imperial_navy", ships: ["Agrippa"] }, p2: { name: "B", fleet: "chaos", ships: ["Unclean"] }, ramming: true, boarding: false, seed: 1337 }, new Date("2026-10-04T12:00:00Z"));
@@ -31,6 +31,21 @@ function shooting(unclean: { x: number; y: number; h: number }, agrippa: { x: nu
   return s;
 }
 const fire = (weaponId: string): Extract<Transform, { type: "fire" }> => ({ type: "fire", player: "p2", shipId: "ship-2", weaponId, target: { kind: "ship", id: "ship-1" } });
+
+describe("combined volleys", () => {
+  test("a Carnage's port batteries and prow battery are offered as one volley first, then the battery alone", () => {
+    const s = shooting({ x: 100, y: 50, h: 0 }, { x: 80, y: 50, h: 0 }); // Agrippa dead abeam to port, 20 cm
+    const ship = s.ships[1]!;
+    ship.profile = cloneJson(CATALOGUE["carnage"]!.profile);
+    const weapon = ship.profile.weapons.find((w) => w.id === "port_battery")!;
+    const [volley, alone] = withVolleys(s, ship, weapon, fireOptions(s, fire("port_battery")) as never);
+    expect(volley?.transform.combineWith).toEqual(["port_long_battery", "prow_battery"]);
+    expect(volley?.label).toBe("Fire with Port weapons battery (60 cm) and Prow weapons battery (16)");
+    expect(alone).toEqual({ transform: fire("port_battery"), label: "Fire" });
+    const [target] = targets(s, ship, weapon);
+    expect(target?.options).toHaveLength(2);
+  });
+});
 
 describe("fireOptions", () => {
   test("a plain shot is one option", () => {

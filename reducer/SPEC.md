@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** draft v0.5, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.8](../game_state/SPEC.md), [Transforms v0.6](../transforms/SPEC.md) and [Validator v0.5](../validator/SPEC.md).
+**Status:** draft v0.6, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.9](../game_state/SPEC.md), [Transforms v0.7](../transforms/SPEC.md) and [Validator v0.6](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1).
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState
@@ -157,11 +157,11 @@ damagePoint(ship, critCheck):
 
 ## 4. Direct fire
 
-The `fire` handler runs the priority test if one is needed (transform §4.3). If the test fails, it records `"failed"` and stops. Otherwise it records `"passed"` if a test was taken, adds `weaponId` to `weaponsFired`, and enqueues:
+The `fire` handler runs the priority test if one is needed: the target isn't nearest for the weapon, or for any battery in `combineWith` (transform §4.3, T34). If the test fails, it records `"failed"` and stops. Otherwise it records `"passed"` if a test was taken, adds `weaponId` and every `combineWith` id to `weaponsFired`, and enqueues:
 
 ```
 [ brace_offer { shipId: target, source: { kind: "ship", id: shooter } },   // ship targets only
-  direct_fire { shooterId, weaponId, target, arc, aspect } ]
+  direct_fire { shooterId, weaponId, combineWith, target, arc, aspect } ]      // combineWith: [] when absent
 ```
 
 Omitted `arc` / `aspect` are filled in by the handler: they're the single element the validator guarantees.
@@ -169,7 +169,7 @@ Omitted `arc` / `aspect` are filled in by the handler: they're the single elemen
 ### 4.1 Batteries
 
 ```
-fp     = effectiveStrength(shooter, weapon)                       // state §11
+fp     = Σ effectiveStrength(shooter, w) for w in [weapon, ...combineWith]    // state §11; one volley (T32)
 column = clamp(baseColumn(target, aspect) + shifts, A, E)
 dice   = gunnery(fp, column)
 need   = target is ordnance ? 6 : target.profile.armour[aspect]
@@ -377,7 +377,7 @@ They move in the next Ordnance Phase like any other wave.
 **`declare_order`.**
 1. Run the Command check.
 2. On a pass, set `specialOrder` with `expires = { playerTurn: now + 2, at: "movement_start" }`. Reload Ordnance also sets every `loaded` flag to `true`.
-3. For All Ahead Full with a ram target, run the ram test; then draw 4D6 for `aafExtra`.
+3. For All Ahead Full with a ram target, run the ram test; then draw `profile.traits.allAheadFullDice ?? 4` D6 for `aafExtra` (state N10).
 4. On a fail, set `commandCheckFailed = true`.
 5. Open the activation with `stage: "ordered"` (state §9.1). Its `maxDistance` / `minDistance` come from validator §4.2's parameter block, with no BM slowdown yet.
 
@@ -812,7 +812,7 @@ The definitive `WorkItem` union. The state stores these in `queue` (state §9.3)
 ```ts
 type WorkItem =
   | { kind: "brace_offer", shipId: string, source: AttackSource }
-  | { kind: "direct_fire", shooterId: string, weaponId: string,
+  | { kind: "direct_fire", shooterId: string, weaponId: string, combineWith?: string[],   // absent in older saves: []
       target: { kind: "ship" | "ordnance", id: string }, arc: Quadrant, aspect: Quadrant | null }
   | { kind: "continue_move" }
   | { kind: "ram", rammerId: string, targetId: string }
@@ -881,7 +881,7 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `boarding_lapsed` | `shipId, targetId, reason: "truncated" \| "no_contact" \| "target_gone"` |
 | `blast_marker_contact` | `shipId, distance, maxDistance` (the slowed maximum) |
 | `ram` | `rammerId, targetId, headOn, facing, rammerRolls, rammerHits, targetRolls, targetHits` |
-| `attack` | `source, targetId, weapon: "battery" \| "lance" \| "torpedo" \| "explosion", column?, shifts?, facing? (torpedoes), need, rolls, rerolls, hits` |
+| `attack` | `source, targetId, weapon: "battery" \| "lance" \| "torpedo" \| "explosion", column?, shifts?, facing? (torpedoes), need, rolls, rerolls, hits`; a combined volley adds `weaponIds` and `firepower` |
 | `shields` | `shipId, absorbed, blastMarkerIds` |
 | `brace_offer` | `pendingId, shipId, source` |
 | `brace_check` | `shipId, rolls, target, passed`, or `shipId, declined: true` |
@@ -977,6 +977,7 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | R21 | CAP fighters follow their ship's stem on every advance, so they're in place even mid-move. |
 | R22 | A wave stopped by an enemy ship doesn't go on CAP, even if its move named one. |
 | R23 | Assault boats against a hulk do nothing: like a teleport attack, Hit-and-Run needs an `active` target. Bombers' hits on a hulk still trigger its catastrophic re-roll (R3). |
+| R25 | A combined volley is one roll: one brace offer, one column, one set of dice, one Lock On re-roll of its misses. Its shield Blast Markers can't shift its own column. |
 | R24 | Bombers' attack dice are drawn per bomber, in wave order, before any to-hit die. |
 
 ## 15. Decisions
@@ -987,4 +988,4 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | D2 | Brace over a firepower-halving order: halve once or twice? | Once (R8). It's more fun. |
 | D3 | Explosion range measured to the stem or to the base edge? | The stem (R9). |
 
-No open questions at v0.5.
+No open questions at v0.6.

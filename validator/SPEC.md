@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.5, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.8](../game_state/SPEC.md) and [Transforms v0.6](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves.
+**Status:** draft v0.6, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.9](../game_state/SPEC.md) and [Transforms v0.7](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -381,6 +381,11 @@ Grappled ships never reach the `declare_order` or `move` checks: they're marked 
 | 18 | If `aspect` is supplied, it's in `quadrantsOfPoint(target, ship.position)`. Ordnance targets must not supply it. | `INVALID_ASPECT_CHOICE` |
 | 19 | Ship targets only: `!lineOfFireBlocked(ship, target)` | `LINE_OF_FIRE_BLOCKED` |
 | 20 | If `priorityTest = "failed"`: `isNearest(ship, weapon, target)` | `MUST_TARGET_NEAREST` |
+| 21 | If `combineWith` is given: `weapon.kind = "battery"`, and its ids are distinct and don't include `weaponId` | `INVALID_VOLLEY` |
+| 22 | … each id names a weapon on the profile, of kind `battery` | `UNKNOWN_WEAPON` / `WRONG_WEAPON_KIND` |
+| 23 | … each is not in `weaponsFired` and not disabled | `WEAPON_ALREADY_FIRED` / `WEAPON_DISABLED` |
+| 24 | … the target is within each one's range and in one of its arcs | `OUT_OF_RANGE` / `OUT_OF_ARC` |
+| 25 | … if `priorityTest = "failed"`: the target is nearest for each one | `MUST_TARGET_NEAREST` |
 
 Check 15 only demands a choice when it makes a difference. A target on the front/right boundary of a weapon that only fires right doesn't need `arc`: `Q = {right}`.
 
@@ -549,6 +554,7 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 | `BOARDING_UNRESOLVED` | `end_step` while a declared boarding action is still to be fought |
 | `ALREADY_TELEPORTED` / `CANNOT_TELEPORT` | One teleport per ship per turn; escorts, crippled ships and ships on other orders can't |
 | `SHIELDS_UP` / `TARGET_TOO_LARGE` | Teleport target still has shields, or more hits left than the attacker |
+| `INVALID_VOLLEY` | `combineWith` on a lance, naming a weapon twice, or naming the main weapon |
 | `NO_LAUNCH_BAYS` | `launch_attack_craft` from a ship without launch bays |
 | `EMPTY_WAVE` / `CRAFT_NOT_CARRIED` | A launch with an empty wave, or a craft role the ship's bays don't carry |
 | `TOO_MANY_SQUADRONS` / `FLEET_LIMIT` | More squadrons than the ship's bays, or than the fleet's ordnance limit (p. 73) |
@@ -598,6 +604,7 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V5 | **No overlapping bases at deployment.** Bases may touch but not overlap. Overlap during play is still legal (p. 57). |
 | V6 | **Deterministic maths.** Engine code uses only IEEE-exact operations and the `dmath` module; platform trig is forbidden (§2.8). |
 | V7 | **Boarding contact is `basesTouch`** at the end of the path: inclusive, and overlapping bases count (overlap is legal in play, V5). |
+| V9 | **`arc` belongs to the main weapon.** A combined battery only needs the target in one of its own arcs; on a boundary it doesn't ask which, because the volley shares one column either way. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |
 
 ## 8. Decisions

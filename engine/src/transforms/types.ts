@@ -27,6 +27,8 @@ export type FireTarget = { kind: "ship" | "ordnance"; id: string };
 export type Fire = Base<"fire"> & {
   shipId: string;
   weaponId: string;
+  /** More of this ship's weapons batteries fired in the same volley at the same target (T32). */
+  combineWith?: string[];
   target: FireTarget;
   arc?: Quadrant;
   aspect?: Quadrant;

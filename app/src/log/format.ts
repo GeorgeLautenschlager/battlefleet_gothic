@@ -72,7 +72,8 @@ export function describe(state: GameState, entry: LogEntry): string {
     case "attack": {
       const src = d["source"] as { id?: string } | undefined;
       const from = state.ships.find((s) => s.id === src?.id)?.name ?? words(String(d["weapon"]));
-      return `${from} ${words(String(d["weapon"]))} at ${ship("targetId")}: ${dice(d["rolls"])} need ${num(d["need"])}+, ${num(d["hits"])} hit${d["hits"] === 1 ? "" : "s"}`;
+      const what = Array.isArray(d["weaponIds"]) ? `${d["weaponIds"].length} batteries (firepower ${num(d["firepower"])})` : words(String(d["weapon"]));
+      return `${from} ${what} at ${ship("targetId")}: ${dice(d["rolls"])} need ${num(d["need"])}+, ${num(d["hits"])} hit${d["hits"] === 1 ? "" : "s"}`;
     }
     case "shields":
       return `${ship("shipId")}'s shields absorb ${num(d["absorbed"])}`;

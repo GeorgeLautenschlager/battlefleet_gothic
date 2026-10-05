@@ -1,13 +1,13 @@
 import { useState } from "react";
 import type { PlayerId } from "@bfg/engine";
-import { defaultNames, type NewGameOptions, type Side } from "../game/config";
-import { CountSelect, duplicates, DuplicateNames, FleetFields, resize, RulesChecks } from "./FleetForm";
+import { configProblem, defaultNames, type NewGameOptions, type Side } from "../game/config";
+import { CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks } from "./FleetForm";
 
 const PLAYERS: PlayerId[] = ["p1", "p2"];
 
 const INITIAL: NewGameOptions = {
-  p1: { name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1), carrier: true },
-  p2: { name: "Player 2", fleet: "chaos", ships: defaultNames("chaos", 1), carrier: true },
+  p1: { name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1) },
+  p2: { name: "Player 2", fleet: "chaos", ships: defaultNames("chaos", 1) },
   ramming: true,
   boarding: true,
   carriers: false,
@@ -18,14 +18,15 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
   const [o, setO] = useState<NewGameOptions>(INITIAL);
   const count = o.p1.ships.length;
   const dupes = duplicates([...o.p1.ships, ...o.p2.ships]);
+  const problem = dupes.length > 0 ? null : configProblem(o);
 
   const change = (p: PlayerId, patch: Partial<Side>) => {
     const next = { ...o, [p]: { ...o[p], ...patch } };
     // A new fleet brings its own default names; in a mirror match p2 takes the second half of the list.
     if (patch.fleet !== undefined && patch.fleet !== o[p].fleet) {
       const mirror = next.p1.fleet === next.p2.fleet;
-      next.p1 = { ...next.p1, ships: defaultNames(next.p1.fleet, count) };
-      next.p2 = { ...next.p2, ships: defaultNames(next.p2.fleet, count, mirror) };
+      next.p1 = { ...next.p1, ships: defaultNames(next.p1.fleet, count), ...(p === "p1" ? { classes: [] } : {}) };
+      next.p2 = { ...next.p2, ships: defaultNames(next.p2.fleet, count, mirror), ...(p === "p2" ? { classes: [] } : {}) };
     }
     setO(next);
   };
@@ -39,7 +40,7 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
       className="new-game"
       onSubmit={(e) => {
         e.preventDefault();
-        if (dupes.length === 0) onStart(o);
+        if (dupes.length === 0 && problem === null) onStart(o);
       }}
     >
       <h2>Hot-seat</h2>
@@ -58,8 +59,9 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
       ))}
       <RulesChecks value={{ ...o, carriers: o.carriers === true }} onChange={(rules) => setO({ ...o, ...rules })} />
       <DuplicateNames dupes={dupes} />
+      <FleetProblem problem={problem} />
       <div className="buttons">
-        <button type="submit" className="primary" disabled={dupes.length > 0}>
+        <button type="submit" className="primary" disabled={dupes.length > 0 || problem !== null}>
           Start
         </button>
         {onCancel && (

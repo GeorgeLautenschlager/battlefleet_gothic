@@ -1,22 +1,23 @@
 import { useState } from "react";
-import { defaultNames, shipEntries, type Side } from "../game/config";
-import { CountSelect, duplicates, DuplicateNames, FleetFields, resize, RulesChecks, type Rules } from "../panels/FleetForm";
+import { defaultNames, shipEntries, sideProblem, type Side } from "../game/config";
+import { CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks, type Rules } from "../panels/FleetForm";
 import { createGame } from "./api";
 import type { MyGame } from "./myGames";
 
 /** New online game: you're Player 1 and set the size of the battle; your opponent joins with a link and brings their own fleet. */
 export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }) {
-  const [side, setSide] = useState<Side>({ name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1), carrier: true });
+  const [side, setSide] = useState<Side>({ name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1) });
   const [rules, setRules] = useState<Rules>({ ramming: true, boarding: true, carriers: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dupes = duplicates(side.ships);
+  const problem = dupes.length > 0 ? null : sideProblem(side, rules.carriers);
   return (
     <form
       className="new-game"
       onSubmit={(e) => {
         e.preventDefault();
-        if (dupes.length > 0) return;
+        if (dupes.length > 0 || problem !== null) return;
         setBusy(true);
         setError(null);
         const name = side.name.trim();
@@ -34,15 +35,16 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         className="p1"
         side={side}
         onChange={(patch) =>
-          setSide({ ...side, ...patch, ...(patch.fleet !== undefined && patch.fleet !== side.fleet ? { ships: defaultNames(patch.fleet, side.ships.length) } : {}) })
+          setSide({ ...side, ...patch, ...(patch.fleet !== undefined && patch.fleet !== side.fleet ? { ships: defaultNames(patch.fleet, side.ships.length), classes: [] } : {}) })
         }
         dupes={dupes}
         carriers={rules.carriers}
       />
       <RulesChecks value={rules} onChange={setRules} />
       <DuplicateNames dupes={dupes} />
+      <FleetProblem problem={problem} />
       <div className="buttons">
-        <button type="submit" className="primary" disabled={busy || dupes.length > 0}>
+        <button type="submit" className="primary" disabled={busy || dupes.length > 0 || problem !== null}>
           {busy ? "Creating…" : "Create game"}
         </button>
       </div>

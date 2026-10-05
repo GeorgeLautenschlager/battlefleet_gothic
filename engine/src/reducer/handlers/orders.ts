@@ -42,7 +42,7 @@ export function declareOrder(ctx: Ctx, t: DeclareOrder): void {
         ram = { targetId: victim.id, testPassed: ramTest.passed, resolved: false };
         ctx.log("ram_test", { shipId: ship.id, targetId: victim.id, target: ld, rolls: ramTest.rolls, passed: ramTest.passed });
       }
-      const rolls = ctx.nD6(4);
+      const rolls = ctx.nD6(ship.profile.traits?.allAheadFullDice ?? 4); // improved thrusters: 5D6 (state N10)
       aafExtra = sum(rolls);
       ctx.log("aaf_roll", { shipId: ship.id, rolls, extra: aafExtra });
     }

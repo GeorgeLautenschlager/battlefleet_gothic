@@ -82,6 +82,17 @@ function validateConfig(config: GameConfig): void {
     }
     counts[ship.owner] += 1;
   }
+  // Rarity limits (T35): e.g. two Murder lance variants per 750 points of the side's fleet, or part.
+  for (const player of ["p1", "p2"] as const) {
+    const side = config.ships.filter((s) => s.owner === player).map((s) => CATALOGUE[s.classId]);
+    const points = side.reduce((n, e) => n + (e?.profile.points ?? 0), 0);
+    for (const entry of new Set(side)) {
+      if (entry?.limit === undefined) continue;
+      const allowed = entry.limit.max * Math.ceil(points / entry.limit.perPoints);
+      const n = side.filter((e) => e === entry).length;
+      if (n > allowed) throw new EngineError(`${player} may field at most ${allowed} × ${entry.profile.className} in ${points} pts`);
+    }
+  }
   for (const player of ["p1", "p2"] as const) {
     const n = counts[player];
     if (n < CRUISER_CLASH.minShips || n > CRUISER_CLASH.maxShips) {
