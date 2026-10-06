@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.10, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.12](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16). v0.9 adds the nova cannon (pp. 63–64): `fire_nova_cannon` and the ship options that carry one (§2.3, §2.6, §4.3, §5, T40–T48, D17–D19). v0.10 adds the Fleet Engagement scenario (pp. 142–143): `choose_formation`, `roll_setup`, `choose_setup`, divisions at deployment, and no round limit (§2.3, §2.5, §3, §4.1, §5, T49–T55, D20–D23).
+**Status:** draft v0.11, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.13](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16). v0.9 adds the nova cannon (pp. 63–64): `fire_nova_cannon` and the ship options that carry one (§2.3, §2.6, §4.3, §5, T40–T48, D17–D19). v0.10 adds the Fleet Engagement scenario (pp. 142–143): `choose_formation`, `roll_setup`, `choose_setup`, divisions at deployment, and no round limit (§2.3, §2.5, §3, §4.1, §5, T49–T55, D20–D23). v0.11 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders, re-rolls (`reroll` on four transforms) and the Marks of Chaos (§2.7, §3, §4.2–4.3, §4.5, §5, T56–T66, D24–D27).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -102,6 +102,17 @@ Ship X **can brace** when it is `active` (not a hulk), its `specialOrder` is not
 
 Brace is offered **before** every roll that can damage a ship: direct-fire to-hit rolls, torpedo attacks (before turrets), rams (target first, then rammer), explosion lance hits, and a 0-shield ship's Blast Marker roll. It is also offered before an **attack craft** attack on a ship (before turrets, like torpedoes), before a **nova cannon**'s scatter roll to every ship it could reach (T41), and before a **teleport attack**'s roll, since Brace protects against Hit-and-Run critical damage (p. 66). It is **not** offered against fire damage or critical extra damage, which follow from hits already rolled, nor in a boarding action (p. 66, p. 90).
 
+### 2.7 Fleet commander re-rolls
+
+A failed Command check or Leadership test may be re-rolled with a fleet commander re-roll (fleets book, p. 11). The decision is made **up front**: the transform whose roll it is carries `reroll: true`, meaning "if this fails, re-roll it". It's the same choice as deciding after the dice, since a re-roll is only ever worth spending on a failure, and it saves a round trip (state §1, principle 7).
+
+- `declare_order.reroll`: the Command check, and the ram target's Leadership test.
+- `move.reroll`: the disengage test.
+- `fire.reroll`: the target-priority test.
+- `answer_brace.reroll`: the brace Command check.
+
+Each failed test of the transform uses one re-roll, from `rerollFor(ship)` (state §11), while one is left: its dice are drawn again straight after the failure, and the second result stands. A test is never re-rolled twice (p. 11). `reroll: true` with no re-roll available is refused (`NO_REROLL`); a test that passes spends nothing.
+
 ---
 
 ## 3. Catalogue
@@ -118,10 +129,10 @@ Brace is offered **before** every roll that can damage a ship: direct-fire to-hi
 | `roll_first_turn` | — | setup / `roll_first_turn` |
 | `choose_first_turn` | `goFirst` | setup / `choose_first_turn` |
 | `drift_hulk` | `shipId` | movement / `hulks_drift` |
-| `declare_order` | `shipId`, `order`, `ramTargetId?` | movement / `move_ships` |
-| `move` | `shipId`, `path`, `disengage`, `boardTargetId?` | movement / `move_ships` |
+| `declare_order` | `shipId`, `order`, `ramTargetId?`, `reroll?` | movement / `move_ships` |
+| `move` | `shipId`, `path`, `disengage`, `boardTargetId?`, `reroll?` | movement / `move_ships` |
 | `release_cap` | `ordnanceId` | movement / `move_ships` |
-| `fire` | `shipId`, `weaponId`, `combineWith?`, `target`, `arc?`, `aspect?` | shooting / `direct_fire` |
+| `fire` | `shipId`, `weaponId`, `combineWith?`, `target`, `arc?`, `aspect?`, `reroll?` | shooting / `direct_fire` |
 | `fire_nova_cannon` | `shipId`, `weaponId`, `aim` | shooting / `direct_fire` |
 | `launch_torpedoes` | `shipId`, `weaponId`, `bearing` | shooting / `launch_ordnance` |
 | `launch_attack_craft` | `shipId`, `waves`, `recall` | shooting / `launch_ordnance` |
@@ -130,7 +141,7 @@ Brace is offered **before** every roll that can damage a ship: direct-fire to-hi
 | `teleport` | `shipId`, `targetId` | end / `boarding` |
 | `repair` | `shipId`, `priority` | end / `damage_control` |
 | `remove_blast_markers` | `priority` | end / `blast_marker_removal` |
-| `answer_brace` | `pendingId`, `attempt` | any, while `pending` is non-empty |
+| `answer_brace` | `pendingId`, `attempt`, `reroll?` | any, while `pending` is non-empty |
 | `end_step` | — | shooting / `direct_fire` or `launch_ordnance`; end / `boarding` |
 
 ---
@@ -199,7 +210,8 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   type: "declare_order", player,
   shipId: string,
   order: "all_ahead_full" | "come_to_new_heading" | "burn_retros" | "lock_on" | "reload_ordnance",
-  ramTargetId?: string        // only with all_ahead_full
+  ramTargetId?: string,       // only with all_ahead_full
+  reroll?: boolean            // re-roll a failed Command check, and a failed ram Leadership test (§2.7)
 }
 ```
 - **Legal when:**
@@ -229,7 +241,8 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   shipId: string,
   path: PathStep[],           // state §9.1; [] = stay put (Burn Retros only)
   disengage: boolean,         // take a disengage test at the end of the move
-  boardTargetId?: string      // declare a boarding action against this ship (p. 89)
+  boardTargetId?: string,     // declare a boarding action against this ship (p. 89)
+  reroll?: boolean            // re-roll a failed disengage test (§2.7)
 }
 ```
 - **Legal when:**
@@ -243,7 +256,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - **Minimum:** total advance ≥ `min(minDistance, maxDistance after BM reduction)`. All Ahead Full must use its full distance, unless its base touches a Blast Marker within the last 5 cm. In that case the path must end exactly at the first point of contact (p. 69).
   - **Table edge:** if the stem crosses the table edge, that must happen in the last step, and the path must not go back onto the table. The ship disengages there, and the minimum doesn't apply.
   - **Disengage flag:** `disengage` must be false if the path leaves the table.
-  - **Boarding** (only with `boardTargetId`): `options.boarding` is on; the target is an enemy ship that is `active` (not a hulk) and not grappled; the path doesn't leave the table and `disengage` is false; and at the path's end the two bases touch (inclusive, overlap counts; validator `basesTouch`). A ship can board only if it ends its move in base contact (p. 56, p. 89), so the declaration goes with the move that makes the contact (T8).
+  - **Boarding** (only with `boardTargetId`): `options.boarding` is on; the target is an enemy ship that is `active` (not a hulk), not grappled, and can be boarded (not on the Mark of Nurgle, state §7.4); the path doesn't leave the table and `disengage` is false; and at the path's end the two bases touch (inclusive, overlap counts; validator `basesTouch`). A ship can board only if it ends its move in base contact (p. 56, p. 89), so the declaration goes with the move that makes the contact (T8).
 - **Reducer:** execute the path from the start, in order of contact along each advance:
   - **Ram target base** (if `ram.testPassed` and not yet `resolved`): stop at contact. Offer brace (target), then offer brace (rammer). Draw **D6 × rammer's starting hits** against the target's armour on the struck facing. Then draw **D6 × target's starting hits** (head-on or Defence) or **half** (side/rear), rounded up, against the rammer's **front** armour. Shields don't apply. Damage, criticals and catastrophic damage resolve as in the reducer spec. Set `ram.resolved`.
   - **Torpedo salvo** (any owner; a salvo ignores its own launcher during its launch turn): the salvo attacks the ship (as `move_ordnance`, minus the salvo's own move).
@@ -271,7 +284,8 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   combineWith?: string[],     // more of this ship's weapons batteries, fired in the same volley (T32)
   target: { kind: "ship" | "ordnance", id: string },
   arc?: Quadrant,             // required only when the target is on an arc boundary of the firer
-  aspect?: Quadrant           // required only when the firer is on a quadrant boundary of the target ship
+  aspect?: Quadrant,          // required only when the firer is on a quadrant boundary of the target ship
+  reroll?: boolean            // re-roll a failed target-priority test (§2.7)
 }
 ```
 - **Legal when:**
@@ -418,7 +432,7 @@ When a torpedo salvo contacts any ship, or an attack craft wave contacts an enem
 
 #### `answer_brace`
 ```ts
-{ type: "answer_brace", player, pendingId: string, attempt: boolean }
+{ type: "answer_brace", player, pendingId: string, attempt: boolean, reroll?: boolean }   // reroll: a failed check (§2.7)
 ```
 - **Legal when:** `pendingId` is the **top** pending entry's id, and `player` is its `player`.
 - **Reducer:**
@@ -526,8 +540,8 @@ newGame(config: GameConfig) → GameState
 type GameConfig = {
   seed: number                               // uint32
   createdAt: string
-  options?: { ramming?: boolean, boarding?: boolean, carriers?: boolean }   // defaults: true, false, false
-                                                                           // (false keeps older saves replaying unchanged)
+  options?: { ramming?: boolean, boarding?: boolean, carriers?: boolean, fleetLists?: boolean }
+                                             // defaults: true, false, false, false (false keeps older saves replaying unchanged)
   scenario?: "cruiser_clash" | "fleet_engagement"   // default "cruiser_clash"
   forces?: Forces                            // default { kind: "cruiser_clash" } (state §4)
   scoring?: "cruiser_clash" | "victory_points"   // default "cruiser_clash"
@@ -535,13 +549,38 @@ type GameConfig = {
     p1: { name: string, faction: FactionId },
     p2: { name: string, faction: FactionId }
   }
-  ships: { owner: PlayerId, name: string, classId: string }[]
+  ships: {
+    owner: PlayerId, name: string, classId: string,
+    options?: string[],                      // the class's option ids (T57)
+    commander?: CommanderConfig              // fleet lists only (T60)
+  }[]
 }
+
+type CommanderConfig =
+  | { kind: "admiral", leadership: 8 | 9 | 10, extraRerolls: 0 | 1 | 2 | 3 }   // Gothic Sector
+  | { kind: "warmaster", leadership: 8 | 9, marks: Mark[] }                    // Chaos Incursion
+  | { kind: "lord", mark: Mark | null }                                         // Chaos Incursion, Ld 8
 ```
 
-- Profiles come from a ship catalogue built from `rules/fleets/`. Imperial Navy: `lunar` and `lunar_nova` (p. 71); `gothic` (p. 70); `tyrant`, `tyrant_long`, `tyrant_nova` and `tyrant_long_nova` (p. 69); `dominator` and `dominator_long` (p. 68); and the carrier `dictator` (p. 67). Chaos: `murder`, its lance variant `murder_lances` (p. 279), `carnage` (p. 277), `inferno` (p. 278), `slaughter` (p. 280, improved thrusters), and the carrier `devastation` (p. 276). A ship option that changes a profile is its own catalogue class (D13). Their launch bays carry their fleets' attack craft: Fury fighters and Starhawk bombers (Imperial Navy); Swiftdeath fighters, Doomfire bombers and Dreadclaw assault boats (Chaos).
+- Profiles come from a ship catalogue built from `rules/fleets/`. Imperial Navy: `lunar` (p. 71); `gothic` (p. 70); `tyrant` (p. 69); `dominator` (p. 68); the carrier `dictator` (p. 67); and the battlecruisers `mars` (p. 61) and `overlord` (p. 66). Chaos adds the heavy cruisers `styx` (p. 272), `hecate` (p. 273), `hades` (p. 274) and `acheron` (p. 275) to the list below. The v0.9 option classes (`lunar_nova`, `tyrant_long`, `tyrant_nova`, `tyrant_long_nova`, `dominator_long`) stay for saves (state N21).
+- **Options** (T57), each once per ship, applied in this order, with their points:
+
+  | Class | Option id | Effect | Points |
+  |---|---|---|---|
+  | `lunar` | `nova_cannon` | prow torpedoes → prow nova cannon | +20 |
+  | `tyrant` | `long_batteries` | the 30 cm batteries → 45 cm | +10 |
+  | `tyrant` | `nova_cannon` | prow torpedoes → prow nova cannon | +20 |
+  | `dominator` | `long_batteries` | FP 12, 30 cm batteries → FP 6, 45 cm | −5 |
+  | `mars`, `overlord` | `targeting_matrix` | trait `targetingMatrix` (state §7.1) | +15 |
+  | `mars`, `overlord` | `third_turret` | turrets 2 → 3 | +10 |
+ Chaos: `murder`, its lance variant `murder_lances` (p. 279), `carnage` (p. 277), `inferno` (p. 278), `slaughter` (p. 280, improved thrusters), and the carrier `devastation` (p. 276). A ship option that changes a profile is its own catalogue class (D13). Their launch bays carry their fleets' attack craft: Fury fighters and Starhawk bombers (Imperial Navy); Swiftdeath fighters, Doomfire bombers and Dreadclaw assault boats (Chaos).
 - **Cruiser Clash forces** (`forces.kind = "cruiser_clash"`): 1–4 ships per side, the same number each, all `cruiser`, each ≤ 185 points (p. 128). With `carriers` on, each side may also field **at most one** ship with launch bays above that cap ("allow one carrier each", p. 129).
-- **Points forces** (`forces.kind = "points"`, p. 129): each side's ships total ≤ `limit` points (a positive integer), at least one ship a side, any number, any classes of its fleet. There's no per-ship cap, so carriers need no option (T36). Ship types are still limited to what the catalogue has (cruisers today); the fleet lists' ratios come later (D16). A class with a rarity limit is held to it per side: the Murder lance variant, no more than two per 750 points, or part, of that side's fleet (p. 279). A bad config throws; it never produces an invalid state.
+- **Points forces** (`forces.kind = "points"`, p. 129): each side's ships total ≤ `limit` points (a positive integer), at least one ship a side, any number, any classes of its fleet. There's no per-ship cap, so carriers need no option (T36). Without fleet lists, ship types are still limited to what the catalogue has, in any mix. A class with a rarity limit is held to it per side: the Murder lance variant, no more than two per 750 points, or part, of that side's fleet (p. 279). A bad config throws; it never produces an invalid state.
+- **Fleet lists** (`options.fleetLists`, points forces only, T58): each side follows its faction's Gothic War list (D24). Every class must be on it.
+  - **Imperial Navy, Gothic Sector** (fleets book, p. 35): 0–12 cruisers (`lunar`, `gothic`, `tyrant`, `dominator`, `dictator`); up to one battlecruiser (`mars`, `overlord`) per two cruisers; **0–1 Admiral**: Fleet-Admiral Ld 8 (50 pts), Admiral Ld 9 (100), Solar Admiral Ld 10 (150), with one re-roll, plus extra re-rolls (one +25, two +75, three +150). A fleet worth **over 750 points** (Admiral included) must have one.
+  - **Chaos, Chaos Incursion** (p. 232): 0–12 cruisers (`murder`, `murder_lances`, `carnage`, `inferno`, `slaughter`, `devastation`); up to one heavy cruiser (`styx`, `hecate`, `hades`, `acheron`) per two cruisers; **one Chaos Warmaster**, always: Ld 8 (50) or Ld 9 (100), one re-roll, aboard the side's most expensive ship (by its points with options; any of them on a tie), with up to four Marks, each once; **0–3 Chaos Lords**, Ld 8 (50), each on a different ship from the Warmaster and each other, with up to one Mark. Marks: Slaanesh +25, Khorne +20, Tzeentch +30, Nurgle +35.
+  - The commander's points count towards the limit. Without fleet lists, `commander` is refused (T60).
+- **Commanders on the ship** (state §7.4): `leadership` as bought (Lords 8); `points` the commander, extra re-rolls and Marks; `rerolls` one for an Admiral or Warmaster plus extras, +1 with the Mark of Tzeentch (a Lord's only re-roll); `marks`. The Mark of Nurgle adds 1 to `profile.hits`.
 - `scoring` is copied into `scenario.scoring`, and `forces` into `scenario.forces`. Either scoring goes with either forces (T37).
 - **Fleet Engagement** (`scenario: "fleet_engagement"`, pp. 142–143): forces must be `points` ("equal points": the same limit a side), and scoring `victory_points` (the default for this scenario; anything else throws). `maxRounds` is null, `deploymentZones` and `deploymentFacing` are absent, and `setup.engagement` starts with no formations (state §5). The battlezone is the plain 180 × 120 table (T55).
 - The result is at `stage: "setup"`, `setupStep: "roll_leadership"`, `playerTurn: 0`. Ships are `undeployed`, with ids `ship-1 … ship-n` in config order. `rng.state = seed`.
@@ -596,6 +635,17 @@ type GameConfig = {
 | T53 | **Deploying into divisions** (state N18): the stem must lie in one of the player's divisions, and the ship faces that division's arrow. While the player has no more undeployed ships than empty divisions, each ship goes into an empty one. |
 | T54 | **Fleet Engagement plays until a side has no `active` ship** (p. 143; state N17, D6): there's no round limit, and scoring is standard victory points, holding the field included. |
 | T55 | **Battlezone**: no celestial phenomena yet, so Fleet Engagement is fought on the plain table, the same 180 × 120 as Cruiser Clash. |
+| T56 | **Re-rolls are decided up front** (§2.7): the transform says whether a failure is to be re-rolled. The outcome is the same as asking after the roll, and no new pending decision is needed. |
+| T57 | **Ship options** are picked per ship when the game is made and applied to its profile (state N21). Each option once; options that replace the same weapon don't come together on today's ships. |
+| T58 | **Fleet lists apply to points battles**, as an option (`fleetLists`), on by default in the app for new points games. Cruiser Clash keeps its own forces (state N27). |
+| T59 | **Ratios** count `category`: one battlecruiser or heavy cruiser per **two** cruisers, rounding down; cruisers 0–12. A Dictator or Devastation is a cruiser. |
+| T60 | **Commanders are bought with the fleet** and assigned to a ship in the config (fleets book, p. 11: "any time before the game"). An Admiral goes on any of his side's ships; the Warmaster on the most expensive; Lords on any other ships, one each. |
+| T61 | **The Mark of Khorne's +1** on a Warmaster's ship is added to its boarding critical rolls (reducer §10.4), not its boarding total. |
+| T62 | **The Mark of Nurgle** adds a hit to the ship's profile and stops boarding actions against it; teleport attacks still work (p. 232 says only "may not be boarded"). |
+| T63 | **The Mark of Slaanesh** lowers every Leadership value the enemy ship uses: Command checks, target priority, disengage and ram tests. |
+| T64 | **Targeting matrix**: one column shift left for the ship's weapons batteries, applied with the other shifts before the clamp (reducer §4.1). |
+| T65 | **A fleet over 750 points** needs an Admiral (Gothic Sector); Chaos Incursion always needs its Warmaster. The 750 counts everything the side spent, commander included. |
+| T66 | **Battlecruisers and heavy cruisers** are cruisers in every core rule: speed, turns, gunnery columns, rams, boarding. Their extra weapons (dorsal lances firing left, front and right) need no new rules. |
 | T35 | **Rarity limits** count the side's whole fleet: "two per 750 points or part" allows two in any Cruiser Clash fleet (4 × 185 = 740). |
 | T31 | **Launch bays** are weapons at a location (port, starboard): that side's armament critical disables them (p. 67), which lowers the fleet's limit too. |
 | T40 | **The nova cannon fires with its own transform**, at a point: `aim` is where the template is placed (p. 63). It belongs to the direct-fire step, in any order with the ship's batteries and lances. |
@@ -625,7 +675,7 @@ type GameConfig = {
 | D11 | Torpedo bombers, resilient craft, boarding torpedoes? | Not in this slice: neither carrier in the box takes them by default. Their rules (pp. 78, 84, 86) slot in as new roles and ordnance kinds later. |
 | D13 | Ship options and refits? | A variant whose profile differs is its own catalogue class (`murder_lances`), with its own points and any rarity limit. Options that would take a cruiser over Cruiser Clash's 185 points (the Tyrant's 45 cm batteries, nova cannons) wait for fleet battles by points. They arrive with the nova cannon (T48). |
 | D15 | "Remove the 185-point cap" on its own (p. 129)? | Not offered: a points battle does the same job and also frees the numbers. |
-| D16 | Fleet commanders at 1,000 points (p. 129) and the fleet lists' ratios? | Later, with the fleet composition rules (battlecruisers and heavy cruisers), as George suggested. A points battle today is any ships of the fleet within the limit. |
+| D16 | Fleet commanders at 1,000 points (p. 129) and the fleet lists' ratios? | They came with battlecruisers and heavy cruisers, as George suggested (T58–T60, D24). |
 | D14 | Combined batteries: automatic, or the player's choice? | The player's: `combineWith` names the batteries joining the volley, so a ship can still send its long-range battery at one target and its short-range one at another. The app offers the combined volley first. |
 | D17 | Does the nova cannon hit friendly ships? | Yes. The book says "any target in base contact", and scatter is the risk you take. Their owner is offered a brace like anyone else (T41). |
 | D18 | How is the scatter die rolled? | With D6s only (T42): the scatter die, then 2D6 for one of 36 directions. A continuous random bearing would be smoother, but every roll would stop being a plain die in the log and in scripted tests. |
@@ -634,6 +684,10 @@ type GameConfig = {
 | D21 | Secret formations? | The honour system (state N16, George's call): no hidden state in the engine or the server. |
 | D22 | The set-up maps' exact dimensions? | Derived from the p. 143 diagrams' stated distances (state N15), for George to check against the book. |
 | D23 | Fleet Engagement's length? | Until a side has no `active` ship, as the book says (T54). Players who want an end can disengage. |
+| D24 | Which fleet lists? | The Gothic War pair, Gothic Sector and Chaos Incursion (George's call). Others slot in later as data. |
+| D25 | Ship options: classes or per ship? | Per ship (George's call, T57). The option classes stay only for old saves. |
+| D26 | Marks of Chaos now? | Yes, with the commanders (George's call). |
+| D27 | Asking for a re-roll after a failure, or up front? | Up front (T56): same outcome, no extra round trip, and no new pending decision kind. |
 | D12 | One wave entity, or one entity per marker? | One wave with a footprint (T17, state N8). Turrets fire once at a wave and a hit kills it all (p. 85), so the wave is the unit the rules care about. |
 
 No open questions.

@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.12, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19).
+**Status:** draft v0.13, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27).
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -124,6 +124,8 @@ type Meta = {
                                // a config doesn't say, so older saves replay unchanged; the app turns it on
     carriers: boolean          // "one carrier each" (p. 129): each side may field one ship with launch bays
                                // above the 185-point cap. Default false (transform §5)
+    fleetLists: boolean        // fleets follow their fleet list: ratios, commanders (fleets book, pp. 11–14, 232).
+                               // Points battles only. Default false when a config doesn't say (older saves); the app turns it on
   }
 }
 
@@ -289,6 +291,7 @@ type Ship = {
   loaded: { torpedoes?: boolean, launchBays?: boolean }   // one key per launcher kind the ship has; true at game start (p. 74)
   lastMove: { playerTurn: number, distance: number } | null
   grapple: Grapple | null            // locked in a drawn boarding action (pp. 90–91)
+  commander: Commander | null        // an Admiral, Warmaster or Chaos Lord aboard (§7.4); absent in older saves
 }
 
 type Grapple = {
@@ -323,6 +326,8 @@ type ShipProfile = {
   source: { book: "fleets", page: number }
   points: number                     // 180
   type: "battleship" | "cruiser" | "escort"
+  category: ShipCategory             // the fleet lists' kind of hull, for their ratios (N20); absent in older saves: "cruiser"
+  options: string[]                  // the option ids chosen for this ship, already applied below (N21); absent in older saves: []
   hits: number                       // starting damage capacity
   speed: number                      // cm
   turns: 45 | 90
@@ -336,7 +341,10 @@ type ShipProfile = {
 
 type ShipTraits = {
   allAheadFullDice?: number          // D6 rolled for All Ahead Full; default 4. Improved thrusters: 5 (N10)
+  targetingMatrix?: boolean          // its weapons batteries take one column shift left (Mars, Overlord options)
 }
+
+type ShipCategory = "cruiser" | "heavy_cruiser" | "battlecruiser"   // later: light and grand cruisers, battleships
 
 type Weapon = {
   id: string                         // unique within the profile: "port_lances"
@@ -409,6 +417,24 @@ Expiry is computed once, when the order is issued:
 "Until the end of its next turn" plus "only one order at a time" also covers "no special orders in its next turn" (p. 66): while the brace order is live, nothing else can be issued.
 
 The enemy's orders stay on their ships through *your* turn, which is exactly when the +1 **Enemy Contacts** Command-check modifier needs to see them.
+
+### 7.4 Fleet commanders
+
+```ts
+type Commander = {
+  kind: "admiral" | "warmaster" | "lord"   // admiral, warmaster: the fleet commander; lord: a Chaos Lord
+  leadership: number                 // replaces the ship's rolled Leadership, even if lower (fleets book, p. 11)
+  points: number                     // the commander, extra re-rolls and Marks: added to the ship's value (N25)
+  marks: Mark[]                      // Marks of Chaos (Chaos Incursion, p. 232); [] for an Admiral
+  rerolls: number                    // re-rolls left this game (N23)
+}
+
+type Mark = "slaanesh" | "khorne" | "tzeentch" | "nurgle"
+```
+
+- At most one fleet commander a side (an Admiral, or the Chaos Warmaster), and on Chaos's side up to three Lords, each on a different ship from the Warmaster and each other (transform §5).
+- **Fleet commander re-rolls** (fleets book, p. 11) let the player re-roll a failed Command check or Leadership test, once per re-roll. A fleet commander's re-rolls serve any of their side's ships; a Chaos Lord's (Mark of Tzeentch) only his own (N24). Re-rolls go when the commander's ship suffers Bridge Smashed (p. 11), or stops being `active` (N23).
+- **Marks of Chaos** (p. 232): Slaanesh, −2 Leadership to enemy ships within 15 cm of the ship (an area effect, line of sight ignored); Khorne, the ship's boarding value doubles, and a Warmaster's adds +1 to his rolls for boarding criticals; Tzeentch, +1 re-roll; Nurgle, +1 hit (already in `profile.hits`) and the ship can't be boarded. A Warmaster may have up to four Marks, each once; a Lord one.
 
 ---
 
@@ -627,7 +653,11 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `isHulk(s)` | `status ∈ {drifting_hulk, blazing_hulk}` |
 | `onTable(s)` | `status ∈ {active, drifting_hulk, blazing_hulk}` |
 | `has(s, k)` | `s.criticals` contains an entry of kind `k` |
-| `leadership(s)` | `min(10, s.leadership − (has(bridge_smashed) ? 3 : 0))` |
+| `leadership(s)` | `min(10, base − (has(bridge_smashed) ? 3 : 0) − (slaaneshNear(s) ? 2 : 0))`, where `base` is `s.commander.leadership` if it has a commander, else the rolled `s.leadership` (N22) |
+| `slaaneshNear(s)` | an enemy ship with the Mark of Slaanesh, `active`, has its stem within 15 cm of `s`'s stem (§7.4) |
+| `shipValue(s)` | `profile.points + (commander?.points ?? 0)`: the ship, its options and anyone aboard (N25) |
+| `rerollFor(s)` | the commander whose re-roll `s` would use, or none: its own commander if they have re-rolls left, else its side's fleet commander if theirs is `active` with re-rolls left (N23–N24) |
+| `canBeBoarded(s)` | not on the Mark of Nurgle (§7.4) |
 | `speed(s)` | `max(0, profile.speed − (crippled ? 5 : 0) − (has(thrusters) ? 10 : 0))` |
 | `maxShields(s)` | `has(shields_collapse) ? 0 : crippled ? ⌈shields/2⌉ : shields`; hulks 0 |
 | `bmsInContact(s)` | Blast Markers whose circle touches or overlaps the ship's base circle |
@@ -640,7 +670,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `canTurn(s)` | `!has(engine_room)` |
 | `weaponDisabled(s, w)` | a matching `<location>_armament` critical exists, or the ship failed its disengage test this turn, is grappled, or declared a boarding action this turn (p. 89) |
 | `isGrappled(s)` | `s.grapple ≠ null` |
-| `boardingValue(s)` | `remainingHits(s)` (p. 89). Later fleets modify it (Mark of Khorne doubles it, Tau halve it). |
+| `boardingValue(s)` | `remainingHits(s)` (p. 89), doubled with the Mark of Khorne. Later fleets modify it too (Tau halve it). |
 | `shieldsDown(s)` | `shieldCapacity(s) = 0`: the ship can be teleported onto (pp. 91–92) |
 | `novaCannonBarred(s)` | why `s` can't fire a nova cannon, or `null`: `"crippled"`, or `"order"` when its `specialOrder` is All Ahead Full, Come To New Heading, Burn Retros or Brace For Impact! (p. 64, p. 65). Lock On and Reload Ordnance don't matter to it. |
 | `effectiveStrength(s, w)` | `w.strength`, halved (round up) once for each that applies: crippled; braced; for direct fire only, on AAF / Come To New Heading / Burn Retros |
@@ -649,8 +679,8 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `gunneryColumn(target, aspect)` | defences → A; capital closing → B; capital moving away → C; capital abeam → D; ordnance → E |
 | `score(player)` | `scenario.scoring = "cruiser_clash"`: Σ over enemy ships: `damage` + (destroyedForScoring ? 3 : crippled ? 1 : 0) (p. 128). `"victory_points"`: `victoryPoints(player)` |
 | `victoryPoints(player)` | Σ over enemy ships of `shipVP(s)`, plus `holdingTheField(player)` (pp. 122–123, N11–N12) |
-| `shipVP(s)` | `destroyedForScoring(s)` → `points`; `disengaged` → ⌈25%⌉ if `crippled`, else ⌈10%⌉; `active` and `crippled` → ⌈25%⌉; otherwise 0. `points` is `profile.points` |
-| `holdingTheField(player)` | if no enemy ship is `active` and at least one of the player's is: Σ ⌈50% × points⌉ over every **hulk** on the table, friend or foe (N11); otherwise 0 |
+| `shipVP(s)` | `destroyedForScoring(s)` → `points`; `disengaged` → ⌈25%⌉ if `crippled`, else ⌈10%⌉; `active` and `crippled` → ⌈25%⌉; otherwise 0. `points` is `shipValue(s)` (N25) |
+| `holdingTheField(player)` | if no enemy ship is `active` and at least one of the player's is: Σ ⌈50% × shipValue⌉ over every **hulk** on the table, friend or foe (N11); otherwise 0 |
 | `destroyedForScoring(s)` | `status ∈ {destroyed, drifting_hulk, blazing_hulk}` (D7) |
 | `deploymentDivisions(player)` | Cruiser Clash: one division, the player's zone rectangle facing `deploymentFacing[zone]`. Fleet Engagement: the divisions of the player's colour on `engagement.map` (§4) |
 | `setupOptions()` | Fleet Engagement, both formations chosen: the two set-ups `{ map, colours }` from p1's row of the formation table (§5), split or B with each colour |
@@ -900,6 +930,14 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N17 | **Fleet Engagement has no round limit** (p. 143: "until one fleet disengages or is destroyed"): `maxRounds` is null, and the game ends only when a side has no `active` ship (D6). | §4, §6 |
 | N18 | **Divisions** (p. 142, "at least one ship or squadron in each"): while a player has no more undeployed ships than empty divisions, each ship must go into an empty one. With fewer ships than divisions, each goes to a different division. A stem on the shared edge of two divisions belongs to the first in the map's list. | §4 |
 | N19 | **A plain B result** leaves the colours open: it's settled by the same roll-off, without the split bonuses, and the winner picks a colour. | §5 |
+| N20 | **Categories**: the fleet lists count cruisers, heavy cruisers and battlecruisers separately for their ratios, but every one of them is a `cruiser` in the core rules (gunnery, turns, rams). `category` is only read by the fleet list checks. | §7.1 |
+| N21 | **Ship options** (fleets book, ship entries) are applied when the game is made: replaced weapons, an extra turret, a trait, and their points. The profile snapshot is the ship as fielded; `options` records which were taken. The v0.11 option classes (`lunar_nova`, `tyrant_long`, …) stay in the catalogue so saves replay. | §7.1 |
+| N22 | **A commander's Leadership replaces the ship's**, rolled or not, even when it's lower (fleets book, p. 11). Bridge Smashed and the Mark of Slaanesh still apply to it. | §11 |
+| N23 | **Re-rolls are spent from the nearest commander**: the ship's own (a Lord with the Mark of Tzeentch, or the fleet commander's flagship), then its side's fleet commander. A commander whose ship is no longer `active`, or has suffered Bridge Smashed, has none left. | §7.4, §11 |
+| N24 | **A Chaos Lord's re-roll** (Mark of Tzeentch) serves only his own ship: fleet commander re-rolls are the fleet commander's to give (p. 11). | §7.4 |
+| N25 | **A ship's value** for victory points includes its options and any commander aboard, with their Marks and extra re-rolls (fleets book, p. 11: "the cost of any embarked commanders … included"). | §11 |
+| N26 | **The Mark of Slaanesh** reaches 15 cm stem to stem, like other ranges; several such ships don't stack: −2 either way. | §11 |
+| N27 | **Cruiser Clash has no fleet lists**: no commanders, and only the classes and options it already had. Fleet lists come with points forces. | §4 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
 
 ---
@@ -910,9 +948,7 @@ The shapes above leave room for these without breaking changes. Each will add fi
 
 - **Squadrons:** a top-level `squadrons: { id, owner, shipIds, leadership }[]`; orders move to the squadron.
 - **Terrain:** `table.features: Feature[]` (gas clouds, asteroid fields, planets with gravity wells), `table.sunwardEdge`.
-- **Fleet commanders and re-rolls:** `players[].commander: { shipId, rerollsLeft }`.
 - **Other scenarios:** new `scenario.id`s with their own set-up blocks. Fleet Engagement and victory points are in (§4, §5, §11); attack ratings and the random scenario tables (p. 120) come with the next scenarios.
-- **Fleet commanders:** Admirals and Chaos Lords (Leadership, re-rolls), with the fleet composition rules.
 
 ---
 

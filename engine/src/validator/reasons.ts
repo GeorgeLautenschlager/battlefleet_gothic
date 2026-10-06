@@ -73,6 +73,8 @@ export const REASON_CODES = [
   "TARGET_TOO_LARGE",
   // Combined battery fire (validator spec v0.6)
   "INVALID_VOLLEY",
+  // Fleet commander re-rolls (validator spec v0.9)
+  "NO_REROLL",
   // Fleet Engagement set-up (validator spec v0.8)
   "FILL_DIVISIONS_FIRST",
   "INVALID_SETUP",
