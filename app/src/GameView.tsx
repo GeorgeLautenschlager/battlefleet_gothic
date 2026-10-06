@@ -1,7 +1,7 @@
 /** The battle: table, controls, ships and log, driven by any GameSource (hot-seat or online). */
 import { useMemo, useState, type ReactNode } from "react";
-import { actor, engagement, validate, type Point, type Transform } from "@bfg/engine";
-import { controls, waitingOn, type GameSource } from "./game/source";
+import { actor, engagement, validate, type GameState, type Point, type Transform } from "@bfg/engine";
+import { controls, waitingOn, type GameSource, type Seat } from "./game/source";
 import { Table, type Ghost } from "./table/Table";
 import type { SetupPreview } from "./table/Zones";
 import { mm } from "./table/view";
@@ -25,6 +25,22 @@ import { useCraftPlot } from "./craft/useCraftPlot";
 import { CraftOverlay } from "./craft/CraftOverlay";
 import { movableWaves } from "./craft/craft";
 
+const REROLLABLE = new Set<Transform["type"]>(["declare_order", "fire", "move", "answer_brace"]);
+
+/** The re-roll switch, shown while the side about to act has a fleet commander re-roll left. */
+function RerollToggle({ state, seat, on, onChange }: { state: GameState; seat: Seat; on: boolean; onChange: (on: boolean) => void }) {
+  const who = actor(state);
+  if ((who !== "p1" && who !== "p2") || !controls(seat, who)) return null;
+  const left = state.ships.filter((s) => s.owner === who && s.status === "active").reduce((n, s) => n + (s.commander?.rerolls ?? 0), 0);
+  if (left === 0) return null;
+  return (
+    <label className="check reroll-toggle">
+      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} />
+      Re-roll failed checks with fleet commander re-rolls ({left} left)
+    </label>
+  );
+}
+
 /** `banner`: anything to show above the controls (online: presence, connection, verification). */
 export function GameView({ source, banner }: { source: GameSource; banner?: ReactNode }) {
   const [selected, setSelected] = useState<string | null>(null);
@@ -41,9 +57,16 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
   const [waveFocus, setWaveFocus] = useState<string | null>(null);
 
   const { state, seat, rejection } = source;
-  const run = (t: Transform): Promise<boolean> => source.run(t);
+  /** Fleet commander re-rolls (transform §2.7): asked for up front, on every check that can take one, while this is on. */
+  const [useRerolls, setUseRerolls] = useState(true);
+  const withReroll = (t: Transform): Transform => {
+    if (!useRerolls || !REROLLABLE.has(t.type) || ("reroll" in t && t.reroll !== undefined)) return t;
+    const asked = { ...t, reroll: true } as Transform;
+    return validate(state, asked).ok ? asked : t;
+  };
+  const run = (t: Transform): Promise<boolean> => source.run(withReroll(t));
   const act = (t: Transform): void => {
-    void source.run(t);
+    void source.run(withReroll(t));
   };
   // Online, only one seat's controls belong on this screen (network/SPEC.md §7.2).
   const waiting = waitingOn(state, seat);
@@ -177,6 +200,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
         <section className="actions">
           {banner}
           <TurnBanner state={state} />
+          <RerollToggle state={state} seat={seat} on={useRerolls} onChange={setUseRerolls} />
           {waiting !== null ? (
             <Waiting state={state} player={waiting} />
           ) : state.pending.length > 0 ? (

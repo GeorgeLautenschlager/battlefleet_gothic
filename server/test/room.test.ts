@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { createRoom, ENDED_LIFETIME, IDLE_LIFETIME } from "../src/room";
 import { MAX_MESSAGE_BYTES, MAX_MESSAGES_PER_SECOND, PROTOCOL } from "../src/protocol";
-import { GUEST_FLEET, Harness, testDeps } from "./harness";
+import { GUEST_FLEET, Harness, testDeps, type Fleet } from "./harness";
 import { upgradeRoomData, type CreateRequest, type RoomData } from "../src/room";
 
 const rejection = (msgs: { type: string }[]) => msgs.find((m) => m.type === "rejected") as { reason: { code: string } } | undefined;
@@ -50,9 +50,9 @@ describe("creating a game", () => {
     expect(upgradeRoomData(v2)).toEqual(v2);
     // A protocol 2 room from before boarding or carriers existed: they stay off.
     const before = { ...v2, options: { ramming: false } } as unknown as RoomData;
-    expect(upgradeRoomData(before).options).toEqual({ ramming: false, boarding: false, carriers: false, scenario: "cruiser_clash", forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
+    expect(upgradeRoomData(before).options).toEqual({ ramming: false, boarding: false, carriers: false, fleetLists: false, scenario: "cruiser_clash", forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
     const boardingOnly = { ...v2, options: { ramming: true, boarding: true } } as unknown as RoomData;
-    expect(upgradeRoomData(boardingOnly).options).toEqual({ ramming: true, boarding: true, carriers: false, scenario: "cruiser_clash", forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
+    expect(upgradeRoomData(boardingOnly).options).toEqual({ ramming: true, boarding: true, carriers: false, fleetLists: false, scenario: "cruiser_clash", forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
   });
 });
 
@@ -152,6 +152,30 @@ describe("lobby and start", () => {
     expect(state.scenario).toMatchObject({ id: "fleet_engagement", maxRounds: null, scoring: "victory_points" });
     expect(state.setup.engagement?.formations).toEqual({ p1: null, p2: null });
     await expect(Harness.create({ fleet: ann, scenario: "fleet_engagement" })).rejects.toThrow("INVALID_FLEET");
+  });
+
+  test("fleet lists: commanders ride on the ship entries and the engine checks the list", async () => {
+    const ann: Fleet = {
+      faction: "imperial_navy",
+      ships: [
+        { name: "Imperious", classId: "mars", options: ["targeting_matrix"], commander: { kind: "admiral", leadership: 9, extraRerolls: 1 } },
+        { name: "Agrippa", classId: "lunar" },
+        { name: "Invincible", classId: "gothic" },
+      ],
+    };
+    const h = await Harness.create({ fleet: ann, forces: { kind: "points", limit: 1000 }, fleetLists: true });
+    const [welcome] = await h.hello("a", "p1");
+    expect(welcome).toMatchObject({ lobby: { options: { fleetLists: true } } });
+    await h.hello("b", "p2");
+    // No Warmaster: Chaos Incursion refuses it.
+    expect(rejection(await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }] }))?.reason).toMatchObject({
+      code: "INVALID_FLEET",
+      message: expect.stringContaining("Warmaster"),
+    });
+    await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder", commander: { kind: "warmaster", leadership: 8, marks: ["tzeentch"] } }] });
+    const state = h.stateOf("b")!;
+    expect(state.meta.options.fleetLists).toBe(true);
+    expect(state.ships.map((s) => s.commander?.rerolls ?? null)).toEqual([2, null, null, 2]);
   });
 
   test("a host over its own points limit can't create the game", async () => {

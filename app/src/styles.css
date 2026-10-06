@@ -266,6 +266,10 @@ strong.p2 { color: var(--p2); }
 .ship-row input, .ship-row select { min-width: 0; width: 100%; box-sizing: border-box; }
 .ship-options { grid-column: 1 / -1; border: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0 12px; }
 .ship-options legend { padding: 0; }
+.card .commander { color: var(--accent); font-size: 0.85em; }
+.command { border: 1px dashed var(--muted); border-radius: 4px; padding: 6px 8px; margin: 6px 0; display: grid; gap: 6px; }
+.command .marks { display: flex; flex-wrap: wrap; gap: 0 12px; }
+.command .lord { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 6px; align-items: end; }
 .result-panel { display: grid; gap: 0.25rem; }
 .vp-breakdown { margin: 0; padding-left: 1rem; font-size: 0.85rem; }
 .vp-breakdown ul { margin: 0; padding-left: 1rem; color: var(--muted); }

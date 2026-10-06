@@ -20,7 +20,9 @@ function rulesLine(lobby: LobbyInfo): string {
       : forces?.kind === "points"
       ? `${forces.limit} points a side`
       : `Cruiser Clash, ${lobby.count} cruiser${lobby.count === 1 ? "" : "s"} a side${carriers ? ", one carrier each" : ""}`;
-  const score = scoring === "victory_points" ? ", victory points" : forces?.kind === "points" ? ", Cruiser Clash scoring" : "";
+  const score =
+    (scoring === "victory_points" ? ", victory points" : forces?.kind === "points" ? ", Cruiser Clash scoring" : "") +
+    ((lobby.options as Partial<LobbyInfo["options"]>).fleetLists === true ? ", fleet lists" : "");
   return `${size}${score}, ${ramming ? "ramming allowed" : "no ramming"}, ${boarding ? "boarding allowed" : "no boarding"}.`;
 }
 
@@ -95,13 +97,14 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
   const points = forces?.kind === "points" ? forces.limit : null;
   const carriers = carriersAllowed({ carriers: options.carriers === true, ...(forces ? { forces } : {}) });
   const dupes = duplicates([...hostNames, ...side.ships]);
-  const problem = dupes.length > 0 ? null : sideProblem(side, carriers, forces);
+  const lists = options.fleetLists === true;
+  const problem = dupes.length > 0 ? null : sideProblem(side, carriers, forces, lists);
   return (
     <form
       className="new-game"
       onSubmit={(e) => {
         e.preventDefault();
-        if (dupes.length === 0 && problem === null) remote.join(side.name.trim(), side.fleet, shipEntries(side, carriers, forces?.kind === "points"));
+        if (dupes.length === 0 && problem === null) remote.join(side.name.trim(), side.fleet, shipEntries(side, carriers, forces?.kind === "points", lists));
       }}
     >
       <h2>You've been invited</h2>
@@ -121,13 +124,14 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
           setSide({
             ...side,
             ...patch,
-            ...(patch.fleet !== undefined && patch.fleet !== side.fleet ? { ships: resize([], patch.fleet, lobby.count, hostNames), classes: [] } : {}),
+            ...(patch.fleet !== undefined && patch.fleet !== side.fleet ? { ships: resize([], patch.fleet, lobby.count, hostNames), classes: [], options: [], command: undefined } : {}),
           })
         }
         dupes={dupes}
         carriers={carriers}
         pointsLimit={points}
         taken={hostNames}
+        lists={lists}
       />
       <DuplicateNames dupes={dupes} />
       <FleetProblem problem={problem} />

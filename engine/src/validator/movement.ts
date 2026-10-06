@@ -3,7 +3,7 @@ import { BM_SLOWDOWN } from "../geometry/constants";
 import { approxEq, approxGe, approxLe, baseRadius, basesTouch, distance } from "../geometry/basic";
 import { exitDistance, touchesAnyBm, walkShipPath } from "../geometry/path";
 import { allAheadFullEnd, moveParameters } from "../rules/move";
-import { bmsInContact, isHulk, onTable } from "../state/derived";
+import { bmsInContact, canBeBoarded, isHulk, onTable, rerollFor } from "../state/derived";
 import type { GameState, Point, Ship } from "../state/types";
 import type { DeclareOrder, DriftHulk, Move } from "../transforms/types";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
@@ -72,7 +72,8 @@ export function checkDeclareOrder(state: GameState, t: DeclareOrder): Validation
       });
     }
   }
-  return OK;
+  // 11: a re-roll to use if the check fails
+  return rerollCheck(state, ship, t.reroll);
 }
 
 export function checkMove(state: GameState, t: Move): ValidationResult {
@@ -171,12 +172,15 @@ export function checkMove(state: GameState, t: Move): ValidationResult {
     }
   }
 
-  // 15–19: a boarding declaration (transform T8)
-  if (t.boardTargetId === undefined) return OK;
+  // 15–19: a boarding declaration (transform T8); then 20, the re-roll
+  if (t.boardTargetId === undefined) return rerollCheck(state, ship, t.reroll, t.disengage);
   if (!state.meta.options.boarding) return reject("BOARDING_OFF", "Boarding isn't in play in this game");
   const target = state.ships.find((s) => s.id === t.boardTargetId);
   if (target === undefined || target.owner === ship.owner || target.status !== "active") {
     return reject("INVALID_BOARDING_TARGET", "Only an active enemy ship can be boarded", { targetId: t.boardTargetId });
+  }
+  if (!canBeBoarded(target)) {
+    return reject("INVALID_BOARDING_TARGET", `${target.name} bears the Mark of Nurgle: it can't be boarded`, { targetId: target.id });
   }
   if (target.grapple !== null) {
     return reject("TARGET_GRAPPLED", `${target.name} is already locked in a boarding action`, { targetId: target.id });
@@ -189,5 +193,13 @@ export function checkMove(state: GameState, t: Move): ValidationResult {
   if (!basesTouch(walk.end.position, ship.profile.baseSize, target.position as Point, target.profile.baseSize)) {
     return reject("NOT_IN_CONTACT", `${ship.name} must end its move touching ${target.name}`, { distance: gap, needed });
   }
+  return rerollCheck(state, ship, t.reroll, t.disengage);
+}
+
+/** `reroll` asks for a fleet commander re-roll: there must be one for this ship, and a test to use it on (V14). */
+export function rerollCheck(state: GameState, ship: Ship, reroll: boolean | undefined, hasTest = true): ValidationResult {
+  if (reroll !== true) return OK;
+  if (!hasTest) return reject("NO_REROLL", "There's no test to re-roll", { shipId: ship.id });
+  if (rerollFor(state, ship) === undefined) return reject("NO_REROLL", `${ship.name} has no fleet commander re-roll to use`, { shipId: ship.id });
   return OK;
 }

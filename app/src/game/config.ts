@@ -4,7 +4,7 @@
  * classes. Mirror matches are fine. With the carriers option (p. 129), a
  * side may also field its fleet's carrier.
  */
-import { CATALOGUE, newGame, profileWithOptions, type FactionId, type Forces, type GameConfig, type PlayerId, type ScenarioId, type Scoring } from "@bfg/engine";
+import { CATALOGUE, commanderPoints, newGame, profileWithOptions, type CommanderConfig, type FactionId, type Mark, type Forces, type GameConfig, type PlayerId, type ScenarioId, type Scoring } from "@bfg/engine";
 
 export type Fleet = "imperial_navy" | "chaos";
 
@@ -31,10 +31,38 @@ export const MAX_SHIPS = 4;
 export const MAX_POINTS_SHIPS = 8;
 export const POINTS_LIMITS = [500, 750, 1000, 1500] as const;
 
-/** `classes[i]`: ship i's class; missing means the fleet's standard cruiser. `options[i]`: its option ids (T57). */
-export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[]; options?: string[][] };
-/** `scenario`/`forces`/`scoring`: absent means classic Cruiser Clash (transform §5). Fleet Engagement is points and victory points. */
-export type NewGameOptions = { p1: Side; p2: Side; ramming: boolean; boarding: boolean; carriers?: boolean; scenario?: ScenarioId; forces?: Forces; scoring?: Scoring; seed?: number };
+/** `classes[i]`: ship i's class; missing means the fleet's standard cruiser. `options[i]`: its option ids (T57). `command`: commanders, with fleet lists. */
+export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[]; options?: string[][]; command?: Command | undefined };
+
+/**
+ * A side's commanders (transform §5, T60). `fleet`: the Admiral or Warmaster, or
+ * none; `flagship`: the Admiral's ship (a Warmaster always takes the most
+ * expensive); `lords`: Chaos Lords, by ship.
+ */
+export type Command = { fleet: CommanderConfig | null; flagship: number; lords: { ship: number; mark: Mark | null }[] };
+
+/** Chaos Incursion always has its Warmaster (p. 232); an Imperial fleet starts without an Admiral. */
+export const defaultCommand = (fleet: Fleet): Command =>
+  fleet === "chaos" ? { fleet: { kind: "warmaster", leadership: 8, marks: [] }, flagship: 0, lords: [] } : { fleet: null, flagship: 0, lords: [] };
+/**
+ * `scenario`/`forces`/`scoring`: absent means classic Cruiser Clash (transform §5). Fleet Engagement is points and victory points.
+ * `fleetLists`: points battles follow the fleet lists, with commanders (T58).
+ */
+export type NewGameOptions = {
+  p1: Side;
+  p2: Side;
+  ramming: boolean;
+  boarding: boolean;
+  carriers?: boolean;
+  fleetLists?: boolean;
+  scenario?: ScenarioId;
+  forces?: Forces;
+  scoring?: Scoring;
+  seed?: number;
+};
+
+/** Fleet lists apply to points battles only (T58). */
+export const listsOn = (o: Pick<NewGameOptions, "fleetLists" | "forces">): boolean => o.forces?.kind === "points" && o.fleetLists === true;
 
 /** A points battle has no per-ship cap, so carriers are always allowed there (T36). */
 export const carriersAllowed = (o: Pick<NewGameOptions, "carriers" | "forces">): boolean => o.forces?.kind === "points" || o.carriers === true;
@@ -94,14 +122,45 @@ export const optionIds = (side: Side, carriers: boolean, points = false): string
 export const shipProfileOf = (side: Side, i: number, carriers: boolean, points = false) =>
   profileWithOptions(classIds(side, carriers, points)[i] ?? FLEETS[side.fleet].classId, optionIds(side, carriers, points)[i] ?? []);
 
-/** A side's ships as `{ name, classId, options? }`: the online protocol's shape. */
-export const shipEntries = (side: Side, carriers = false, points = false): { name: string; classId: string; options?: string[] }[] => {
+/** The most expensive ship (with its options): where a Warmaster goes (p. 232). The first on a tie. */
+export function mostExpensive(side: Side, carriers: boolean, points = false): number {
+  const values = side.ships.map((_, i) => shipProfileOf(side, i, carriers, points).points);
+  return values.indexOf(Math.max(...values));
+}
+
+/** Each ship's commander, if any, from the side's command (lists only). A Lord on the fleet commander's ship, or a second on one ship, is dropped. */
+export function commanders(side: Side, carriers: boolean, points = false): (CommanderConfig | undefined)[] {
+  const out: (CommanderConfig | undefined)[] = side.ships.map(() => undefined);
+  const command = side.command ?? defaultCommand(side.fleet);
+  if (command.fleet !== null) {
+    const at = command.fleet.kind === "warmaster" ? mostExpensive(side, carriers, points) : Math.min(command.flagship, side.ships.length - 1);
+    out[at] = command.fleet;
+  }
+  for (const lord of command.lords) {
+    if (lord.ship < out.length && out[lord.ship] === undefined) out[lord.ship] = { kind: "lord", mark: lord.mark };
+  }
+  return out;
+}
+
+/** What the side's commanders cost. */
+export const commandPoints = (side: Side, carriers: boolean, points = false): number =>
+  commanders(side, carriers, points).reduce((n, c) => n + (c !== undefined ? commanderPoints(c) : 0), 0);
+
+/** A side's ships as `{ name, classId, options?, commander? }`: the online protocol's shape. Commanders only with fleet lists. */
+export const shipEntries = (
+  side: Side,
+  carriers = false,
+  points = false,
+  lists = false,
+): { name: string; classId: string; options?: string[]; commander?: CommanderConfig }[] => {
   const classes = classIds(side, carriers, points);
   const options = optionIds(side, carriers, points);
+  const command = lists ? commanders(side, carriers, points) : [];
   return side.ships.map((name, i) => ({
     name: name.trim(),
     classId: classes[i] ?? FLEETS[side.fleet].classId,
     ...((options[i] ?? []).length > 0 ? { options: options[i] } : {}),
+    ...(command[i] !== undefined ? { commander: command[i] } : {}),
   }));
 };
 
@@ -116,19 +175,20 @@ export function configProblem(options: NewGameOptions): string | null {
 }
 
 /** Why one side's fleet can't play, tried against a mirror of itself (as the server checks it), or null. */
-export const sideProblem = (side: Side, carriers: boolean, forces?: Forces): string | null =>
-  configProblem({ p1: side, p2: { ...side, ships: side.ships.map((_, i) => `mirror ${i}`) }, ramming: true, boarding: false, carriers, ...(forces ? { forces } : {}) });
+export const sideProblem = (side: Side, carriers: boolean, forces?: Forces, fleetLists = false): string | null =>
+  configProblem({ p1: side, p2: { ...side, ships: side.ships.map((_, i) => `mirror ${i}`) }, ramming: true, boarding: false, carriers, fleetLists, ...(forces ? { forces } : {}) });
 
 /** The app's fleets are the boxed game's two; anything else reads as Imperial. */
 export const asFleet = (faction: string | null): Fleet => (faction === "chaos" ? "chaos" : "imperial_navy");
 
 export function cruiserClash(options: NewGameOptions, now = new Date()): GameConfig {
   const carriers = options.carriers ?? false;
-  const ships = (owner: PlayerId) => shipEntries(options[owner], carriersAllowed(options), options.forces?.kind === "points").map((s) => ({ owner, ...s }));
+  const lists = listsOn(options);
+  const ships = (owner: PlayerId) => shipEntries(options[owner], carriersAllowed(options), options.forces?.kind === "points", lists).map((s) => ({ owner, ...s }));
   return {
     seed: options.seed ?? randomSeed(),
     createdAt: now.toISOString(),
-    options: { ramming: options.ramming, boarding: options.boarding, carriers },
+    options: { ramming: options.ramming, boarding: options.boarding, carriers, ...(lists ? { fleetLists: true } : {}) },
     ...(options.scenario !== undefined ? { scenario: options.scenario } : {}),
     ...(options.forces !== undefined ? { forces: options.forces } : {}),
     ...(options.scoring !== undefined ? { scoring: options.scoring } : {}),

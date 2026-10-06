@@ -108,6 +108,11 @@ export function applyCritical(ctx: Ctx, ship: Ship, rolled: number, rolls: numbe
     if (kind === "engine_room" || kind === "thrusters") extra = 1;
   }
   ctx.log("critical", { shipId: ship.id, rolls, rolled, applied, kind, extraRolls });
+  // A commander on a smashed bridge loses the re-rolls left (fleets book, p. 11; R30).
+  if (kind === "bridge_smashed" && ship.commander !== undefined && ship.commander !== null && ship.commander.rerolls > 0) {
+    ship.commander.rerolls = 0;
+    ctx.log("rerolls_lost", { shipId: ship.id, reason: "bridge_smashed" });
+  }
 
   for (let i = 0; i < extra; i++) {
     if (ship.damage >= ship.profile.hits) break;

@@ -1,4 +1,4 @@
-import { leadership, maxShields, remainingHits, type GameState, type Ship } from "@bfg/engine";
+import { leadership, maxShields, remainingHits, type Commander, type GameState, type Ship } from "@bfg/engine";
 import { playerClass } from "../players";
 
 const words = (s: string) => s.replaceAll("_", " ");
@@ -40,13 +40,14 @@ function ShipCard({ ship, state, selected, onSelect }: { ship: Ship; state: Game
         ))}
       </div>
       <div className="stats">
-        <span>Ld {ship.leadership ?? "?"}{ship.leadership !== null && leadership(ship) !== ship.leadership ? ` (${leadership(ship)})` : ""}</span>
+        <span>Ld {ship.commander?.leadership ?? ship.leadership ?? "?"}{ship.leadership !== null && leadership(state, ship) !== (ship.commander?.leadership ?? ship.leadership) ? ` (${leadership(state, ship)})` : ""}</span>
         <span>Shields {maxShields(ship)}</span>
         <span>Speed {ship.profile.speed}</span>
         {ship.loaded.torpedoes !== undefined && <span>{ship.loaded.torpedoes ? "Torps loaded" : "Torps empty"}</span>}
         {ship.loaded.launchBays !== undefined && <span>{ship.loaded.launchBays ? "Bays ready" : "Bays spent"}</span>}
         {cap > 0 && <span>CAP {cap}</span>}
       </div>
+      {ship.commander !== undefined && ship.commander !== null && <div className="commander">{commanderLine(ship.commander)}</div>}
       {status !== "" && <div className="status">{status}</div>}
       {ship.specialOrder !== null && <div className="order">{words(ship.specialOrder.kind)}</div>}
       {ship.grapple !== null && <div className="status">Grappled with {grappledWith(state, ship).join(", ")}</div>}
@@ -70,4 +71,12 @@ function grappledWith(state: GameState, ship: Ship): string[] {
   const g = ship.grapple;
   if (g === null) return [];
   return [g.defenderId, ...g.attackerIds].filter((id) => id !== ship.id).map((id) => nameOf(state, id));
+}
+
+const COMMANDER = { admiral: "Admiral", warmaster: "Warmaster", lord: "Chaos Lord" } as const;
+
+/** "Admiral, Ld 9 · 2 re-rolls" or "Warmaster, Ld 8 · Marks of Khorne, Nurgle · 1 re-roll" */
+function commanderLine(c: Commander): string {
+  const marks = c.marks.length > 0 ? ` · Mark${c.marks.length > 1 ? "s" : ""} of ${c.marks.map((m) => m.charAt(0).toUpperCase() + m.slice(1)).join(", ")}` : "";
+  return `${COMMANDER[c.kind]}, Ld ${c.leadership}${marks} · ${c.rerolls} re-roll${c.rerolls === 1 ? "" : "s"}`;
 }

@@ -69,15 +69,15 @@ describe("characteristics", () => {
   });
 
   test("leadership: Bridge Smashed −3, capped at 10", () => {
-    const { unclean } = fresh();
-    expect(d.leadership(unclean)).toBe(7);
+    const { s, unclean } = fresh();
+    expect(d.leadership(s, unclean)).toBe(7);
     crit(unclean, "bridge_smashed");
-    expect(d.leadership(unclean)).toBe(4);
+    expect(d.leadership(s, unclean)).toBe(4);
     unclean.criticals = [];
     unclean.leadership = 12;
-    expect(d.leadership(unclean)).toBe(10);
+    expect(d.leadership(s, unclean)).toBe(10);
     unclean.leadership = null;
-    expect(() => d.leadership(unclean)).toThrow(d.EngineError);
+    expect(() => d.leadership(s, unclean)).toThrow(d.EngineError);
   });
 
   test("shields: halved when crippled, 0 after collapse or as a hulk", () => {

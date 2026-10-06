@@ -1,6 +1,6 @@
 /** Online Cruiser Clash (p. 128): each seat brings its own fleet; the room builds the config when both have. */
 import { newGame, type FactionId, type Forces, type GameConfig, type PlayerId, type ScenarioId } from "@bfg/engine";
-import { MAX_NAME_LENGTH, MAX_POINTS_SHIPS, MAX_SHIPS, type RoomOptions, type ShipEntry } from "./protocol";
+import { MAX_NAME_LENGTH, MAX_POINTS_SHIPS, MAX_SHIPS, shipEntry, type RoomOptions, type ShipEntry } from "./protocol";
 
 export type SeatFleet = { name: string; faction: FactionId; ships: ShipEntry[] };
 
@@ -10,11 +10,11 @@ export function cruiserClash(
   createdAt: string,
   options: RoomOptions,
 ): GameConfig {
-  const ships = (owner: PlayerId) => seats[owner].ships.map((s) => ({ owner, name: s.name, classId: s.classId, ...(s.options ? { options: s.options } : {}) }));
+  const ships = (owner: PlayerId) => seats[owner].ships.map((s) => ({ owner, ...shipEntry(s) }));
   return {
     seed,
     createdAt,
-    options: { ramming: options.ramming, boarding: options.boarding, carriers: options.carriers },
+    options: { ramming: options.ramming, boarding: options.boarding, carriers: options.carriers, ...(options.fleetLists ? { fleetLists: true } : {}) },
     scenario: options.scenario,
     forces: options.forces,
     scoring: options.scoring,
@@ -45,6 +45,7 @@ export function fleetProblem(
   carriers = false,
   forces: Forces = { kind: "cruiser_clash" },
   scenario: ScenarioId = "cruiser_clash",
+  fleetLists = false,
 ): string | null {
   if (forces.kind === "points") {
     // A points battle: each side brings its own number of ships, within the limit (T36).
@@ -56,12 +57,12 @@ export function fleetProblem(
   if (ships.some((s) => cleanName(s.name) === null)) return `Ship names need 1–${MAX_NAME_LENGTH} characters`;
   const names = ships.map((s) => s.name.trim());
   if (new Set(names).size !== names.length) return "Every ship needs its own name";
-  const side = (owner: PlayerId) => ships.map((s) => ({ owner, name: s.name, classId: s.classId, ...(s.options ? { options: s.options } : {}) }));
+  const side = (owner: PlayerId) => ships.map((s) => ({ owner, ...shipEntry(s) }));
   try {
     newGame({
       seed: 1,
       createdAt: "1970-01-01T00:00:00Z",
-      options: { carriers },
+      options: { carriers, ...(fleetLists ? { fleetLists: true } : {}) },
       scenario,
       forces,
       players: { p1: { name: "a", faction: faction as FactionId }, p2: { name: "b", faction: faction as FactionId } },

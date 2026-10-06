@@ -5,6 +5,7 @@ import { getShip, leadership } from "../../state/derived";
 import type { Point, Quadrant } from "../../state/types";
 import type { Fire } from "../../transforms/types";
 import type { Ctx } from "../context";
+import { rerollableTest } from "../reroll";
 
 export function fire(ctx: Ctx, t: Fire): void {
   const { state } = ctx;
@@ -25,10 +26,11 @@ export function fire(ctx: Ctx, t: Fire): void {
 
   // Target priority (p. 60): a test only if this isn't the nearest target (for any weapon in the volley, T34) and none was taken yet.
   if (entry.priorityTest === null && volley.some((w) => !isNearest(state, ship, w, target))) {
-    const ld = leadership(ship);
-    const test = ctx.test(2, ld);
+    const ld = leadership(state, ship);
+    const test = rerollableTest(ctx, ship, 2, ld, t.reroll === true, "priority", (r) =>
+      ctx.log("priority_test", { shipId: ship.id, target: ld, rolls: r.rolls, passed: r.passed }),
+    );
     entry.priorityTest = test.passed ? "passed" : "failed";
-    ctx.log("priority_test", { shipId: ship.id, target: ld, rolls: test.rolls, passed: test.passed });
     if (!test.passed) return; // the weapon isn't spent: it may fire at the nearest target instead
   }
 

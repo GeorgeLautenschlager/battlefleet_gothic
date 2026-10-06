@@ -19,3 +19,4 @@ export { boardingsToFight, type BoardingGroup } from "./rules/boarding";
 export * as craft from "./rules/craft";
 export * from "./reducer";
 export * as engagement from "./rules/engagement";
+export { FLEET_LISTS, commanderPoints, fleetListProblem, type CommanderConfig, type FleetList } from "./rules/fleetLists";

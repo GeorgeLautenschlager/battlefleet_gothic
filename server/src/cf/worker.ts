@@ -74,6 +74,7 @@ export default {
           ramming: body?.ramming !== false,
           boarding: body?.boarding === true,
           carriers: body?.carriers === true,
+          fleetLists: body?.fleetLists === true,
           ...(body?.scenario === "fleet_engagement" ? { scenario: "fleet_engagement" as const } : {}),
           ...forcesOf(body?.forces),
           ...(body?.scoring === "victory_points" ? { scoring: "victory_points" as const } : {}),

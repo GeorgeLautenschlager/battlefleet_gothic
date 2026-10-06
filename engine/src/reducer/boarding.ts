@@ -127,9 +127,12 @@ export function boardingFight(ctx: Ctx, defenderId: string, attackerIds: string[
   const [losers, winners] = loser === "attackers" ? [attackers, [defender]] : [[defender], attackers];
   boardingDamage(ctx, losers, diff);
   const [loserNeed, winnerNeed] = CRITS[Math.min(diff, 5)] ?? ["auto", "none"];
+  // The Warmaster's Mark of Khorne: +1 to the critical rolls his side inflicts (R31).
+  const khorne = (side: Ship[]): number => (side.some((s) => s.commander?.kind === "warmaster" && s.commander.marks.includes("khorne")) ? 1 : 0);
+  const bonus = (b: number) => (b > 0 ? { bonus: b } : {});
   enqueueFront(state, [
-    ...losers.map((s) => ({ kind: "boarding_critical" as const, shipId: s.id, need: loserNeed })),
-    ...winners.map((s) => ({ kind: "boarding_critical" as const, shipId: s.id, need: winnerNeed })),
+    ...losers.map((s) => ({ kind: "boarding_critical" as const, shipId: s.id, need: loserNeed, ...bonus(khorne(winners)) })),
+    ...winners.map((s) => ({ kind: "boarding_critical" as const, shipId: s.id, need: winnerNeed, ...bonus(khorne(losers)) })),
   ]);
 }
 
@@ -164,12 +167,12 @@ function joinGrapple(ctx: Ctx, defender: Ship, attackers: Ship[]): void {
 }
 
 /** One ship's critical check after a boarding fight (R11). Brace doesn't apply (T12). */
-export function boardingCritical(ctx: Ctx, shipId: string, need: Need): void {
+export function boardingCritical(ctx: Ctx, shipId: string, need: Need, bonus = 0): void {
   const ship = getShip(ctx.state, shipId);
   if (ship.status !== "active" || need === "none") return; // a ship at 0 makes no critical checks (R2)
   const rolls = need === "auto" ? [] : [ctx.d6()];
-  const hit = need === "auto" || (rolls[0] ?? 0) >= need;
-  ctx.log("boarding_critical", { shipId, need, rolls, critical: hit });
+  const hit = need === "auto" || (rolls[0] ?? 0) + bonus >= need;
+  ctx.log("boarding_critical", { shipId, need, rolls, critical: hit, ...(bonus > 0 ? { bonus } : {}) });
   if (!hit) return;
   critical(ctx, ship);
   if (ship.damage >= ship.profile.hits && ship.status === "active") catastrophic(ctx, ship); // p. 90

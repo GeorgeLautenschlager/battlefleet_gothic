@@ -876,7 +876,7 @@ type WorkItem =
   | { kind: "hulk_drift", shipId: string, distance: number, travelled: number }
   | { kind: "fire_damage", shipId: string }
   | { kind: "boarding_fight", defenderId: string, attackerIds: string[] }
-  | { kind: "boarding_critical", shipId: string, need: number | "auto" | "none" }
+  | { kind: "boarding_critical", shipId: string, need: number | "auto" | "none", bonus?: number }   // bonus: the Warmaster's Mark of Khorne (R31)
   | { kind: "teleport_attack", shipId: string, targetId: string }
   | { kind: "craft_meets_ship", ordnanceId: string, targetId: string, bmTested: boolean }
   | { kind: "craft_attack", ordnanceId: string, targetId: string }

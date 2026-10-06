@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { PlayerId } from "@bfg/engine";
-import { carriersAllowed, configProblem, defaultNames, MAX_SHIPS, type NewGameOptions, type Side } from "../game/config";
+import { carriersAllowed, configProblem, defaultNames, listsOn, MAX_SHIPS, type NewGameOptions, type Side } from "../game/config";
 import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks } from "./FleetForm";
 
 const PLAYERS: PlayerId[] = ["p1", "p2"];
@@ -11,6 +11,7 @@ const INITIAL: NewGameOptions = {
   ramming: true,
   boarding: true,
   carriers: false,
+  fleetLists: true,
 };
 
 /** Hot-seat: Cruiser Clash (the same number of cruisers each) or a points battle (each side spends its points). */
@@ -26,8 +27,10 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
     // A new fleet brings its own default names; in a mirror match p2 takes the second half of the list.
     if (patch.fleet !== undefined && patch.fleet !== o[p].fleet) {
       const mirror = next.p1.fleet === next.p2.fleet;
-      next.p1 = { ...next.p1, ships: defaultNames(next.p1.fleet, next.p1.ships.length), ...(p === "p1" ? { classes: [] } : {}) };
-      next.p2 = { ...next.p2, ships: defaultNames(next.p2.fleet, next.p2.ships.length, mirror), ...(p === "p2" ? { classes: [] } : {}) };
+      // …and drops the old fleet's classes, options and commanders.
+      const reset = { classes: [], options: [], command: undefined };
+      next.p1 = { ...next.p1, ships: defaultNames(next.p1.fleet, next.p1.ships.length), ...(p === "p1" ? reset : {}) };
+      next.p2 = { ...next.p2, ships: defaultNames(next.p2.fleet, next.p2.ships.length, mirror), ...(p === "p2" ? reset : {}) };
     }
     setO(next);
   };
@@ -67,9 +70,10 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
           carriers={carriersAllowed(o)}
           pointsLimit={points}
           taken={o[p === "p1" ? "p2" : "p1"].ships}
+          lists={listsOn(o)}
         />
       ))}
-      <RulesChecks value={{ ...o, carriers: o.carriers === true }} onChange={(rules) => setO({ ...o, ...rules })} points={points !== null} />
+      <RulesChecks value={{ ...o, carriers: o.carriers === true, fleetLists: o.fleetLists === true }} onChange={(rules) => setO({ ...o, ...rules })} points={points !== null} />
       <DuplicateNames dupes={dupes} />
       <FleetProblem problem={problem} />
       <div className="buttons">

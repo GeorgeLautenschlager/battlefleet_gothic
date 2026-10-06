@@ -4,11 +4,12 @@
  * Every function here is a pure function of the state. They're the single
  * definition the validator, reducer and UI all share: never store their results.
  */
-import { DEFENCES_MOVE, EPS, MAX_LEADERSHIP } from "../geometry/constants";
-import { bmTouchesBase, quadrantsOfPoint } from "../geometry/basic";
+import { DEFENCES_MOVE, EPS, MAX_LEADERSHIP, SLAANESH_RANGE } from "../geometry/constants";
+import { approxLe, bmTouchesBase, distance, quadrantsOfPoint } from "../geometry/basic";
 import type {
   AttackCraftWave,
   BlastMarker,
+  Commander,
   CriticalKind,
   Ordnance,
   GameState,
@@ -68,12 +69,56 @@ export const hasCritical = (ship: Ship, kind: CriticalKind): boolean =>
 
 export const isBraced = (ship: Ship): boolean => ship.specialOrder?.kind === "brace_for_impact";
 
-/** Leadership after Bridge Smashed, capped at 10. Throws if not rolled yet. */
-export function leadership(ship: Ship): number {
-  if (ship.leadership === null) throw new EngineError(`${ship.id} has no Leadership yet`);
-  const value = ship.leadership - (hasCritical(ship, "bridge_smashed") ? 3 : 0);
+/** A commander aboard, if any (state §7.4); older saves have none. */
+export const commanderOf = (ship: Ship): Commander | null => ship.commander ?? null;
+
+/** An active enemy ship with the Mark of Slaanesh has its stem within 15 cm (state §7.4, N26). */
+export function slaaneshNear(state: GameState, ship: Ship): boolean {
+  const stem = ship.position;
+  if (stem === null) return false;
+  return state.ships.some(
+    (s) =>
+      s.owner !== ship.owner &&
+      s.status === "active" &&
+      s.position !== null &&
+      (s.commander?.marks.includes("slaanesh") ?? false) &&
+      approxLe(distance(stem, s.position), SLAANESH_RANGE),
+  );
+}
+
+/**
+ * Leadership (state §11): a commander's replaces the rolled value (N22); then
+ * −3 for Bridge Smashed and −2 near an enemy Mark of Slaanesh; capped at 10.
+ * Throws if not rolled yet.
+ */
+export function leadership(state: GameState, ship: Ship): number {
+  const commander = commanderOf(ship);
+  if (commander === null && ship.leadership === null) throw new EngineError(`${ship.id} has no Leadership yet`);
+  const base = commander?.leadership ?? (ship.leadership as number);
+  const value = base - (hasCritical(ship, "bridge_smashed") ? 3 : 0) - (slaaneshNear(state, ship) ? 2 : 0);
   return Math.min(MAX_LEADERSHIP, value);
 }
+
+/** The ship, its options and anyone aboard: its value for victory points (N25). */
+export const shipValue = (ship: Ship): number => ship.profile.points + (ship.commander?.points ?? 0);
+
+/** The side's fleet commander's ship, if any (an Admiral or Warmaster). */
+export const flagship = (state: GameState, player: PlayerId): Ship | undefined =>
+  state.ships.find((s) => s.owner === player && (s.commander?.kind === "admiral" || s.commander?.kind === "warmaster"));
+
+/**
+ * The ship whose commander would spend a re-roll for `ship` (state §11, N23–N24):
+ * its own commander if they have one left, else its side's fleet commander, if
+ * that ship is active and has one left. Undefined if there's none.
+ */
+export function rerollFor(state: GameState, ship: Ship): Ship | undefined {
+  if ((ship.commander?.rerolls ?? 0) > 0) return ship;
+  const fleet = flagship(state, ship.owner);
+  return fleet !== undefined && fleet.status === "active" && (fleet.commander?.rerolls ?? 0) > 0 ? fleet : undefined;
+}
+
+/** Not on the Mark of Nurgle (T62). */
+export const canBeBoarded = (ship: Ship): boolean => !(ship.commander?.marks.includes("nurgle") ?? false);
 
 /** Current speed: −5 cm crippled, −10 cm with Thrusters damaged (once, however many). */
 export function speed(ship: Ship): number {
@@ -205,7 +250,7 @@ export const fleetBays = (state: GameState, player: PlayerId): number =>
 export const isGrappled = (ship: Ship): boolean => ship.grapple !== null;
 
 /** Boarding value (p. 89): damage points remaining. Later fleets modify it (Mark of Khorne, Tau). */
-export const boardingValue = (ship: Ship): number => remainingHits(ship);
+export const boardingValue = (ship: Ship): number => remainingHits(ship) * ((ship.commander?.marks.includes("khorne") ?? false) ? 2 : 1);
 
 /** Shields down: the ship can be teleported onto (pp. 91–92). */
 export const shieldsDown = (state: GameState, ship: Ship): boolean => shieldCapacity(state, ship) === 0;
@@ -253,7 +298,7 @@ export function targetedAsDefences(ship: Ship): boolean {
 export function commandCheckLd(state: GameState, ship: Ship): number {
   const underFire = bmsInContact(state, ship).length > 0 ? 1 : 0;
   const enemyContacts = state.ships.some((s) => s.owner !== ship.owner && s.specialOrder !== null) ? 1 : 0;
-  return Math.min(MAX_LEADERSHIP, leadership(ship) - underFire + enemyContacts);
+  return Math.min(MAX_LEADERSHIP, leadership(state, ship) - underFire + enemyContacts);
 }
 
 export type GunneryColumn = "A" | "B" | "C" | "D" | "E";
@@ -307,7 +352,7 @@ const percent = (points: number, pct: number): number => Math.ceil((points * pct
 
 /** What an enemy ship is worth to its opponent now, or null if nothing. */
 export function shipVP(ship: Ship): ShipVP | null {
-  const points = ship.profile.points;
+  const points = shipValue(ship);
   if (destroyedForScoring(ship)) return { shipId: ship.id, vp: points, why: "destroyed" };
   if (ship.status === "disengaged") return { shipId: ship.id, vp: percent(points, isCrippled(ship) ? 25 : 10), why: "disengaged" };
   if (ship.status === "active" && isCrippled(ship)) return { shipId: ship.id, vp: percent(points, 25), why: "crippled" };
@@ -319,7 +364,7 @@ export function holdingTheField(state: GameState, player: PlayerId): number {
   const mine = state.ships.some((s) => s.owner === player && s.status === "active");
   const theirs = state.ships.some((s) => s.owner !== player && s.status === "active");
   if (!mine || theirs) return 0;
-  return state.ships.filter(isHulk).reduce((n, s) => n + percent(s.profile.points, 50), 0);
+  return state.ships.filter(isHulk).reduce((n, s) => n + percent(shipValue(s), 50), 0);
 }
 
 /** Victory points for `player`: enemy ships destroyed, crippled or disengaged, plus holding the field. */

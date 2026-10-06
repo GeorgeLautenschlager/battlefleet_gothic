@@ -25,6 +25,7 @@ import { inflict, rerollHulk } from "./damage";
 import { enqueueFront } from "./queue";
 import { releaseCap, syncCap } from "./cap";
 import { capOf, strikers, waveRadius } from "../rules/craft";
+import { rerollableTest } from "./reroll";
 
 // --- The move transform (§8.1)
 
@@ -36,6 +37,7 @@ export function move(ctx: Ctx, t: Move): void {
   a.stage = "moving";
   a.remainingPath = cloneJson(t.path);
   a.disengage = t.disengage;
+  a.reroll = t.reroll === true;
   a.boardTargetId = t.boardTargetId ?? null;
   state.queue.push({ kind: "continue_move" });
 }
@@ -339,9 +341,10 @@ function disengageTest(ctx: Ctx, ship: Ship): void {
   const enemies =
     state.ships.filter((s) => s.owner !== ship.owner && onTable(s) && s.position !== null && approxLe(distance(stem, s.position), 15)).length +
     state.ordnance.filter((o) => o.owner !== ship.owner && approxLe(distance(stem, o.position), 15)).length;
-  const target = leadership(ship) + bms - enemies;
-  const test = ctx.test(2, target);
-  ctx.log("disengage_test", { shipId: ship.id, target, rolls: test.rolls, passed: test.passed });
+  const target = leadership(state, ship) + bms - enemies;
+  const test = rerollableTest(ctx, ship, 2, target, state.activation?.reroll === true, "disengage", (r) =>
+    ctx.log("disengage_test", { shipId: ship.id, target, rolls: r.rolls, passed: r.passed }),
+  );
   if (test.passed) {
     releaseCap(ctx, ship);
     ship.status = "disengaged";

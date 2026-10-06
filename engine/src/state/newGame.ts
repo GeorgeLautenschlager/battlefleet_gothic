@@ -3,6 +3,7 @@
  * to validate against yet, so a bad config throws instead of returning a reason.
  */
 import { boardingModifier, CATALOGUE, profileWithOptions } from "./catalogue";
+import { buildCommander, commanderPoints, fleetListProblem, type CommanderConfig } from "../rules/fleetLists";
 import { EngineError } from "./derived";
 import { cloneJson } from "./json";
 import { createRng } from "./rng";
@@ -11,7 +12,8 @@ import type { FactionId, Forces, GameState, PlayerId, Scenario, ScenarioId, Scor
 export type GameConfig = {
   seed: number;
   createdAt: string;
-  options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean };
+  /** `fleetLists`: points battles follow the Gothic War fleet lists, with commanders (T58). */
+  options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean; fleetLists?: boolean };
   /** Default: Cruiser Clash. Fleet Engagement needs points forces and victory points (transform §5). */
   scenario?: ScenarioId;
   /** Default: Cruiser Clash forces (state §4). */
@@ -23,7 +25,7 @@ export type GameConfig = {
     p2: { name: string; faction: FactionId };
   };
   /** `options`: the class's option ids (transform §5, T57). */
-  ships: { owner: PlayerId; name: string; classId: string; options?: string[] }[];
+  ships: { owner: PlayerId; name: string; classId: string; options?: string[]; commander?: CommanderConfig }[];
 };
 
 /** A ship's profile as fielded: its class with its options applied, or an EngineError. */
@@ -97,7 +99,7 @@ function validateConfig(config: GameConfig): void {
     }
     if (entry.legacy === true && (ship.options ?? []).length > 0) throw new EngineError(`ships[${i}]: ${ship.classId} takes no options`);
     const profile = shipProfile(ship, i);
-    points[ship.owner] += profile.points;
+    points[ship.owner] += profile.points + (ship.commander !== undefined ? commanderPoints(ship.commander) : 0);
     // A points battle has no per-ship cap (T36): only the side's total counts.
     if (forces.kind === "cruiser_clash" && profile.points > CRUISER_CLASH.maxPoints) {
       // "One carrier each" (p. 129): a ship with launch bays may go over the cap, one per side.
@@ -123,6 +125,17 @@ function validateConfig(config: GameConfig): void {
       const n = side.filter((e) => e === entry).length;
       if (n > allowed) throw new EngineError(`${player} may field at most ${allowed} × ${entry.profile.className} in ${points} pts`);
     }
+  }
+  // Fleet lists and commanders (T58–T60): points battles only.
+  if (config.options?.fleetLists === true) {
+    if (forces.kind !== "points") throw new EngineError("fleet lists need a points battle");
+    for (const player of ["p1", "p2"] as const) {
+      const side = config.ships.flatMap((s, i) => (s.owner === player ? [{ classId: s.classId, profile: shipProfile(s, i), ...(s.commander ? { commander: s.commander } : {}) }] : []));
+      const problem = fleetListProblem(config.players[player].faction, side);
+      if (problem !== null) throw new EngineError(`${player}: ${problem}`);
+    }
+  } else if (config.ships.some((s) => s.commander !== undefined)) {
+    throw new EngineError("commanders come with the fleet lists");
   }
   if (forces.kind === "points") {
     for (const player of ["p1", "p2"] as const) {
@@ -168,6 +181,8 @@ export function newGame(config: GameConfig): GameState {
 
   const ships: Ship[] = config.ships.map((spec, i) => {
     const profile = cloneJson(shipProfile(spec, i)); // checked above
+    const commander = spec.commander !== undefined ? buildCommander(spec.commander) : null;
+    if (commander?.marks.includes("nurgle") === true) profile.hits += 1; // the Mark of Nurgle: +1 hit (state §7.4)
     const hasTorpedoes = profile.weapons.some((w) => w.kind === "torpedoes");
     const hasBays = profile.weapons.some((w) => w.kind === "launch_bay");
     return {
@@ -185,6 +200,7 @@ export function newGame(config: GameConfig): GameState {
       loaded: { ...(hasTorpedoes ? { torpedoes: true } : {}), ...(hasBays ? { launchBays: true } : {}) },
       lastMove: null,
       grapple: null,
+      ...(commander !== null ? { commander } : {}),
     };
   });
 
@@ -202,6 +218,7 @@ export function newGame(config: GameConfig): GameState {
         ramming: config.options?.ramming ?? true,
         boarding: config.options?.boarding ?? false,
         carriers: config.options?.carriers ?? false,
+        ...(config.options?.fleetLists === true ? { fleetLists: true } : {}),
       },
     },
     scenario: scenarioOf(config),

@@ -1,6 +1,6 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
-import { CATALOGUE } from "@bfg/engine";
-import { classChoices, classIds, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, type Fleet, type NewGameOptions, type Side } from "../game/config";
+import { CATALOGUE, type CommanderConfig, type Mark } from "@bfg/engine";
+import { classChoices, classIds, commandPoints, defaultCommand, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, mostExpensive, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, type Command, type Fleet, type NewGameOptions, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
 export function duplicates(names: string[]): string[] {
@@ -40,7 +40,7 @@ export function CountSelect({ value, onChange }: { value: number; onChange: (n: 
   );
 }
 
-export type Rules = { ramming: boolean; boarding: boolean; carriers: boolean };
+export type Rules = { ramming: boolean; boarding: boolean; carriers: boolean; fleetLists?: boolean };
 
 export type Battle = Pick<NewGameOptions, "scenario" | "forces" | "scoring">;
 
@@ -138,6 +138,12 @@ export function RulesChecks({ value, onChange, points = false }: { value: Rules;
           One carrier each, over the points cap (p. 129)
         </label>
       )}
+      {points && (
+        <label className="check">
+          <input type="checkbox" checked={value.fleetLists === true} onChange={(e) => onChange({ ...value, fleetLists: e.target.checked })} />
+          Fleet lists: Gothic Sector and Chaos Incursion ratios, Admirals, Warmasters and Lords
+        </label>
+      )}
     </>
   );
 }
@@ -156,13 +162,15 @@ type FieldsProps = {
   pointsLimit?: number | null;
   /** Names the other side has taken, for new ships' defaults. */
   taken?: string[];
+  /** Fleet lists are on: the side buys its commanders (T60). */
+  lists?: boolean;
 };
 
 /** Short names for options in summaries: "nova cannon", "targeting matrix"… */
 const optionLabel = (id: string): string => id.replaceAll("_", " ");
 
-/** "2 × Lunar class cruiser, 1 × Lunar class cruiser + nova cannon · 580 pts" */
-function fleetSummary(side: Side, carriers: boolean, limit: number | null = null): string {
+/** "2 × Lunar class cruiser, 1 × Lunar class cruiser + nova cannon · 580 pts"; with fleet lists, commanders count too. */
+function fleetSummary(side: Side, carriers: boolean, limit: number | null = null, lists = false): string {
   const counts = new Map<string, { n: number; points: number }>();
   side.ships.forEach((_, i) => {
     const p = shipProfileOf(side, i, carriers, limit !== null);
@@ -170,12 +178,14 @@ function fleetSummary(side: Side, carriers: boolean, limit: number | null = null
     const c = counts.get(name) ?? { n: 0, points: p.points };
     counts.set(name, { ...c, n: c.n + 1 });
   });
-  const total = [...counts.values()].reduce((t, c) => t + c.n * c.points, 0);
-  return `${[...counts].map(([name, c]) => `${c.n} × ${name} (${c.points} pts)`).join(", ")} · ${total}${limit === null ? "" : ` of ${limit}`} pts`;
+  const command = lists ? commandPoints(side, carriers, limit !== null) : 0;
+  const total = [...counts.values()].reduce((t, c) => t + c.n * c.points, 0) + command;
+  const ships = [...counts].map(([name, c]) => `${c.n} × ${name} (${c.points} pts)`);
+  return `${[...ships, ...(command > 0 ? [`commanders (${command} pts)`] : [])].join(", ")} · ${total}${limit === null ? "" : ` of ${limit}`} pts`;
 }
 
 /** One side: commander, fleet, and a name and class per ship. */
-export function FleetFields({ legend, className, side, onChange, dupes, carriers = false, pointsLimit = null, taken = [] }: FieldsProps) {
+export function FleetFields({ legend, className, side, onChange, dupes, carriers = false, pointsLimit = null, taken = [], lists = false }: FieldsProps) {
   const count = side.ships.length;
   const choices = classChoices(side.fleet, carriers, pointsLimit !== null);
   const classes = classIds(side, carriers, pointsLimit !== null);
@@ -204,7 +214,8 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
           ))}
         </select>
       </label>
-      <p className="muted small">{fleetSummary(side, carriers, pointsLimit)}</p>
+      <p className="muted small">{fleetSummary(side, carriers, pointsLimit, lists)}</p>
+      {lists && <CommandFields side={side} carriers={carriers} onChange={(command) => onChange({ command })} />}
       {side.ships.map((name, i) => (
         <div key={i} className="ship-row">
           <label>
@@ -265,4 +276,135 @@ export function FleetProblem({ problem }: { problem: string | null }) {
 
 export function DuplicateNames({ dupes }: { dupes: string[] }) {
   return dupes.length > 0 ? <p className="rejection">Every ship needs its own name ({dupes.join(", ")}).</p> : null;
+}
+
+const MARKS: { id: Mark; name: string; points: number; blurb: string }[] = [
+  { id: "slaanesh", name: "Slaanesh", points: 25, blurb: "−2 Ld to enemy ships within 15 cm" },
+  { id: "khorne", name: "Khorne", points: 20, blurb: "double boarding value" },
+  { id: "tzeentch", name: "Tzeentch", points: 30, blurb: "+1 re-roll" },
+  { id: "nurgle", name: "Nurgle", points: 35, blurb: "+1 hit, can't be boarded" },
+];
+const ADMIRALS = [
+  { leadership: 8, name: "Fleet-Admiral (Ld 8, 50 pts)" },
+  { leadership: 9, name: "Admiral (Ld 9, 100 pts)" },
+  { leadership: 10, name: "Solar Admiral (Ld 10, 150 pts)" },
+] as const;
+const EXTRA = ["none", "one (+25 pts)", "two (+75 pts)", "three (+150 pts)"];
+
+/**
+ * The fleet commanders a list allows (fleets book p. 35, p. 232): an Admiral and
+ * his extra re-rolls, or the Warmaster, his Marks and up to three Chaos Lords.
+ */
+function CommandFields({ side, carriers, onChange }: { side: Side; carriers: boolean; onChange: (command: Command) => void }) {
+  const command = side.command ?? defaultCommand(side.fleet);
+  const set = (patch: Partial<Command>) => onChange({ ...command, ...patch });
+  const shipOptions = side.ships.map((name, i) => (
+    <option key={i} value={i}>
+      {name || `Ship ${i + 1}`}
+    </option>
+  ));
+  if (side.fleet === "imperial_navy") {
+    const admiral = command.fleet?.kind === "admiral" ? command.fleet : null;
+    const setAdmiral = (a: Extract<CommanderConfig, { kind: "admiral" }> | null) => set({ fleet: a });
+    return (
+      <fieldset className="command">
+        <legend className="muted small">Fleet commander (required over 750 pts)</legend>
+        <label>
+          Admiral
+          <select
+            value={admiral?.leadership ?? 0}
+            onChange={(e) => {
+              const ld = Number(e.target.value);
+              setAdmiral(ld === 0 ? null : { kind: "admiral", leadership: ld as 8 | 9 | 10, extraRerolls: admiral?.extraRerolls ?? 0 });
+            }}
+          >
+            <option value={0}>None</option>
+            {ADMIRALS.map((a) => (
+              <option key={a.leadership} value={a.leadership}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {admiral !== null && (
+          <>
+            <label>
+              Extra re-rolls
+              <select value={admiral.extraRerolls} onChange={(e) => setAdmiral({ ...admiral, extraRerolls: Number(e.target.value) as 0 | 1 | 2 | 3 })}>
+                {EXTRA.map((label, n) => (
+                  <option key={n} value={n}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Admiral aboard
+              <select value={Math.min(command.flagship, side.ships.length - 1)} onChange={(e) => set({ flagship: Number(e.target.value) })}>
+                {shipOptions}
+              </select>
+            </label>
+          </>
+        )}
+      </fieldset>
+    );
+  }
+  const warmaster = command.fleet?.kind === "warmaster" ? command.fleet : { kind: "warmaster" as const, leadership: 8 as const, marks: [] };
+  const flagship = side.ships[mostExpensive(side, carriers, true)] ?? "";
+  return (
+    <fieldset className="command">
+      <legend className="muted small">Chaos Warmaster, aboard the most expensive ship ({flagship})</legend>
+      <label>
+        Warmaster
+        <select value={warmaster.leadership} onChange={(e) => set({ fleet: { ...warmaster, leadership: Number(e.target.value) as 8 | 9 } })}>
+          <option value={8}>Ld 8 (50 pts)</option>
+          <option value={9}>Ld 9 (100 pts)</option>
+        </select>
+      </label>
+      <div className="marks">
+        {MARKS.map((m) => (
+          <label key={m.id} className="check" title={m.blurb}>
+            <input
+              type="checkbox"
+              checked={warmaster.marks.includes(m.id)}
+              onChange={(e) => set({ fleet: { ...warmaster, marks: e.target.checked ? [...warmaster.marks, m.id] : warmaster.marks.filter((x) => x !== m.id) } })}
+            />
+            Mark of {m.name} (+{m.points})
+          </label>
+        ))}
+      </div>
+      {command.lords.map((lord, i) => (
+        <div key={i} className="lord">
+          <label>
+            {`Chaos Lord ${i + 1} (Ld 8, 50 pts) aboard`}
+            <select value={lord.ship} onChange={(e) => set({ lords: command.lords.map((l, j) => (j === i ? { ...l, ship: Number(e.target.value) } : l)) })}>
+              {shipOptions}
+            </select>
+          </label>
+          <label>
+            {`Chaos Lord ${i + 1} mark`}
+            <select
+              value={lord.mark ?? ""}
+              onChange={(e) => set({ lords: command.lords.map((l, j) => (j === i ? { ...l, mark: e.target.value === "" ? null : (e.target.value as Mark) } : l)) })}
+            >
+              <option value="">No Mark</option>
+              {MARKS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} (+{m.points})
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" onClick={() => set({ lords: command.lords.filter((_, j) => j !== i) })}>
+            Remove
+          </button>
+        </div>
+      ))}
+      {command.lords.length < 3 && (
+        <button type="button" onClick={() => set({ lords: [...command.lords, { ship: Math.min(command.lords.length + 1, side.ships.length - 1), mark: null }] })}>
+          Add a Chaos Lord
+        </button>
+      )}
+    </fieldset>
+  );
 }
