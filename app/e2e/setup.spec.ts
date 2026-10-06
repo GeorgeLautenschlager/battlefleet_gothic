@@ -192,3 +192,26 @@ test("fleet lists: an Admiral over 750 points, a Warmaster with Marks and a Lord
   await expect(page.locator(".card").filter({ hasText: "Styx class heavy cruiser" })).toContainText("Warmaster, Ld 8 · Mark of Khorne · 1 re-roll");
   await expect(page.locator(".card").filter({ hasText: "Murder class cruiser" }).first()).toContainText("Chaos Lord, Ld 8 · Mark of Tzeentch · 1 re-roll");
 });
+
+test("grand and light cruisers: a torpedo Dauntless and a shielded Repulsive under the fleet lists", async ({ page }) => {
+  await page.goto("/");
+  const form = page.locator("form", { hasText: "Hot-seat" });
+  await form.getByLabel("Battle").selectOption("1000");
+  await expect(form.getByLabel(/^Fleet lists/)).toBeChecked();
+  const [p1, p2] = [form.locator("fieldset.p1"), form.locator("fieldset.p2")];
+  await p1.getByRole("button", { name: "Add a ship" }).click();
+  await p1.getByRole("combobox", { name: /^Ship 2 class/ }).selectOption("dauntless");
+  await p1.getByLabel(/Prow torpedoes/).check();
+  await expect(p1).toContainText("Dauntless class light cruiser + prow torpedoes (110 pts)");
+  // The Repulsive needs three cruisers or heavy cruisers alongside it.
+  await p2.getByRole("button", { name: "Add a ship" }).click();
+  await p2.getByRole("combobox", { name: /^Ship 2 class/ }).selectOption("repulsive");
+  await expect(form.locator(".rejection")).toContainText("one grand cruiser per three cruisers or heavy cruisers");
+  for (let i = 0; i < 2; i++) await p2.getByRole("button", { name: "Add a ship" }).click();
+  await p2.getByLabel(/Third shield/).check();
+  await expect(p2).toContainText("Repulsive class grand cruiser + third shield (245 pts)");
+  await expect(form.locator(".rejection")).toHaveCount(0);
+  await form.getByRole("button", { name: "Start" }).click();
+  await expect(page.locator(".card").filter({ hasText: "Dauntless class light cruiser" })).toBeVisible();
+  await expect(page.locator(".card").filter({ hasText: "Repulsive class grand cruiser" })).toContainText("Warmaster");
+});

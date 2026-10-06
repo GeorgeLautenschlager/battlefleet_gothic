@@ -11,9 +11,11 @@ const fixture = (): History => fromSave(save) as History;
 
 describe("ship options in the fleet forms (T57)", () => {
   test("Cruiser Clash offers the classes that can fit 185 points; a points battle offers them all", () => {
-    expect(classChoices("imperial_navy", false)).toEqual(["lunar", "gothic", "tyrant", "dominator"]); // the Dominator, with its original batteries
-    expect(classChoices("imperial_navy", false, true)).toEqual(["lunar", "gothic", "tyrant", "dominator", "mars", "overlord"]);
+    expect(classChoices("imperial_navy", false)).toEqual(["lunar", "gothic", "tyrant", "dominator", "dauntless"]); // the Dominator, with its original batteries
+    expect(classChoices("imperial_navy", false, true)).toEqual(["lunar", "gothic", "tyrant", "dominator", "dauntless", "mars", "overlord"]);
     expect(classChoices("chaos", false, true)).toContain("acheron");
+    expect(classChoices("chaos", false, true)).toContain("repulsive");
+    expect(classChoices("chaos", false)).not.toContain("repulsive"); // 230 pts, over Cruiser Clash's cap
   });
 
   test("options ride with each ship; a class's options are dropped when it doesn't have them", () => {

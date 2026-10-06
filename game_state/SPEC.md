@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.13, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27).
+**Status:** draft v0.14, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29).
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -344,7 +344,7 @@ type ShipTraits = {
   targetingMatrix?: boolean          // its weapons batteries take one column shift left (Mars, Overlord options)
 }
 
-type ShipCategory = "cruiser" | "heavy_cruiser" | "battlecruiser"   // later: light and grand cruisers, battleships
+type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser"   // later: battleships
 
 type Weapon = {
   id: string                         // unique within the profile: "port_lances"
@@ -930,14 +930,16 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N17 | **Fleet Engagement has no round limit** (p. 143: "until one fleet disengages or is destroyed"): `maxRounds` is null, and the game ends only when a side has no `active` ship (D6). | §4, §6 |
 | N18 | **Divisions** (p. 142, "at least one ship or squadron in each"): while a player has no more undeployed ships than empty divisions, each ship must go into an empty one. With fewer ships than divisions, each goes to a different division. A stem on the shared edge of two divisions belongs to the first in the map's list. | §4 |
 | N19 | **A plain B result** leaves the colours open: it's settled by the same roll-off, without the split bonuses, and the winner picks a colour. | §5 |
-| N20 | **Categories**: the fleet lists count cruisers, heavy cruisers and battlecruisers separately for their ratios, but every one of them is a `cruiser` in the core rules (gunnery, turns, rams). `category` is only read by the fleet list checks. | §7.1 |
-| N21 | **Ship options** (fleets book, ship entries) are applied when the game is made: replaced weapons, an extra turret, a trait, and their points. The profile snapshot is the ship as fielded; `options` records which were taken. The v0.11 option classes (`lunar_nova`, `tyrant_long`, …) stay in the catalogue so saves replay. | §7.1 |
+| N20 | **Categories**: the fleet lists count cruisers, light cruisers, heavy cruisers, battlecruisers and grand cruisers separately for their ratios, but every one of them is a `cruiser` in the core rules (gunnery, rams, Leadership tests to ram). `category` is only read by the fleet list checks. Their differences (6 or 10 hits, 90° turns, a third shield) are all in the profile. | §7.1 |
+| N21 | **Ship options** (fleets book, ship entries) are applied when the game is made: replaced weapons, an extra turret or shield, a larger base, a trait, and their points. The profile snapshot is the ship as fielded; `options` records which were taken. The v0.11 option classes (`lunar_nova`, `tyrant_long`, …) stay in the catalogue so saves replay. | §7.1 |
 | N22 | **A commander's Leadership replaces the ship's**, rolled or not, even when it's lower (fleets book, p. 11). Bridge Smashed and the Mark of Slaanesh still apply to it. | §11 |
 | N23 | **Re-rolls are spent from the nearest commander**: the ship's own (a Lord with the Mark of Tzeentch, or the fleet commander's flagship), then its side's fleet commander. A commander whose ship is no longer `active`, or has suffered Bridge Smashed, has none left. | §7.4, §11 |
 | N24 | **A Chaos Lord's re-roll** (Mark of Tzeentch) serves only his own ship: fleet commander re-rolls are the fleet commander's to give (p. 11). | §7.4 |
 | N25 | **A ship's value** for victory points includes its options and any commander aboard, with their Marks and extra re-rolls (fleets book, p. 11: "the cost of any embarked commanders … included"). | §11 |
 | N26 | **The Mark of Slaanesh** reaches 15 cm stem to stem, like other ranges; several such ships don't stack: −2 either way. | §11 |
-| N27 | **Cruiser Clash has no fleet lists**: no commanders, and only the classes and options it already had. Fleet lists come with points forces. | §4 |
+| N27 | **Cruiser Clash has no fleet lists** and no commanders: each side takes any `cruiser` of its faction's catalogue, with options, at 185 points or less (p. 128). That now includes the Dauntless light cruiser, which the Gothic Sector list sells as a cruiser. Fleet lists come with points forces. | §4 |
+| N28 | **The Repulsive's third shield** (+15 pts, p. 269) comes "when modelled on a large 60 mm base": the option sets `shields` 3 **and** `baseSize: "large"`, so the ship is bigger for every contact test (Blast Markers, rams, ordnance, the nova cannon). | §7.1 |
+| N29 | **Grand cruisers' immunity to prow criticals** (Vengeance, Exorcist, Avenger, Retaliator, Executor) isn't needed yet: the only grand cruiser on the Gothic War lists, the Repulsive, doesn't have it. It arrives as a trait with the first class that does. | §7.1 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
 
 ---

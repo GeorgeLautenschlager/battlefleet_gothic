@@ -13,14 +13,14 @@ export const FLEETS: Record<Fleet, { name: string; classId: string; classes: str
   imperial_navy: {
     name: "Imperial Navy",
     classId: "lunar",
-    classes: ["lunar", "gothic", "tyrant", "dominator", "mars", "overlord"],
+    classes: ["lunar", "gothic", "tyrant", "dominator", "dauntless", "mars", "overlord"],
     carrierClassId: "dictator",
     names: ["Agrippa", "Hammer of Terra", "Sanctus Vigil", "Lord Valdane", "Righteous Fury", "Saint Kasimir", "Iron Litany", "Gothic Dawn"],
   },
   chaos: {
     name: "Chaos",
     classId: "murder",
-    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "styx", "hecate", "hades", "acheron"],
+    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "styx", "hecate", "hades", "acheron", "repulsive"],
     carrierClassId: "devastation",
     names: ["Unclean", "Carrion Hymn", "Woe Eternal", "Flayed Saint", "Hungering Dark", "Ninth Wound", "Red Lament", "Sorrowmaw"],
   },

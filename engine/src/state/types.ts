@@ -222,7 +222,7 @@ export type ShipTraits = {
   targetingMatrix?: boolean;
 };
 
-export type ShipCategory = "cruiser" | "heavy_cruiser" | "battlecruiser";
+export type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser";
 
 // --- Fleet commanders (§7.4)
 
