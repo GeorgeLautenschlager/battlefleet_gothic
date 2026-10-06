@@ -112,6 +112,9 @@ export const REASON_CODES = [
   "NOT_ON_ENTRY_EDGE",
   "NOT_FACING_IN",
   "SHIPS_TO_MOVE",
+  // The Raiders (validator spec v0.13)
+  "TOO_CLOSE",
+  "RESERVES_MUST_ARRIVE",
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

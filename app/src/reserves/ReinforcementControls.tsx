@@ -1,4 +1,4 @@
-import { squadronOf, type GameState, type PlayerId, type Ship, type Transform } from "@bfg/engine";
+import { reserves, squadronOf, type GameState, type PlayerId, type Ship, type Transform } from "@bfg/engine";
 import { Act } from "../controls/Act";
 import { reserveUnits } from "./arrival";
 
@@ -28,11 +28,15 @@ const unitName = (state: GameState, unit: Ship[]): string => {
 export function ReinforcementControls({ state, player, chosen, onChoose, turn, onTurn, onApply }: Props) {
   const units = reserveUnits(state, player);
   if (units.length === 0) return null;
+  // The Raiders' raiders all move on now, from any edge (state N60); The Bait's reinforcements may wait.
+  const mayWait = reserves.reservesMayWait(state);
   return (
     <div className="ship-controls reinforcements">
-      <h3>Reinforcements</h3>
+      <h3>{mayWait ? "Reinforcements" : "Raiders moving on"}</h3>
       <p className="muted small">
-        Pick a ship or squadron, then click the lit table edge to bring it on. It arrives facing in, and then moves like any other ship this turn.
+        {mayWait
+          ? "Pick a ship or squadron, then click the lit table edge to bring it on. It arrives facing in, and then moves like any other ship this turn."
+          : "Every raider moves on this turn. Pick a ship or squadron, then click any table edge to bring it on; it then moves like any other ship."}
       </p>
       <div className="buttons">
         {units.map((unit) => {
@@ -55,9 +59,11 @@ export function ReinforcementControls({ state, player, chosen, onChoose, turn, o
           ))}
         </select>
       </label>
-      <Act state={state} transform={{ type: "end_step", player }} onApply={onApply}>
-        Leave the rest waiting
-      </Act>
+      {mayWait && (
+        <Act state={state} transform={{ type: "end_step", player }} onApply={onApply}>
+          Leave the rest waiting
+        </Act>
+      )}
     </div>
   );
 }

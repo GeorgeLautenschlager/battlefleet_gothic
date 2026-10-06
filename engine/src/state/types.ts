@@ -69,7 +69,7 @@ export type Scoring = "cruiser_clash" | "victory_points";
 
 export type Scenario = {
   id: ScenarioId;
-  /** Cruiser Clash 8; The Bait and Fleet Engagement null: until a fleet is destroyed or gone (state N17, N53). */
+  /** Cruiser Clash and The Raiders 8; The Bait and Fleet Engagement null: until a fleet is destroyed or gone (state N17, N53). */
   maxRounds: number | null;
   /** Absent in older saves: Cruiser Clash forces. */
   forces?: Forces;
@@ -82,7 +82,7 @@ export type Scenario = {
   attacker?: PlayerId;
 };
 
-export type ScenarioId = "cruiser_clash" | "the_bait" | "fleet_engagement";
+export type ScenarioId = "cruiser_clash" | "the_bait" | "raiders" | "fleet_engagement";
 
 export type Table = { width: number; height: number };
 
@@ -108,7 +108,12 @@ export type SetupState = {
   firstPlayer: PlayerId | null;
   /** Fleet Engagement only (pp. 142–143). */
   engagement?: Engagement;
+  /** The Raiders only (p. 131): the defender's facing and the rounds of surprise (state §5, N58, N61). */
+  raid?: Raid;
 };
+
+export type Facing = 0 | 90 | 180 | 270;
+export type Raid = { facing: Facing | null; surpriseTurns: number | null };
 
 export type Formation = "sphere" | "wedge" | "cross";
 export type SetupMap = "A" | "B" | "C" | "D";
@@ -134,6 +139,7 @@ export type SetupStep =
   | "choose_formation"
   | "roll_setup"
   | "choose_setup"
+  | "choose_facing"
   | "deploy"
   | "roll_first_turn"
   | "choose_first_turn";

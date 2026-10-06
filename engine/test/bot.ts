@@ -65,7 +65,7 @@ function baseCandidates(s: GameState, n: number): Transform[] {
           })),
         );
         if (near.length > 0) return near;
-        if (s.setup.engagement !== undefined || s.scenario.id === "the_bait") {
+        if (s.setup.engagement !== undefined || s.scenario.id === "the_bait" || s.scenario.id === "raiders") {
           // Fleet Engagement and The Bait: empty divisions first, at spots across each one.
           const divisions = deploymentDivisions(s, p);
           const empty = emptyDivisions(s, p);
@@ -83,6 +83,8 @@ function baseCandidates(s: GameState, n: number): Transform[] {
           [15, 30, 90, 105].map((y): Transform => ({ type: "deploy_ship", player: p, shipId: ship.id, position: { x: 50 + ((k * 13 + n) % 80), y } })),
         );
       }
+      case "choose_facing":
+        return [{ type: "choose_facing", player: p, heading: ([0, 90, 180, 270] as const)[n % 4]! }];
       case "choose_first_turn":
         return [{ type: "choose_first_turn", player: p, goFirst: n % 2 === 0 }];
       default:

@@ -64,6 +64,12 @@ export function describe(state: GameState, entry: LogEntry): string {
       return `First-turn roll-off ${dice(d["rolls"])}: ${d["winner"] === null ? "a tie, roll again" : `${player("winner")} chooses`}`;
     case "deploy":
       return `${ship("shipId")} deploys at (${num((d["position"] as { x: number })?.x)}, ${num((d["position"] as { y: number })?.y)})`;
+    case "surprise_roll":
+      return `The defenders are caught napping ${dice(d["rolls"])}: −1 Leadership for the first ${num(d["turns"])} turn${d["turns"] === 1 ? "" : "s"}`;
+    case "facing": {
+      const edge: Record<number, string> = { 0: "top", 90: "right", 180: "bottom", 270: "left" };
+      return `${player("player")}'s fleet faces the ${edge[Number(d["heading"])] ?? "?"} edge`;
+    }
     case "arrive": {
       const ships = (d["ships"] as { shipId: string }[] | undefined) ?? [];
       const names = ships.map((s) => state.ships.find((x) => x.id === s.shipId)?.name ?? s.shipId);

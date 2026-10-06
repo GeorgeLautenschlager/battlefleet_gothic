@@ -1,7 +1,7 @@
 /** Setup transforms (transform spec §4.1). */
 import { otherPlayer, squadronOf } from "../../state/derived";
 import { deploymentDivisions, divisionAt, isSplit, setupBonus, setupOptions } from "../../rules/engagement";
-import type { ChooseFirstTurn, ChooseFormation, ChooseSetup, DeployShip } from "../../transforms/types";
+import type { ChooseFacing, ChooseFirstTurn, ChooseFormation, ChooseSetup, DeployShip } from "../../transforms/types";
 import type { Ctx } from "../context";
 import { getShip } from "../work";
 
@@ -21,7 +21,22 @@ export function rollLeadership(ctx: Ctx): void {
     ship.leadership = LEADERSHIP[roll] ?? 6;
     ctx.log("leadership_roll", { shipId: ship.id, rolls: [roll], leadership: ship.leadership, ...(sq?.type === "escort" ? { squadronId: sq.id } : {}) });
   }
+  // The Raiders: one more D6, how many rounds the defenders are caught napping (state N61, reducer R45).
+  const raid = ctx.state.setup.raid;
+  if (raid !== undefined) {
+    const roll = ctx.d6();
+    raid.surpriseTurns = roll;
+    ctx.log("surprise_roll", { rolls: [roll], turns: roll });
+  }
   ctx.state.setup.leadershipRolled = true;
+}
+
+/** The Raiders: the table edge the defender's fleet faces (T103). */
+export function chooseFacing(ctx: Ctx, t: ChooseFacing): void {
+  const raid = ctx.state.setup.raid;
+  if (raid === undefined) return; // unreachable after validation
+  raid.facing = t.heading;
+  ctx.log("facing", { player: t.player, heading: t.heading });
 }
 
 export function rollZones(ctx: Ctx): void {

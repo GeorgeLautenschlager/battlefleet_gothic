@@ -18,7 +18,7 @@ export function cruiserClash(
     scenario: options.scenario,
     forces: options.forces,
     scoring: options.scoring,
-    ...(options.scenario === "the_bait" && options.attacker !== undefined ? { attacker: options.attacker } : {}),
+    ...((options.scenario === "the_bait" || options.scenario === "raiders") && options.attacker !== undefined ? { attacker: options.attacker } : {}),
     players: {
       p1: { name: seats.p1.name, faction: seats.p1.faction },
       p2: { name: seats.p2.name, faction: seats.p2.faction },
@@ -27,7 +27,7 @@ export function cruiserClash(
   };
 }
 
-/** A stand-in opponent for checking one side of The Bait: its faction's cruiser, with Chaos's ever-present Warmaster under the lists. */
+/** A stand-in opponent for checking one side of The Bait or The Raiders: its faction's cruiser, with Chaos's ever-present Warmaster under the lists. */
 function loneCruiser(faction: string, fleetLists: boolean): ShipEntry {
   if (faction !== "chaos") return { name: "(stand-in)", classId: "lunar" };
   return { name: "(stand-in)", classId: "murder", ...(fleetLists ? { commander: { kind: "warmaster", leadership: 8, marks: [] } } : {}) };
@@ -53,8 +53,8 @@ export function fleetProblem(
   forces: Forces = { kind: "cruiser_clash" },
   scenario: ScenarioId = "cruiser_clash",
   fleetLists = false,
-  /** The Bait: whether this seat is the pursued player, who fields the bait and its reinforcements (T93). */
-  pursued = false,
+  /** The Bait and The Raiders: whether this seat defends (The Bait's pursued player) rather than attacks (T93, T100). */
+  defender = false,
 ): string | null {
   if (forces.kind === "points") {
     // A points battle: each side brings its own number of ships, within the limit (T36).
@@ -67,9 +67,9 @@ export function fleetProblem(
   const names = ships.map((s) => s.name.trim());
   if (new Set(names).size !== names.length) return "Every ship needs its own name";
   const side = (owner: PlayerId) => ships.map((s) => ({ owner, ...shipEntry(s) }));
-  // The Bait's sides differ, so the fleet plays its own role against a lone cruiser of its faction (T93).
-  const bait = scenario === "the_bait";
-  const opponent = bait ? [{ owner: "p2" as const, ...loneCruiser(faction, fleetLists) }] : side("p2");
+  // The Bait's and The Raiders' sides differ, so the fleet plays its own role against a lone cruiser of its faction (T93, T100).
+  const roles = scenario === "the_bait" || scenario === "raiders";
+  const opponent = roles ? [{ owner: "p2" as const, ...loneCruiser(faction, fleetLists) }] : side("p2");
   try {
     newGame({
       seed: 1,
@@ -77,7 +77,7 @@ export function fleetProblem(
       options: { carriers, ...(fleetLists ? { fleetLists: true } : {}) },
       scenario,
       forces,
-      ...(bait ? { attacker: pursued ? ("p2" as const) : ("p1" as const) } : {}),
+      ...(roles ? { attacker: defender ? ("p2" as const) : ("p1" as const) } : {}),
       players: { p1: { name: "a", faction: faction as FactionId }, p2: { name: "b", faction: faction as FactionId } },
       ships: [...side("p1"), ...opponent],
     });

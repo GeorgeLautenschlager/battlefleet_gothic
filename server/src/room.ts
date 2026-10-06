@@ -107,7 +107,7 @@ export type CreateRequest = {
   fleetLists?: boolean;
   forces?: Forces;
   scoring?: Scoring;
-  /** The Bait: the pursuers' seat (T93). */
+  /** The Bait and The Raiders: the attacker's seat (T93, T100). */
   attacker?: PlayerId;
 };
 export type Created = { data: RoomData; seat: PlayerId; token: string; inviteToken: string };
@@ -119,10 +119,10 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
   const name = cleanName(req.name);
   if (name === null) return { error: "INVALID_NAME" };
   const forces = req.forces ?? CRUISER_CLASH;
-  const scenario: ScenarioId = req.scenario === "fleet_engagement" || req.scenario === "the_bait" ? req.scenario : "cruiser_clash";
+  const scenario: ScenarioId = req.scenario === "fleet_engagement" || req.scenario === "the_bait" || req.scenario === "raiders" ? req.scenario : "cruiser_clash";
   const fleetLists = req.fleetLists === true && forces.kind === "points"; // points battles only (T58)
-  // The Bait: the host names the pursuers (T93, D37); the pursued player is the other seat.
-  const attacker: PlayerId | undefined = scenario === "the_bait" ? (req.attacker === "p1" ? "p1" : "p2") : undefined;
+  // The Bait and The Raiders: the host names the attacker (the pursuers, the raiders: T93, T100, D37).
+  const attacker: PlayerId | undefined = scenario === "the_bait" || scenario === "raiders" ? (req.attacker === "p1" ? "p1" : "p2") : undefined;
   const problem = fleetProblem(req.faction, req.ships, req.ships.length, req.carriers ?? false, forces, scenario, fleetLists, attacker !== undefined && attacker !== req.side);
   if (problem !== null) return { error: "INVALID_FLEET", message: problem };
   const token = toBase64Url(deps.randomBytes(16));
@@ -148,7 +148,7 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
       fleetLists,
       scenario,
       forces,
-      // Fleet Engagement and The Bait are always victory points (transform §5).
+      // Every scenario but Cruiser Clash is victory points (transform §5).
       scoring: scenario === "cruiser_clash" ? (req.scoring ?? "cruiser_clash") : "victory_points",
       ...(attacker !== undefined ? { attacker } : {}),
     },

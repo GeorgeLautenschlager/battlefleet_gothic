@@ -1,6 +1,7 @@
 /** Setup, ordnance, brace and End Phase checks (validator spec §4.1, §4.4–4.6). */
 import { EPS, FORMATION_RANGE } from "../geometry/constants";
-import { approxLe, baseRadius, bmTouchesBase, distance } from "../geometry/basic";
+import { approxGe, approxLe, baseRadius, bmTouchesBase, distance } from "../geometry/basic";
+import { RAIDERS_SPACING } from "../rules/reserves";
 import { deploymentUnits, onTable, partlyDeployedSquadron, squadronOf } from "../state/derived";
 import { deploymentDivisions, divisionAt, emptyDivisions, setupOptions } from "../rules/engagement";
 import type { GameState, Point } from "../state/types";
@@ -41,6 +42,19 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
     if (distance(t.position, other.position) <= touching - EPS) {
       return reject("BASES_OVERLAP", `${ship.name} would overlap ${other.name}`, { shipId: other.id });
     }
+  }
+
+  // 6a: The Raiders: at least 20 cm from every ship of another unit (state N59)
+  if (state.scenario.id === "raiders") {
+    const mine = squadronOf(state, ship);
+    const near = state.ships.find(
+      (o) =>
+        o.position !== null &&
+        o.id !== ship.id &&
+        (mine === undefined || !mine.shipIds.includes(o.id)) &&
+        !approxGe(distance(t.position, o.position), RAIDERS_SPACING),
+    );
+    if (near !== undefined) return reject("TOO_CLOSE", `${ship.name} must be at least ${RAIDERS_SPACING} cm from ${near.name}`, { shipId: near.id });
   }
 
   // 7–9: a part-deployed squadron goes first, in its division, in formation (T80)

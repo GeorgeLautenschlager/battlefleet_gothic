@@ -97,7 +97,18 @@ export function leadership(state: GameState, ship: Ship): number {
   if (commander === null && ship.leadership === null) throw new EngineError(`${ship.id} has no Leadership yet`);
   // The Emperor's +1 goes on after a commander's value, capped at 10 (N32).
   const base = Math.min(MAX_LEADERSHIP, (commander?.leadership ?? (ship.leadership as number)) + (ship.profile.traits?.leadershipBonus ?? 0));
-  return base - (hasCritical(ship, "bridge_smashed") ? 3 : 0) - (slaaneshNear(state, ship) ? 2 : 0);
+  return base - (hasCritical(ship, "bridge_smashed") ? 3 : 0) - (slaaneshNear(state, ship) ? 2 : 0) - (surprised(state, ship) ? 1 : 0);
+}
+
+/** The Raiders: a defending ship in the rounds of surprise, −1 Leadership (state N61). */
+export function surprised(state: GameState, ship: Ship): boolean {
+  const turns = state.setup.raid?.surpriseTurns ?? null;
+  return (
+    turns !== null &&
+    state.clock.stage === "battle" &&
+    ship.owner !== state.scenario.attacker &&
+    roundOf(state.clock.playerTurn) <= turns
+  );
 }
 
 /** The ship, its options and anyone aboard: its value for victory points (N25). */
@@ -477,7 +488,7 @@ export function nextDeployer(state: GameState): PlayerId | null {
   let deployed = 0;
   for (const unit of deploymentUnits(state)) {
     const owner = unit[0]?.owner;
-    if (owner === undefined || unit.some((s) => s.status === "reserve")) continue; // reserves arrive later (N51)
+    if (owner === undefined || unit.some((s) => s.status === "reserve")) continue; // reserves arrive later (N51, N60)
     total[owner] += 1;
     if (unit.every((s) => s.status !== "undeployed")) deployed += 1;
   }
@@ -527,6 +538,8 @@ export function actor(state: GameState): Actor {
         return state.setup.engagement?.formations.p1 === null ? "p1" : "p2"; // p1 first (state N16)
       case "choose_setup":
         return state.setup.engagement?.setupChooser ?? null;
+      case "choose_facing":
+        return state.scenario.attacker === undefined ? null : otherPlayer(state.scenario.attacker); // the defender
       case null:
         return null;
       default:

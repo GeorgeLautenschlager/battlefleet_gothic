@@ -26,6 +26,9 @@ const SETUP_ORDER: readonly SetupStep[] = [
 /** The Bait: the bait deploys first and the pursued player goes first, so nothing else is rolled (state N55). */
 const BAIT_SETUP_ORDER: readonly SetupStep[] = ["roll_leadership", "deploy"];
 
+/** The Raiders: Leadership with the surprise roll, the defender's facing, then the defender deploys; the raiders go first. */
+const RAIDERS_SETUP_ORDER: readonly SetupStep[] = ["roll_leadership", "choose_facing", "deploy"];
+
 /** Fleet Engagement replaces roll_zones with the formations and the set-up roll-off (transform §2.3). */
 const ENGAGEMENT_SETUP_ORDER: readonly SetupStep[] = [
   "roll_leadership",
@@ -37,6 +40,13 @@ const ENGAGEMENT_SETUP_ORDER: readonly SetupStep[] = [
   "roll_first_turn",
   "choose_first_turn",
 ];
+
+const SETUP_ORDERS: Readonly<Record<GameState["scenario"]["id"], readonly SetupStep[]>> = {
+  cruiser_clash: SETUP_ORDER,
+  the_bait: BAIT_SETUP_ORDER,
+  raiders: RAIDERS_SETUP_ORDER,
+  fleet_engagement: ENGAGEMENT_SETUP_ORDER,
+};
 
 const BATTLE_ORDER: readonly { phase: Phase; step: Step }[] = [
   { phase: "movement", step: "hulks_drift" },
@@ -78,6 +88,8 @@ export function stepComplete(state: GameState): boolean {
         return (setup.engagement?.setupChooser ?? null) !== null;
       case "choose_setup":
         return (setup.engagement?.map ?? null) !== null;
+      case "choose_facing":
+        return (setup.raid?.facing ?? null) !== null;
       case "roll_deploy_order":
         return setup.firstDeployer !== null;
       case "deploy":
@@ -154,7 +166,7 @@ export function advanceStep(ctx: Ctx): void {
     const { state } = ctx;
     const { clock } = state;
     if (clock.stage === "setup") {
-      const order = state.scenario.id === "fleet_engagement" ? ENGAGEMENT_SETUP_ORDER : state.scenario.id === "the_bait" ? BAIT_SETUP_ORDER : SETUP_ORDER;
+      const order = SETUP_ORDERS[state.scenario.id];
       const i = order.indexOf(clock.setupStep as SetupStep);
       const next = order[i + 1];
       if (next === undefined) {

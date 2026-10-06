@@ -75,7 +75,9 @@ export default {
           boarding: body?.boarding === true,
           carriers: body?.carriers === true,
           fleetLists: body?.fleetLists === true,
-          ...(body?.scenario === "fleet_engagement" || body?.scenario === "the_bait" ? { scenario: body.scenario as "fleet_engagement" | "the_bait" } : {}),
+          ...(body?.scenario === "fleet_engagement" || body?.scenario === "the_bait" || body?.scenario === "raiders"
+            ? { scenario: body.scenario as "fleet_engagement" | "the_bait" | "raiders" }
+            : {}),
           ...(body?.attacker === "p1" || body?.attacker === "p2" ? { attacker: body.attacker as "p1" | "p2" } : {}),
           ...forcesOf(body?.forces),
           ...(body?.scoring === "victory_points" ? { scoring: "victory_points" as const } : {}),

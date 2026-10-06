@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { carriersAllowed, defaultNames, listsOn, MAX_SHIPS, pursuedOf, shipEntries, sideProblem, type Side } from "../game/config";
+import { carriersAllowed, defaultNames, listsOn, MAX_SHIPS, pursuedOf, roleOf, shipEntries, sideProblem, type Side } from "../game/config";
 import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks, type Battle, type Rules } from "../panels/FleetForm";
 import { createGame } from "./api";
 import type { MyGame } from "./myGames";
@@ -15,9 +15,9 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
   const [error, setError] = useState<string | null>(null);
   const dupes = duplicates(side.ships);
   const lists = listsOn({ fleetLists: rules.fleetLists === true, ...battle });
-  // The Bait: you're Player 1, pursued or pursuing (T93).
-  const pursued = pursuedOf(battle);
-  const role = pursued === null ? undefined : pursued === "p1" ? "pursued" : "pursuers";
+  // The Bait and The Raiders: you're Player 1, attacking or defending (T93, T100).
+  const role = roleOf(battle.scenario, battle.attacker, "p1");
+  const reinforcements = pursuedOf(battle) === "p1";
   const problem = dupes.length > 0 ? null : sideProblem(side, carriers, battle.forces, lists, role);
   return (
     <form
@@ -28,7 +28,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         setBusy(true);
         setError(null);
         const name = side.name.trim();
-        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists, role === "pursued"), ...rules, fleetLists: lists, ...battle })
+        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists, reinforcements), ...rules, fleetLists: lists, ...battle })
           .then((g) => onCreated({ gameId: g.gameId, token: g.token, seat: g.seat, name, joinedAt: new Date().toISOString(), inviteToken: g.inviteToken }))
           .catch((err: unknown) => setError((err as Error).message))
           .finally(() => setBusy(false));
@@ -57,7 +57,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         carriers={carriers}
         pointsLimit={points}
         lists={lists}
-        reinforcements={role === "pursued"}
+        reinforcements={reinforcements}
       />
       <RulesChecks value={rules} onChange={setRules} points={points !== null} />
       <DuplicateNames dupes={dupes} />

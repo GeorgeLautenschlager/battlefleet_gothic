@@ -34,12 +34,14 @@ describe("The Bait from the form", () => {
   });
 
   test("each side is checked in its own role", () => {
-    expect(sideProblem(options.p1, false, options.forces, false, "pursued")).toBeNull();
+    const pursued = { scenario: "the_bait", defender: true } as const;
+    const pursuers = { scenario: "the_bait", defender: false } as const;
+    expect(sideProblem(options.p1, false, options.forces, false, pursued)).toBeNull();
     // As the pursuers the reinforcement ticks don't apply: all 430 points count against the 500 limit.
-    expect(sideProblem(options.p1, false, options.forces, false, "pursuers")).toBeNull();
-    expect(sideProblem({ ...options.p1, classes: ["lunar", "gothic", "sword", "dictator"], squadrons: [] }, false, options.forces, false, "pursuers")).toMatch(/over the 500 pt limit/);
+    expect(sideProblem(options.p1, false, options.forces, false, pursuers)).toBeNull();
+    expect(sideProblem({ ...options.p1, classes: ["lunar", "gothic", "sword", "dictator"], squadrons: [] }, false, options.forces, false, pursuers)).toMatch(/over the 500 pt limit/);
     const lone = { ...options.p1, reserves: [false, false, false, false] };
-    expect(sideProblem(lone, false, options.forces, false, "pursued")).toMatch(/one ship or one squadron/);
+    expect(sideProblem(lone, false, options.forces, false, pursued)).toMatch(/one ship or one squadron/);
   });
 
   test("a click near the entry edge brings a squadron on along it, spread out, facing in", () => {

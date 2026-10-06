@@ -16,7 +16,7 @@ export type GameConfig = {
   options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean; fleetLists?: boolean };
   /** Default: Cruiser Clash. Fleet Engagement and The Bait need points forces and victory points (transform §5). */
   scenario?: ScenarioId;
-  /** The Bait: the pursuers (state N47). Required there, refused elsewhere. */
+  /** The Bait: the pursuers (state N47); The Raiders: the raiders (N56). Required there, refused elsewhere. */
   attacker?: PlayerId;
   /** Default: Cruiser Clash forces (state §4). */
   forces?: Forces;
@@ -85,13 +85,18 @@ function validateConfig(config: GameConfig): void {
     if (forces.kind !== "points") throw new EngineError("Fleet Engagement is fought at a points limit");
     if (config.scoring !== undefined && config.scoring !== "victory_points") throw new EngineError("Fleet Engagement is scored with victory points");
   }
-  if (config.scenario === "the_bait") {
-    if (forces.kind !== "points") throw new EngineError("The Bait is fought at a points limit");
-    if (config.scoring !== undefined && config.scoring !== "victory_points") throw new EngineError("The Bait is scored with victory points");
-    if (config.attacker !== "p1" && config.attacker !== "p2") throw new EngineError("The Bait needs the pursuers named as the attacker");
-  } else {
-    if (config.attacker !== undefined) throw new EngineError("only The Bait has an attacker");
-    if (config.ships.some((s) => s.reserve === true)) throw new EngineError("only The Bait has reinforcements in reserve");
+  if (config.scenario === "the_bait" || config.scenario === "raiders") {
+    const name = config.scenario === "the_bait" ? "The Bait" : "The Raiders";
+    if (forces.kind !== "points") throw new EngineError(`${name} is fought at a points limit`);
+    if (config.scoring !== undefined && config.scoring !== "victory_points") throw new EngineError(`${name} is scored with victory points`);
+    if (config.attacker !== "p1" && config.attacker !== "p2") {
+      throw new EngineError(config.scenario === "the_bait" ? "The Bait needs the pursuers named as the attacker" : "The Raiders needs the raiders named as the attacker");
+    }
+  } else if (config.attacker !== undefined) {
+    throw new EngineError("only The Bait and The Raiders have an attacker");
+  }
+  if (config.scenario !== "the_bait" && config.ships.some((s) => s.reserve === true)) {
+    throw new EngineError(config.scenario === "raiders" ? "every raider moves on: no ship is marked as a reinforcement" : "only The Bait has reinforcements in reserve");
   }
   const counts = { p1: 0, p2: 0 };
   const points = { p1: 0, p2: 0 };
@@ -151,6 +156,17 @@ function validateConfig(config: GameConfig): void {
   }
   if (config.scenario === "the_bait" && forces.kind === "points") {
     baitForces(config, forces.limit);
+    return;
+  }
+  if (config.scenario === "raiders" && forces.kind === "points") {
+    // The defender up to the limit, the raiders up to half of it (p. 131, state N57).
+    const raiders = config.attacker as PlayerId;
+    for (const player of ["p1", "p2"] as const) {
+      const limit = player === raiders ? Math.floor(forces.limit / 2) : forces.limit;
+      if (counts[player] < 1) throw new EngineError(`${player} must field at least one ship`);
+      const who = player === raiders ? "the raiders'" : "the defender's";
+      if (points[player] > limit) throw new EngineError(`${who} fleet is ${points[player]} pts, over the ${limit} pt limit`);
+    }
     return;
   }
   if (forces.kind === "points") {
@@ -248,6 +264,9 @@ function scenarioOf(config: GameConfig): Scenario {
   if (config.scenario === "the_bait" && config.attacker !== undefined) {
     return { id: "the_bait", maxRounds: null, forces, scoring: "victory_points", attacker: config.attacker };
   }
+  if (config.scenario === "raiders" && config.attacker !== undefined) {
+    return { id: "raiders", maxRounds: 8, forces, scoring: "victory_points", attacker: config.attacker };
+  }
   if (config.scenario === "fleet_engagement") {
     return { id: "fleet_engagement", maxRounds: null, forces, scoring: "victory_points" };
   }
@@ -268,6 +287,9 @@ function scenarioOf(config: GameConfig): Scenario {
 const baitPursued = (config: GameConfig): PlayerId | null =>
   config.scenario === "the_bait" ? (config.attacker === "p1" ? "p2" : "p1") : null;
 
+const raidDefender = (config: GameConfig): PlayerId | null =>
+  config.scenario === "raiders" ? (config.attacker === "p1" ? "p2" : "p1") : null;
+
 /** Create a game at setup / roll_leadership (transform spec §5). */
 export function newGame(config: GameConfig): GameState {
   validateConfig(config);
@@ -284,7 +306,8 @@ export function newGame(config: GameConfig): GameState {
       name: spec.name,
       profile,
       leadership: null,
-      status: spec.reserve === true ? "reserve" : "undeployed",
+      // The Bait's reinforcements, and every raider (state N60), start in reserve.
+      status: spec.reserve === true || (config.scenario === "raiders" && spec.owner === config.attacker) ? "reserve" : "undeployed",
       position: null,
       heading: null,
       damage: 0,
@@ -331,14 +354,15 @@ export function newGame(config: GameConfig): GameState {
       zoneRoll: null,
       zones: null,
       deployOrderRolls: [],
-      // The Bait: the bait deploys first and the fleeing ship goes first (state N55).
-      firstDeployer: baitPursued(config),
+      // The Bait: the bait deploys first and the fleeing ship goes first (state N55). The Raiders: the defender deploys, the raiders go first.
+      firstDeployer: baitPursued(config) ?? raidDefender(config),
       firstTurnRolls: [],
       firstTurnChooser: null,
-      firstPlayer: baitPursued(config),
+      firstPlayer: baitPursued(config) ?? (config.scenario === "raiders" ? (config.attacker ?? null) : null),
       ...(config.scenario === "fleet_engagement"
         ? { engagement: { formations: { p1: null, p2: null }, setupRolls: [], setupChooser: null, map: null, colours: null } }
         : {}),
+      ...(config.scenario === "raiders" ? { raid: { facing: null, surpriseTurns: null } } : {}),
     },
     clock: { stage: "setup", setupStep: "roll_leadership", playerTurn: 0, phase: null, step: null },
     ships,

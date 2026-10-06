@@ -13,7 +13,8 @@ export type SetupPreview = ReturnType<typeof engagement.setupOptions>[number];
 export function Zones({ state, preview = null }: { state: GameState; preview?: SetupPreview | null }) {
   const view: View = state.table;
   const bait = state.scenario.id === "the_bait";
-  if (state.setup.engagement === undefined && !bait) {
+  const raiders = state.scenario.id === "raiders";
+  if (state.setup.engagement === undefined && !bait && !raiders) {
     return (
       <>
         {(["A", "B"] as const).map((zone) => {
@@ -35,10 +36,11 @@ export function Zones({ state, preview = null }: { state: GameState; preview?: S
   }
   const map = preview?.map ?? state.setup.engagement?.map ?? null;
   const pursued = reserves.pursuedPlayer(state);
-  const label = (p: PlayerId) => (bait ? `${p === pursued ? "The bait" : "Pursuers"} · ${playerName(state, p)}` : `Map ${map} · ${playerName(state, p)}`);
+  const label = (p: PlayerId) =>
+    bait ? `${p === pursued ? "The bait" : "Pursuers"} · ${playerName(state, p)}` : raiders ? `At anchor · ${playerName(state, p)}` : `Map ${map} · ${playerName(state, p)}`;
   const divisionsOf = (p: PlayerId): readonly Division[] =>
     preview !== null ? engagement.SETUP_MAPS[preview.map][preview.colours[p]] : engagement.deploymentDivisions(state, p);
-  if (map === null && !bait) return null;
+  if (map === null && !bait && !raiders) return null;
   return (
     <g className={preview !== null ? "zones preview" : "zones"}>
       {(["p1", "p2"] as const).flatMap((p) =>

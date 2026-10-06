@@ -27,6 +27,7 @@ const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" |
   choose_formation: { stage: "setup", when: ["choose_formation"] },
   roll_setup: { stage: "setup", when: ["roll_setup"] },
   choose_setup: { stage: "setup", when: ["choose_setup"] },
+  choose_facing: { stage: "setup", when: ["choose_facing"] },
   drift_hulk: { stage: "battle", when: ["hulks_drift"] },
   declare_order: { stage: "battle", when: ["move_ships"] },
   move: { stage: "battle", when: ["move_ships"] },
@@ -90,6 +91,7 @@ export function validate(state: GameState, input: unknown): ValidationResult {
     case "choose_first_turn":
     case "choose_formation":
     case "roll_setup":
+    case "choose_facing":
       return OK;
     case "choose_setup":
       return checkChooseSetup(state, t);
