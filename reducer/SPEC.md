@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** draft v0.10, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.13](../game_state/SPEC.md), [Transforms v0.11](../transforms/SPEC.md) and [Validator v0.9](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end). v0.8 adds the nova cannon (§3, §4.4, §5.3, §11, §12, R26–R29). v0.9 logs Fleet Engagement's set-up (§12) and ends a game on rounds only when `maxRounds` is set. v0.10 adds fleet commander re-rolls (§2.2), the targeting matrix (§4.1), the Mark of Khorne in boarding, and losing re-rolls to Bridge Smashed (§6, §10.4, §12, R30–R32).
+**Status:** draft v0.10, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.16](../game_state/SPEC.md), [Transforms v0.14](../transforms/SPEC.md) and [Validator v0.11](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end). v0.8 adds the nova cannon (§3, §4.4, §5.3, §11, §12, R26–R29). v0.9 logs Fleet Engagement's set-up (§12) and ends a game on rounds only when `maxRounds` is set. v0.10 adds fleet commander re-rolls (§2.2), the targeting matrix (§4.1), the Mark of Khorne in boarding, and losing re-rolls to Bridge Smashed (§6, §10.4, §12, R30–R32). v0.11 adds escorts and squadrons: escort losses (§3, §6, §10.5), squadron Leadership tests (§2.2), fire by and at squadrons (§4.5), squadron moves and disengaging (§8.1, §8.2), and their log entries (§11, §12, R33–R41).
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState
@@ -100,12 +100,12 @@ The cap gives "11–12 always fails" on 2D6 (p. 48), and "modified Ld 13 still r
 
 | Test | Dice | Target |
 |---|---|---|
-| Command check (orders, Brace) | 2 | `commandCheckLd(ship)` (state §11) |
-| Target priority | 2 | `leadership(ship)` |
+| Command check (orders, Brace) | 2 | `commandCheckLd(ship)` (state §11); for a squadron in formation, the squadron's (`squadronLd`) |
+| Target priority | 2 | `leadership(ship)`; for a squadron in formation, `squadronLd` (state N40) |
 | Ram | 3 / 2 / 1 for a target of smaller / same / larger type | `leadership(ship)` |
-| Disengage | 2 | `leadership(ship)` + 1 per BM within 5 cm − 1 per enemy ship or salvo within 15 cm |
+| Disengage | 2 | `leadership(ship)` + 1 per BM within 5 cm − 1 per enemy ship or salvo within 15 cm; an escort squadron tests once, on `squadronLd`, counting BMs and enemies near any member, each once (state N41) |
 
-Size order: escort < cruiser < battleship < defence. Phase 1 rams are always cruiser on cruiser, so 2D6.
+Size order: escort < cruiser < battleship < defence.
 
 **Re-rolls** (transform §2.7). A test taken with `reroll` that fails, when `rerollFor(ship)` still has one:
 
@@ -145,8 +145,19 @@ inflict(target, hits, src):     // src: { source: AttackSource, origin: Point, s
 
 damagePoint(ship, critCheck):
   ship.damage += 1; log damage
+  if ship is an escort:                                                            // state N34
+    if ship.damage = ship.profile.hits or (critCheck and d6() = 6): escortLost(ship, cause)
+    return
   if critCheck and ship.damage < ship.profile.hits and d6() = 6: critical(ship)    // §6
+
+escortLost(ship, cause):                         // 0 hits, or any critical (p. 67): no hulk, no catastrophic roll
+  bm = a single Blast Marker at its stem (§5.3); releaseCap(ship) (§7.5); leave any grapple (§7.4)
+  status = "destroyed", position, heading and specialOrder null
+  log escort_lost { shipId, cause, blastMarkerId: bm }
 ```
+
+- `inflict` skips `catastrophic` for escorts: they're already `destroyed` when they reach 0. Further hits on a lost escort are discarded, as overkill.
+- `applyCritical` on an escort, from boarding or an assault boat, is `escortLost(ship, "critical")` (§6).
 
 - `isBraced(ship)` is true when the ship's `specialOrder` is Brace For Impact!.
 - `shieldCapacity` is read **once**. Absorbing `n` hits places `n` BMs in contact, which is how capacity falls (state R#11).
@@ -240,6 +251,44 @@ No column shifts (p. 61).
 - **Ship target:** `inflict(target, hits, { source: shooter, origin: shooter.position, shieldable: true, braceable: true })`.
 
 Shield BMs take effect at once, so they count towards the shooter's next weapon's shift (p. 201).
+
+### 4.5 By and at squadrons
+
+A volley is the `fire` transform's weapon, its `combineWith`, and every `withShips` weapon. The transform's ship is the **lead**. All of it is one attack, `source: { kind: "ship", id: lead }`.
+
+**Targets.** `T` is `formation(squadronOf(target))` when the target ship is in formation in a squadron, else `[target]`. `E`, the members that **took fire**, are the members of `T` that some weapon in the volley can engage (validator §2.7, V17). For a squadron, `A` is `targetAspect`, or else the aspect category of the member of `E` nearest the lead; `E` keeps only members whose own aspect from the lead (the easier one on a boundary, V16) has a column no further right than `A`'s (transform T83). For a single ship, `A` is its aspect as before.
+
+**Brace.** One offer, to the member of `E` nearest the lead (transform T86). Its answer braces the squadron.
+
+**Batteries** (p. 99, T88):
+
+```
+for each firing ship f, in volley order (lead first):
+  fp_f   = Σ strength of f's batteries in the volley, each halved by effectiveStrength's rules
+           (escorts in a squadron: not halved for orders here, see below)
+  m_f    = the member of E nearest f
+  col_f  = clamp(baseColumn(m_f, A) + shifts(f, m_f), A, E)      // §4.1: range and BMs from f to m_f; f's own traits
+group the firing ships by col_f; for each column c, in first-appearance order:
+  fp_c = Σ fp_f; if the shooters are an escort squadron on AAF / Come to New Heading / Burn Retros: fp_c = ⌈fp_c / 2⌉
+  dice_c = gunnery(fp_c, c)
+need  = min over m in E of armourFacing(m, lead)                  // mixed armour (p. 98)
+rolls = nD6(Σ dice_c) in column order; hits = the rolls ≥ need
+if the lead is on Lock On: rerolls = nD6(count of misses); add the rerolls ≥ need
+```
+
+**Lances:** `str = Σ effectiveStrength` over the volley's lances (an escort squadron on a halving order halves the total, rounding up, instead); `rolls = nD6(str)`; hits are the rolls ≥ 4, then Lock On as §4.2.
+
+**Allocating** (pp. 96–98, T87). Batteries take their hitting rolls in ascending order; lances take their hits in roll order:
+
+```
+for each hit h:
+  candidates = members of E still active, with armourFacing(m, lead) ≤ h's roll (batteries only),
+               nearest the lead first (ties: earlier in shipIds)
+  if none: log the hit as lost; continue
+  inflict(candidates[0], 1, { source, origin: lead.position, shieldable: true, braceable: true })    // §3, one hit at a time
+```
+
+One hit at a time means a capital member's shields, brace save, damage and critical (with its extra damage) all land before the next hit, so hits pass on only once it's a hulk (p. 98). A single-ship target with no squadron-mates firing is exactly §4.1–4.3. Shield Blast Markers are placed towards the lead.
 
 ### 4.4 Nova cannon
 
@@ -341,6 +390,8 @@ applyCritical(ship, n):                              // also a Hit-and-Run resul
 | 11 | always | (Hull Breach) | `d3()` |
 | 12 | always | (Bulkhead Collapse) | `d6()` |
 
+**Escorts** never take a critical: anything that would give one is `escortLost` instead (state N34).
+
 Repeats of repairable criticals stack (state §7.2). New criticals get `id = newId("crit")` and `playerTurn = clock.playerTurn`. Extra damage stops early if the ship hits 0; catastrophic damage then follows from `inflict` (or from the caller, for Fire!).
 
 ---
@@ -433,7 +484,10 @@ They move in the next Ordnance Phase like any other wave.
 4. On a fail, set `commandCheckFailed = true`.
 5. Open the activation with `stage: "ordered"` (state §9.1). Its `maxDistance` / `minDistance` come from validator §4.2's parameter block, with no BM slowdown yet.
 
+**A squadron's `declare_order`** (state N37–N39): the check is the squadron's. On a pass, step 2 applies to every member in formation, each logged `order_set { shipId, order }`. The AAF dice are drawn once. Then `squadronMove = { squadronId, order (null on a fail), aafExtra, members: formation, disengage: null }`, and the activation gets `squadronId`.
+
 **`move`.**
+0. If the ship is in formation in a squadron and `squadronMove` is null, set it with `order: null` and the formation as `members`. If `squadronMove` holds the ship, the activation it creates (step 1) takes `order` and `aafExtra` from it, `ram: null`, and `squadronId`. In an escort squadron, the first mover's `disengage` is stored in `squadronMove.disengage`.
 1. Create the activation if there isn't one (no order).
 2. Set `stage: "moving"`, `remainingPath = path`, `disengage` and `boardTargetId` (null if absent).
 3. Enqueue `continue_move`.
@@ -491,6 +545,10 @@ continue_move:
      log boarding_lapsed { reason: a.truncated ? "truncated" : t.status ≠ "active" or t.grapple ≠ null ? "target_gone" : "no_contact" }
    ```
 4. Set `turnState.ships[id].moved = true`, log `move`, and set `activation = null`.
+5. **In a squadron's move** (state N37, N41):
+   - An escort's step 2 is skipped: its squadron tests once, below. An escort that left by the table edge sets its squadron's `disengaging`.
+   - A capital member that failed its test leaves the squadron: its id is removed from `shipIds`; log `left_squadron { shipId, squadronId }`.
+   - If no member of `squadronMove` is still `active` and unmoved: for an escort squadron whose move asked to disengage, run its one test (§2.2). Pass: every member still `active` is `disengaged` (`releaseCap` first), log `disengaged { reason: "test" }` for each. Fail: each gets `disengage = "failed"`. Either way, a pass or a member already off the table sets `disengaging`. Then `squadronMove = null`.
 
 ### 8.3 `ram`
 
@@ -853,7 +911,7 @@ applyCritical(t, r)                                     // §6: the D6 score rea
 if t.damage = t.profile.hits: catastrophic(t)
 ```
 
-Against escorts a Hit-and-Run destroys the ship on 4+ instead (pp. 91–92). Cruiser Clash has no escorts, so that waits for them.
+**Against an escort** (p. 92, transform T90): `r ≥ 4` destroys it, after the brace save (`s ≥ 4` saves it): `escortLost(t, "hit_and_run")`, log `teleport { result: "destroyed" }`. On 2–3 it fails like a 1. Assault boats' Hit-and-Run (§9.7) reads an escort the same way.
 
 ---
 
@@ -865,7 +923,9 @@ The definitive `WorkItem` union. The state stores these in `queue` (state §9.3)
 type WorkItem =
   | { kind: "brace_offer", shipId: string, source: AttackSource }
   | { kind: "direct_fire", shooterId: string, weaponId: string, combineWith?: string[],   // absent in older saves: []
-      target: { kind: "ship" | "ordnance", id: string }, arc: Quadrant, aspect: Quadrant | null }
+      target: { kind: "ship" | "ordnance", id: string }, arc: Quadrant, aspect: Quadrant | null,
+      withShips?: { shipId: string, weaponIds: string[] }[],                                 // absent: [] (§4.5)
+      targetAspect?: "closing" | "moving_away" | "abeam" }                                 // squadron targets only
   | { kind: "continue_move" }
   | { kind: "ram", rammerId: string, targetId: string }
   | { kind: "zero_shield_bm", shipId: string }
@@ -930,16 +990,19 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `step` | `phase, step` (battle) or `setupStep` (setup) |
 | `end_step` | `step` (the step the player ended) |
 | `order_expired` | `shipId, order` |
-| `command_check` | `shipId, order, target, rolls, passed` |
+| `command_check` | `shipId, order, target, rolls, passed`, + `squadronId` for a squadron's check |
 | `ram_test`, `priority_test`, `disengage_test` | `shipId, target, rolls, passed` (+ `targetId` for rams) |
 | `aaf_roll` | `shipId, rolls, extra` |
 | `move` | `shipId, from, to, distance, truncated` |
+| `order_set` | `shipId, order` (a squadron-mate taking the squadron's order) |
+| `left_squadron` | `shipId, squadronId` (a capital ship that failed to disengage) |
+| `escort_lost` | `shipId, cause: "damage" \| "critical" \| "hit_and_run" \| "boarding", blastMarkerId` |
 | `grappled` | `shipId` (stays put this Movement Phase) |
 | `boarding_declared` | `shipId, targetId` |
 | `boarding_lapsed` | `shipId, targetId, reason: "truncated" \| "no_contact" \| "target_gone"` |
 | `blast_marker_contact` | `shipId, distance, maxDistance` (the slowed maximum) |
 | `ram` | `rammerId, targetId, headOn, facing, rammerRolls, rammerHits, targetRolls, targetHits` |
-| `attack` | `source, targetId, weapon: "battery" \| "lance" \| "torpedo" \| "explosion", column?, shifts?, facing? (torpedoes), need, rolls, rerolls, hits`; a combined volley adds `weaponIds` and `firepower` |
+| `attack` | `source, targetId, weapon: "battery" \| "lance" \| "torpedo" \| "explosion", column?, shifts?, facing? (torpedoes), need, rolls, rerolls, hits`; a combined volley adds `weaponIds` and `firepower`; a squadron volley adds `shooterIds`, `columns: { column, firepower, dice }[]`, and against a squadron `targetIds` (the members that took fire), `targetAspect` and `allocation: { roll, shipId \| null }[]` |
 | `nova_cannon` | `shipId, weaponId, aim, range, dice, rolls, scatter: "hit" \| { bearing, distance }, centre, ships: { shipId, hole, hits }[], ordnanceIds, blastMarkerId: string \| null` (`rolls`: the scatter die, then the direction, distance and hole dice in draw order) |
 | `shields` | `shipId, absorbed, blastMarkerIds` |
 | `brace_offer` | `pendingId, shipId, source` |
@@ -975,7 +1038,7 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `boarded_hulk` | `shipId, blastMarkerIds` |
 | `grapple` | `defenderId, attackerIds` (formed or joined) |
 | `grapple_ended` | `defenderId, shipId` (the ship whose loss ended it) |
-| `teleport` | `shipId, targetId, rolls, saveRolls?, result: "failed" \| "saved" \| "critical"` |
+| `teleport` | `shipId, targetId, rolls, saveRolls?, result: "failed" \| "saved" \| "critical" \| "destroyed"` |
 | `bm_removal` | `rolls, removed` |
 | `skipped` | `item` |
 | `game_end` | `reason, scores, winner`; with victory points also `scoring: "victory_points"` and `breakdown: { p1, p2 }`, each `{ ships: { shipId, vp, why: "destroyed" \| "crippled" \| "disengaged" }[], field }` |
@@ -1040,6 +1103,15 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | R23 | Assault boats against a hulk do nothing: like a teleport attack, Hit-and-Run needs an `active` target. Bombers' hits on a hulk still trigger its catastrophic re-roll (R3). |
 | R25 | A combined volley is one roll: one brace offer, one column, one set of dice, one Lock On re-roll of its misses. Its shield Blast Markers can't shift its own column. |
 | R24 | Bombers' attack dice are drawn per bomber, in wave order, before any to-hit die. |
+| R33 | **Escorts are lost, not wrecked**: at 0 hits, or on any critical, an escort is `destroyed` with a Blast Marker at its stem (state N34). It never rolls catastrophic damage, so it never explodes. |
+| R34 | **One volley, one source**: every ship in a squadron volley attacks as the lead, so a target that fails to brace against the squadron can't try again until the volley is done, and a hulk takes one catastrophic re-roll from it (p. 66, R3). |
+| R35 | **Columns per firing ship, armour and distance from the lead** (p. 99): each ship's batteries roll on its own column (its range and Blast Markers to the member nearest it), but which member is nearest, and which facing's armour counts, are judged from the lead. One point of view keeps allocation deterministic, and the book's examples are all from one. |
+| R36 | **Halving an escort squadron's volley** (p. 99) is per column group, rounding up, so a squadron split over two columns isn't halved twice. |
+| R37 | **Lowest rolls first, one hit at a time** (p. 98): a die that can only hurt a weaker-armoured member goes there even if it's further, and each hit finishes (shield, brace save, damage, critical) before the next is placed, which is how a capital ship's critical damage counts before hits pass on (p. 98). |
+| R38 | **Hits nobody took are lost** (p. 97): more hits than the members that took fire can absorb are discarded, like overkill. |
+| R39 | **An escort squadron's disengage test** comes after its last member moves, so members that sailed off the table edge mid-move are already gone and don't count towards it. A pass takes every member still `active`. |
+| R40 | **Squadron orders are logged once**: one `command_check` with `squadronId`, then `order_set` for each member that took the order. |
+| R41 | **Escort Hit-and-Run** (p. 92): 4+ destroys, 1–3 fails, whatever the critical table would say; Brace saves on 4+ as for a critical. |
 | R30 | **Bridge Smashed on a commander's ship** sets that commander's `rerolls` to 0 and logs `rerolls_lost` (fleets book, p. 11). The Leadership −3 applies to the commander's Leadership as to any ship's. |
 | R31 | **The Warmaster's Mark of Khorne** adds +1 to the boarding critical rolls his ship's fight inflicts on the enemy ships in it (p. 232): `khorne(x)` is 1 when the side fighting `x` includes the Warmaster's ship with the Mark, else 0. A Lord's Mark of Khorne only doubles his ship's boarding value. |
 | R32 | **A re-roll is spent only on a failure**, and only when the transform asked for it: a passed test, or a ship whose commander has none left, spends nothing. |

@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.10, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.15](../game_state/SPEC.md) and [Transforms v0.13](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8).
+**Status:** draft v0.11, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.16](../game_state/SPEC.md) and [Transforms v0.14](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -48,6 +48,7 @@ Shared by validator and reducer: one module, one definition. Everything is 2D, i
 | `TELEPORT_RANGE` | 10 cm | teleport attacks, pp. 91–92 |
 | `CRAFT_RADIUS` | 1 cm | one attack craft marker's footprint (state N8) |
 | `NOVA_RADIUS` / `NOVA_HOLE_RADIUS` | 2.5 / 0.6 cm | the nova cannon template and its centre hole (state N13) |
+| `FORMATION_RANGE` | 15 cm | squadron formation, stem to stem (p. 96, state N35) |
 
 ### 2.2 Tolerant comparison
 
@@ -186,6 +187,14 @@ isNearest(ship, weapon, target)      = target ∈ the matching set above
 
 Hulks are never "the nearest", so shooting at an enemy hulk always needs the priority test (p. 71). Ties all count as nearest; the shooter picks.
 
+**Squadrons** (V15–V17):
+
+```
+squadronTarget(target)              = formation(squadronOf(target)) if target is in formation, else none
+squadronEngageable(ship, weapon, sq) = the members of formation(sq) for which canEngage(ship, weapon, member) holds
+isNearest(ship, weapon, target)      = for a squadron target: some member of formation(sq) is in nearestShipTargets(ship, weapon)
+```
+
 **Nova cannon line of fire** (transform T44):
 
 ```
@@ -262,6 +271,11 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 | 4 | `position` lies in one of `deploymentDivisions(player)` (inclusive, `EPS`); the first in list order that holds it is the ship's division | `NOT_IN_ZONE` |
 | 5 | If the player's undeployed ships (this one included) are no more than their empty divisions, this ship's division is empty (state N18) | `FILL_DIVISIONS_FIRST` |
 | 6 | The new base doesn't overlap any deployed ship's base: `distance > r1 + r2 − EPS`. Touching is allowed. | `BASES_OVERLAP` |
+| 7 | If the player has a squadron with some members deployed and some not, the ship is one of its undeployed members (transform T80) | `SQUADRON_DEPLOYING` |
+| 8 | A squadron member after the first goes in the first member's division | `SQUADRON_DIVISION` |
+| 9 | … with its stem within `FORMATION_RANGE` (15 cm, inclusive) of a deployed member's stem | `NOT_IN_FORMATION` |
+
+For check 5, a squadron counts as one: "undeployed ships" counts single ships and squadrons with no member down, and a squadron's later members skip the check (they follow check 8).
 
 **`choose_first_turn`**: gates only.
 
@@ -291,6 +305,10 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 | 9 | If `ramTargetId` is given: `order = "all_ahead_full"` and `meta.options.ramming` | `RAM_NOT_ALLOWED` |
 | 10 | If `ramTargetId` is given: it names an enemy ship that's `onTable` (hulks allowed, transform D2) | `INVALID_RAM_TARGET` |
 | 11 | If `reroll`: `rerollFor(ship)` exists (state §11) | `NO_REROLL` |
+| 12 | If the ship's squadron is `turnState.squadronMove`'s: refused, it already has the squadron's order | `SQUADRON_ORDERED` |
+| 13 | If `squadronMove` is set for another squadron: refused until that squadron has moved | `SQUADRON_MOVING` |
+
+A ship in formation in a squadron declares for the squadron (transform T81): checks 6–7 and 11 apply to it, and the reducer applies the order to every member in formation.
 
 **`release_cap`**
 
@@ -312,13 +330,16 @@ First, identify the move:
 | 3 | `ship.status = "active"` | `SHIP_NOT_ACTIVE` |
 | 4 | `turnState.ships[id].moved = false` | `ALREADY_MOVED` |
 | 5 | `activation = null`, or `activation.stage = "ordered"` with `activation.shipId = shipId` | `ACTIVATION_OPEN` |
+| 5a | If `squadronMove` is set: the ship is one of its `members` | `SQUADRON_MOVING` |
+| 5b | If the ship's squadron is `disengaging`: the path leaves the table, or `disengage` is true | `MUST_DISENGAGE` |
+| 5c | In an escort squadron's move with `squadronMove.disengage ≠ null`: `disengage` equals it, unless the path leaves the table | `SQUADRON_DISENGAGE` |
 
 Then work out the move's parameters, the same way the reducer does:
 
 ```
-order        = activation?.order ?? null
+order        = activation?.order ?? squadronMove?.order ?? null   // a squadron member moves on the squadron's order
 baseSpeed    = speed(ship)                                      // state §11
-D0           = baseSpeed + (activation?.aafExtra ?? 0)          // unslowed maximum
+D0           = baseSpeed + (activation?.aafExtra ?? squadronMove?.aafExtra ?? 0)   // unslowed maximum
 minDistance  = order = burn_retros ? 0 : baseSpeed / 2
 maxIfBR      = order = burn_retros ? baseSpeed / 2 : D0
 turnsAllowed = has(engine_room) ? 0
@@ -408,6 +429,17 @@ Grappled ships never reach the `declare_order` or `move` checks: they're marked 
 | 24 | … the target is within each one's range and in one of its arcs | `OUT_OF_RANGE` / `OUT_OF_ARC` |
 | 25 | … if `priorityTest = "failed"`: the target is nearest for each one | `MUST_TARGET_NEAREST` |
 | 26 | If `reroll`: `rerollFor(ship)` exists | `NO_REROLL` |
+| 27 | If `targetAspect` is given: the target is a squadron target (V15) | `INVALID_TARGET_ASPECT` |
+| 28 | … it's the aspect category (closing, moving away, abeam) of at least one member that `squadronEngageable` holds for, for some weapon in the volley | `INVALID_TARGET_ASPECT` |
+| 29 | If `withShips` is given: the shooter is in formation in a squadron | `INVALID_SQUADRON_FIRE` |
+| 30 | … each entry names another member in formation of that squadron, once | `INVALID_SQUADRON_FIRE` |
+| 31 | … each such ship passes checks 3–6 | `SHIP_NOT_ACTIVE` / `DISENGAGE_FAILED` / `GRAPPLED` / `BOARDING_SHIP` |
+| 32 | … each weapon id is on that ship's profile, once, and of the volley's kind (`battery` with a battery `weaponId`, `lance` with a lance) | `UNKNOWN_WEAPON` / `WRONG_WEAPON_KIND` |
+| 33 | … each is not in that ship's `weaponsFired` and not disabled | `WEAPON_ALREADY_FIRED` / `WEAPON_DISABLED` |
+| 34 | … the target can be engaged by each (for a squadron target, some member in formation, V15) | `OUT_OF_RANGE` / `OUT_OF_ARC` |
+| 35 | … if `priorityTest = "failed"`: the target is nearest for each | `MUST_TARGET_NEAREST` |
+
+**Squadron targets** (V15): when the target ship is in formation in a squadron, checks 13–20 and 24–25 are taken against the squadron instead of the named ship. Range and arc pass if `squadronEngageable` is non-empty for the weapon; `arc` and `aspect` choices aren't asked for (V16); line of fire is per member, inside `squadronEngageable`; and check 20 passes if any member in formation is nearest.
 
 Check 15 only demands a choice when it makes a difference. A target on the front/right boundary of a weapon that only fires right doesn't need `arc`: `Q = {right}`.
 
@@ -560,11 +592,18 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 | `INVALID_SETUP` | `choose_setup` with a set-up the formations don't offer |
 | `NOT_IN_ZONE` | Deployment position outside the player's zone |
 | `BASES_OVERLAP` | Deployment position overlaps another ship's base |
+| `SQUADRON_DEPLOYING` | A squadron is part-deployed; its members go first |
+| `SQUADRON_DIVISION` | A squadron member must go in its squadron's division |
+| `NOT_IN_FORMATION` | A squadron member must be deployed within 15 cm of one already down |
 | `NOT_A_HULK` / `ALREADY_DRIFTED` | `drift_hulk` on a non-hulk, or a second time |
 | `ALREADY_MOVED` | Ship has finished its move this turn |
 | `ACTIVATION_OPEN` | Another ship has declared an order and hasn't moved yet |
 | `ORDERS_LOCKED` | Fleet failed a Command check this turn |
 | `ALREADY_ON_ORDERS` | Ship has a live order (usually last turn's Brace) |
+| `SQUADRON_ORDERED` | The ship's squadron has already begun moving, on its own order |
+| `SQUADRON_MOVING` | Another squadron is part-way through its move |
+| `MUST_DISENGAGE` | An escort of a disengaging squadron must attempt to disengage or leave the table |
+| `SQUADRON_DISENGAGE` | An escort squadron's members must all ask for the disengage test, or none |
 | `INVALID_ORDER` | Brace declared directly, or Come to New Heading on a ship that can't use it |
 | `RAM_NOT_ALLOWED` / `INVALID_RAM_TARGET` | Ram without AAF / with ramming off / at an invalid ship |
 | `INVALID_PATH_STEP` | Zero or negative advance, zero turn |
@@ -582,6 +621,8 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 | `ASPECT_CHOICE_REQUIRED` / `INVALID_ASPECT_CHOICE` | Shooter on the target's quadrant boundary |
 | `LINE_OF_FIRE_BLOCKED` | A hulk is in the way |
 | `MUST_TARGET_NEAREST` | Priority test failed; only the nearest target is allowed |
+| `INVALID_TARGET_ASPECT` | `targetAspect` on a single ship, or an aspect no reachable member shows |
+| `INVALID_SQUADRON_FIRE` | `withShips` from a ship not in formation, or naming ships outside its squadron's formation |
 | `BEARING_OUT_OF_ARC` | Torpedo launch bearing outside the launcher's arc |
 | `ORDNANCE_ALREADY_MOVED` | Salvo already moved this step |
 | `ALREADY_REPAIRED` / `NOTHING_TO_REPAIR` | Damage control |
@@ -655,6 +696,10 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V12 | **A ship starting on a Blast Marker** has its minimum capped by the slowed limit even for a path that doesn't move: any move it makes is slowed (p. 69), so a ship whose speed the slowdown takes to 0 stays put legally instead of having no legal move. |
 | V13 | **A division is empty** when none of the player's deployed ships has its stem in it (by the same first-in-list rule as check 4). `FILL_DIVISIONS_FIRST.details` is `{ empty: divisionIndexes }`. |
 | V14 | **`reroll` is checked against the re-rolls available now**, not against whether the test will fail: the flag says what to do if it does (transform §2.7). `fire.reroll` is accepted even when no priority test will be taken; it then spends nothing. |
+| V15 | **A squadron target is its formation**, whichever member is named (transform T83). The named member doesn't itself need to be in range or arc. |
+| V16 | **No arc or aspect choices against a squadron.** A member on an arc boundary is in arc if either quadrant is one of the weapon's arcs, and a member on a quadrant boundary shows the shooter the easier of its two aspects. The choice that matters is `targetAspect`. |
+| V17 | **A member "took fire" if any weapon in the volley can engage it** (p. 97): `squadronEngageable` over the whole volley. The dice are pooled, as the book adds firepower together, so any hit can go to any member that took fire (reducer §4.5). |
+| V18 | **Squadron moves are checked against the squadron's order**: a member's limits come from `squadronMove` when the activation hasn't been opened for it. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |
 
 ## 8. Decisions
