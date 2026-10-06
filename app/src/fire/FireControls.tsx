@@ -1,7 +1,7 @@
-import { activePlayer, craft, effectiveStrength, weaponDisabled, type GameState, type Ship, type Transform, type Weapon } from "@bfg/engine";
+import { activePlayer, craft, effectiveStrength, novaCannonBarred, weaponDisabled, type GameState, type Point, type Ship, type Transform, type Weapon } from "@bfg/engine";
 import { LaunchCraft } from "../craft/LaunchCraft";
 import { Act } from "../controls/Act";
-import { describeBearing, launch, targets } from "./fire";
+import { describeBearing, launch, novaReach, novaShot, novaTargets, targets } from "./fire";
 import type { Aim } from "./aim";
 
 type Props = {
@@ -11,12 +11,14 @@ type Props = {
   onApply: (t: Transform) => void;
   /** Launch bearing under the pointer (or last seen there). */
   bearing: number;
+  /** Where a nova cannon's template would go: under the pointer, or last seen there. */
+  novaAim: Point | null;
 };
 
-const KINDS = { direct_fire: ["battery", "lance"], launch_ordnance: ["torpedoes"] } as const;
+const KINDS = { direct_fire: ["battery", "lance", "nova_cannon"], launch_ordnance: ["torpedoes"] } as const;
 
 /** Shooting steps: pick a weapon, then a target (direct fire) or a bearing (torpedoes). */
-export function FireControls({ state, aimed, onAim, onApply, bearing }: Props) {
+export function FireControls({ state, aimed, onAim, onApply, bearing, novaAim }: Props) {
   const step = state.clock.step;
   if (step !== "direct_fire" && step !== "launch_ordnance") return null;
   const player = activePlayer(state);
@@ -29,7 +31,7 @@ export function FireControls({ state, aimed, onAim, onApply, bearing }: Props) {
   return (
     <>
       {ready.map((ship) => (
-        <ShipWeapons key={ship.id} state={state} ship={ship} kinds={kinds} aimed={aimed} onAim={onAim} onApply={onApply} bearing={bearing} />
+        <ShipWeapons key={ship.id} state={state} ship={ship} kinds={kinds} aimed={aimed} onAim={onAim} onApply={onApply} bearing={bearing} novaAim={novaAim} />
       ))}
       {done.length > 0 && <p className="muted small">Nothing left to {step === "direct_fire" ? "fire" : "launch"}: {done.map((s) => s.name).join(", ")}</p>}
       <div className="buttons">
@@ -45,8 +47,11 @@ export function FireControls({ state, aimed, onAim, onApply, bearing }: Props) {
 function available(state: GameState, ship: Ship, w: Weapon): boolean {
   const turn = state.turnState.ships[ship.id];
   if (turn?.disengage === "failed" || turn?.weaponsFired.includes(w.id) === true || weaponDisabled(state, ship, w)) return false;
+  if (w.kind === "nova_cannon") return novaCannonBarred(ship) === null;
   return w.kind !== "torpedoes" || ship.loaded.torpedoes === true;
 }
+
+const BARRED = { crippled: "crippled: can't fire", order: "can't fire on this order" } as const;
 
 function ShipWeapons({
   state,
@@ -56,6 +61,7 @@ function ShipWeapons({
   onAim,
   onApply,
   bearing,
+  novaAim,
 }: Omit<Props, "aimed"> & { ship: Ship; kinds: readonly Weapon["kind"][]; aimed: Props["aimed"] }) {
   const turn = state.turnState.ships[ship.id];
   const weapons = ship.profile.weapons.filter((w) => kinds.includes(w.kind));
@@ -76,8 +82,9 @@ function ShipWeapons({
           const disabled = weaponDisabled(state, ship, w);
           const empty = w.kind === "torpedoes" && ship.loaded.torpedoes !== true;
           const selected = aimed?.weapon.id === w.id && aimed.ship.id === ship.id;
-          const status = fired ? "fired" : disabled ? "disabled" : empty ? "reload needed" : null;
-          const range = w.kind === "torpedoes" ? `speed ${w.speed} cm` : `${w.range} cm`;
+          const barred = w.kind === "nova_cannon" ? novaCannonBarred(ship) : null;
+          const status = fired ? "fired" : disabled ? "disabled" : empty ? "reload needed" : barred !== null ? BARRED[barred] : null;
+          const range = w.kind === "torpedoes" ? `speed ${w.speed} cm` : w.kind === "nova_cannon" ? `${w.minRange ?? 0}–${w.range} cm` : `${w.range} cm`;
           return (
             <button
               key={w.id}
@@ -89,14 +96,17 @@ function ShipWeapons({
             >
               <span>{w.name}</span>
               <span className="muted">
-                {status ?? `${effectiveStrength(ship, w)} · ${range}`}
+                {status ?? (w.kind === "nova_cannon" ? range : `${effectiveStrength(ship, w)} · ${range}`)}
               </span>
             </button>
           );
         })}
       </div>
       {carrier && <LaunchCraft key={`${ship.id}/${state.clock.playerTurn}`} state={state} ship={ship} onApply={onApply} />}
-      {aimed !== null && aimed.ship.id === ship.id && aimed.weapon.kind !== "torpedoes" && (
+      {aimed !== null && aimed.ship.id === ship.id && aimed.weapon.kind === "nova_cannon" && (
+        <NovaAim state={state} ship={ship} weapon={aimed.weapon} aim={novaAim} onApply={onApply} />
+      )}
+      {aimed !== null && aimed.ship.id === ship.id && (aimed.weapon.kind === "battery" || aimed.weapon.kind === "lance") && (
         <TargetList state={state} ship={ship} weapon={aimed.weapon} onApply={onApply} />
       )}
       {aimed !== null && aimed.ship.id === ship.id && aimed.weapon.kind === "torpedoes" && (
@@ -142,5 +152,42 @@ function TargetList({ state, ship, weapon, onApply }: { state: GameState; ship: 
         </li>
       ))}
     </ul>
+  );
+}
+
+/** The nova cannon: drop the template on an enemy, or anywhere on the table by clicking it (pp. 63–64). */
+function NovaAim({ state, ship, weapon, aim, onApply }: { state: GameState; ship: Ship; weapon: Weapon; aim: Point | null; onApply: (t: Transform) => void }) {
+  const list = novaTargets(state, ship, weapon);
+  const reach = aim !== null ? novaReach(ship, aim) : null;
+  return (
+    <div className="targets">
+      <p className="muted small">
+        Click the table to place the template: its edge {weapon.minRange ?? 0}–{weapon.range} cm away, in the prow arc. It scatters 1D6 cm within 45 cm, 2D6 within
+        60, 3D6 beyond, and hits friend and foe alike.
+      </p>
+      {aim !== null && reach !== null && (
+        <div className="buttons">
+          <Act state={state} transform={novaShot(ship, weapon, aim)} onApply={onApply} primary showReason>
+            Fire here ({Math.round(reach.range * 10) / 10} cm, {reach.dice}D6 scatter)
+          </Act>
+        </div>
+      )}
+      <ul className="targets">
+        {list.map((t) => (
+          <li key={t.id}>
+            <span>
+              {t.name} <span className="muted">{Math.round(t.range * 10) / 10} cm</span>
+            </span>
+            {t.shot !== null ? (
+              <button type="button" className="primary" onClick={() => onApply(t.shot as Transform)}>
+                Fire at {t.name}
+              </button>
+            ) : (
+              <small className="muted">{t.reason}</small>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

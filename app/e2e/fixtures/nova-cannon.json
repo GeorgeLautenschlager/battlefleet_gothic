@@ -1,0 +1,93 @@
+{
+ "format": "bfg-save",
+ "version": 1,
+ "config": {
+  "seed": 4242,
+  "createdAt": "2026-10-06T12:00:00.000Z",
+  "options": {
+   "ramming": true,
+   "boarding": true,
+   "carriers": false
+  },
+  "forces": {
+   "kind": "points",
+   "limit": 500
+  },
+  "scoring": "victory_points",
+  "players": {
+   "p1": {
+    "name": "Ann",
+    "faction": "imperial_navy"
+   },
+   "p2": {
+    "name": "Bo",
+    "faction": "chaos"
+   }
+  },
+  "ships": [
+   {
+    "owner": "p1",
+    "name": "Hammer of Justice",
+    "classId": "dominator"
+   },
+   {
+    "owner": "p2",
+    "name": "Unclean",
+    "classId": "murder"
+   }
+  ]
+ },
+ "transforms": [
+  {
+   "type": "roll_leadership",
+   "player": "p1"
+  },
+  {
+   "type": "roll_zones",
+   "player": "p1"
+  },
+  {
+   "type": "roll_deploy_order",
+   "player": "p1"
+  },
+  {
+   "type": "deploy_ship",
+   "player": "p1",
+   "shipId": "ship-1",
+   "position": {
+    "x": 90,
+    "y": 20
+   }
+  },
+  {
+   "type": "deploy_ship",
+   "player": "p2",
+   "shipId": "ship-2",
+   "position": {
+    "x": 90,
+    "y": 100
+   }
+  },
+  {
+   "type": "roll_first_turn",
+   "player": "p1"
+  },
+  {
+   "type": "choose_first_turn",
+   "player": "p1",
+   "goFirst": true
+  },
+  {
+   "type": "move",
+   "player": "p1",
+   "shipId": "ship-1",
+   "path": [
+    {
+     "kind": "advance",
+     "distance": 10
+    }
+   ],
+   "disengage": false
+  }
+ ]
+}

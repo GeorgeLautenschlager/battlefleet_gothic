@@ -33,6 +33,8 @@ export type Fire = Base<"fire"> & {
   arc?: Quadrant;
   aspect?: Quadrant;
 };
+/** Aim a nova cannon: `aim` is where the template's centre is placed (T40). */
+export type FireNovaCannon = Base<"fire_nova_cannon"> & { shipId: string; weaponId: string; aim: Point };
 export type LaunchTorpedoes = Base<"launch_torpedoes"> & { shipId: string; weaponId: string; bearing: number };
 /** Each entry is one wave (or, with `cap`, one CAP fighter per squadron); `recall` removes own waves first (p. 73). */
 export type LaunchAttackCraft = Base<"launch_attack_craft"> & {
@@ -68,6 +70,7 @@ export type Transform =
   | Move
   | ReleaseCap
   | Fire
+  | FireNovaCannon
   | LaunchTorpedoes
   | LaunchAttackCraft
   | EndStep

@@ -19,7 +19,7 @@ import { PlotOverlay } from "./plot/PlotOverlay";
 import { FireControls } from "./fire/FireControls";
 import { FireOverlay } from "./fire/FireOverlay";
 import { liveAim, type Aim } from "./fire/aim";
-import { bearingToward, launch, targets } from "./fire/fire";
+import { bearingToward, launch, novaShot, novaTargets, targets } from "./fire/fire";
 import { useCraftPlot } from "./craft/useCraftPlot";
 import { CraftOverlay } from "./craft/CraftOverlay";
 import { movableWaves } from "./craft/craft";
@@ -34,6 +34,8 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
   const [highlight, setHighlight] = useState<string[]>([]);
   const [aim, setAim] = useState<Aim | null>(null);
   const [launchBearing, setLaunchBearing] = useState(0);
+  /** Where the nova cannon's template was last under the pointer. */
+  const [novaPoint, setNovaPoint] = useState<Point | null>(null);
   /** The attack craft wave picked to fly next. */
   const [waveFocus, setWaveFocus] = useState<string | null>(null);
 
@@ -50,7 +52,10 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
 
   // Shooting: the weapon being aimed, its targets, and a torpedo bearing that follows the pointer.
   const aimed = waiting !== null ? null : liveAim(state, aim);
-  const aimTargets = aimed !== null && aimed.weapon.kind !== "torpedoes" ? targets(state, aimed.ship, aimed.weapon) : [];
+  const direct = aimed !== null && (aimed.weapon.kind === "battery" || aimed.weapon.kind === "lance");
+  const nova = aimed !== null && aimed.weapon.kind === "nova_cannon";
+  const aimTargets = aimed !== null && direct ? targets(state, aimed.ship, aimed.weapon) : [];
+  const novaAim = nova ? (pointer ?? novaPoint) : null;
   const pointerBearing = aimed !== null && aimed.weapon.kind === "torpedoes" && pointer !== null ? bearingToward(aimed.ship, aimed.weapon, pointer) : null;
   const bearing = pointerBearing ?? launchBearing;
   const fireAt = (id: string) => {
@@ -107,9 +112,21 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           state={state}
           ghost={ghost}
           selectedShipId={highlighted}
-          highlight={aimed !== null ? aimTargets.filter((t) => t.options.length > 0).map((t) => t.id) : highlight}
+          highlight={
+            aimed === null
+              ? highlight
+              : nova
+                ? novaTargets(state, aimed.ship, aimed.weapon).filter((t) => t.shot !== null).map((t) => t.id)
+                : aimTargets.filter((t) => t.options.length > 0).map((t) => t.id)
+          }
           onSelectShip={(id) => {
             if (aimed === null) return choose(id, true);
+            // The nova cannon drops its template on the ship's stem.
+            if (nova) {
+              const shot = novaTargets(state, aimed.ship, aimed.weapon).find((t) => t.id === id)?.shot;
+              if (shot) act(shot);
+              return true;
+            }
             // A ship under the pointer is a target; for torpedoes the click is a bearing, so let it through.
             fireAt(id);
             return aimed.weapon.kind !== "torpedoes";
@@ -130,17 +147,21 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
             setPointer(p);
             setShift(s);
             if (p !== null && aimed !== null && aimed.weapon.kind === "torpedoes") setLaunchBearing(bearingToward(aimed.ship, aimed.weapon, p));
+            if (p !== null && nova) setNovaPoint(p);
           }}
           onTableClick={(p, s) => {
             if (deploy !== null) act({ type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(p) });
             else if (plot !== null) plot.click(p, s);
             else if (craftPlot !== null) craftPlot.click(p);
             else if (aimed !== null && aimed.weapon.kind === "torpedoes") act(launch(aimed.ship, aimed.weapon, bearingToward(aimed.ship, aimed.weapon, p)));
+            else if (aimed !== null && nova && validate(state, novaShot(aimed.ship, aimed.weapon, p)).ok) act(novaShot(aimed.ship, aimed.weapon, p));
           }}
         >
           {plot !== null && <PlotOverlay state={state} plot={plot} />}
           {craftPlot !== null && <CraftOverlay state={state} plot={craftPlot} />}
-          {aimed !== null && <FireOverlay state={state} ship={aimed.ship} weapon={aimed.weapon} bearing={aimed.weapon.kind === "torpedoes" ? bearing : null} />}
+          {aimed !== null && (
+            <FireOverlay state={state} ship={aimed.ship} weapon={aimed.weapon} bearing={aimed.weapon.kind === "torpedoes" ? bearing : null} novaAim={novaAim} />
+          )}
         </Table>
       </section>
       <aside className="side">
@@ -154,7 +175,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           ) : state.clock.stage === "setup" ? (
             <SetupControls state={state} seat={seat} onApply={act} focus={focus} onFocus={setFocus} />
           ) : shooting ? (
-            <FireControls state={state} aimed={aimed} onAim={setAim} onApply={act} bearing={bearing} />
+            <FireControls state={state} aimed={aimed} onAim={setAim} onApply={act} bearing={bearing} novaAim={novaAim} />
           ) : state.clock.stage === "battle" ? (
             <StepControls
               state={state}

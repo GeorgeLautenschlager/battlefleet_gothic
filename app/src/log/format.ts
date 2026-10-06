@@ -75,6 +75,19 @@ export function describe(state: GameState, entry: LogEntry): string {
       const what = Array.isArray(d["weaponIds"]) ? `${d["weaponIds"].length} batteries (firepower ${num(d["firepower"])})` : words(String(d["weapon"]));
       return `${from} ${what} at ${ship("targetId")}: ${dice(d["rolls"])} need ${num(d["need"])}+, ${num(d["hits"])} hit${d["hits"] === 1 ? "" : "s"}`;
     }
+    case "nova_cannon": {
+      const scatter = d["scatter"] as { bearing?: number; distance?: number } | "hit" | undefined;
+      const where = scatter === "hit" ? "on target" : `scatters ${num(scatter?.distance)} cm on ${num(scatter?.bearing)}°`;
+      const hits = Array.isArray(d["ships"])
+        ? (d["ships"] as { shipId?: string; hole?: boolean; hits?: number }[]).map(
+            (h) => `${state.ships.find((x) => x.id === h.shipId)?.name ?? String(h.shipId)} ${num(h.hits)} hit${h.hits === 1 ? "" : "s"}${h.hole === true ? " (centre)" : ""}`,
+          )
+        : [];
+      const removed = Array.isArray(d["ordnanceIds"]) ? d["ordnanceIds"].length : 0;
+      const outcome = [...hits, ...(removed > 0 ? [`${removed} ordnance destroyed`] : [])];
+      const miss = typeof d["blastMarkerId"] === "string" ? "touches nothing: a Blast Marker" : "touches nothing, off the table";
+      return `${ship("shipId")} fires its nova cannon at ${num(d["range"])} cm ${dice(d["rolls"])}: ${where}, ${outcome.length > 0 ? outcome.join(", ") : miss}`;
+    }
     case "shields":
       return `${ship("shipId")}'s shields absorb ${num(d["absorbed"])}`;
     case "brace_offer":

@@ -1,8 +1,8 @@
 /**
  * Ship catalogue: profiles snapshotted into new games (state spec §7.1).
  *
- * Hand-entered from rules/fleets/imperial-navy/vessels.md (Dictator p. 67, Tyrant p. 69,
- * Gothic p. 70, Lunar p. 71) and rules/fleets/chaos/vessels.md (Devastation p. 276,
+ * Hand-entered from rules/fleets/imperial-navy/vessels.md (Dictator p. 67, Dominator p. 68,
+ * Tyrant p. 69, Gothic p. 70, Lunar p. 71) and rules/fleets/chaos/vessels.md (Devastation p. 276,
  * Carnage p. 277, Inferno p. 278, Murder p. 279, Slaughter p. 280). Launch bays
  * carry their fleet's default attack craft (imperial-navy/rules.md, chaos/rules.md).
  * Later phases will generate this from rules/fleets/.
@@ -44,7 +44,20 @@ export type CatalogueEntry = {
   limit?: { max: number; perPoints: number };
 };
 
-export const CATALOGUE: Readonly<Record<string, CatalogueEntry>> = {
+/** A prow nova cannon: 30–150 cm to the template's near edge (state N13), one shot. */
+const NOVA_CANNON: Weapon = {
+  id: "prow_nova_cannon",
+  name: "Prow nova cannon",
+  kind: "nova_cannon",
+  location: "prow",
+  arcs: ["front"],
+  range: 150,
+  minRange: 30,
+  speed: null,
+  strength: 1,
+};
+
+const CLASSES: Readonly<Record<string, CatalogueEntry>> = {
   lunar: {
     faction: "imperial_navy",
     profile: {
@@ -282,6 +295,76 @@ export const CATALOGUE: Readonly<Record<string, CatalogueEntry>> = {
       traits: { allAheadFullDice: 5 }, // improved thrusters, +5D6 on All Ahead Full (state N10)
     },
   },
+  dominator: {
+    faction: "imperial_navy",
+    profile: {
+      classId: "dominator",
+      className: "Dominator class cruiser",
+      source: { book: "fleets", page: 68 },
+      points: 190,
+      type: "cruiser",
+      hits: 8,
+      speed: 20,
+      turns: 45,
+      shields: 2,
+      armour: { front: 6, left: 5, rear: 5, right: 5 },
+      turrets: 2,
+      baseSize: "small",
+      weapons: [
+        { id: "port_battery", name: "Port weapons battery", kind: "battery", location: "port", arcs: ["left"], range: 30, speed: null, strength: 12 },
+        { id: "starboard_battery", name: "Starboard weapons battery", kind: "battery", location: "starboard", arcs: ["right"], range: 30, speed: null, strength: 12 },
+        NOVA_CANNON,
+      ],
+    },
+  },
+};
+
+/**
+ * A ship option as its own class (transform D13, T48): the base class's
+ * profile with some weapons replaced and the points adjusted.
+ */
+function variant(
+  baseId: string,
+  classId: string,
+  className: string,
+  points: number,
+  replace: Readonly<Record<string, Weapon>>,
+): CatalogueEntry {
+  const base = CLASSES[baseId];
+  if (base === undefined) throw new Error(`no ${baseId} to vary`);
+  return {
+    faction: base.faction,
+    variantOf: baseId,
+    profile: {
+      ...base.profile,
+      classId,
+      className,
+      points,
+      weapons: base.profile.weapons.map((w) => ({ ...(replace[w.id] ?? w) })),
+    },
+  };
+}
+
+/** The Tyrant's 30 cm batteries upgraded to 45 cm (+10 pts, p. 69). */
+const TYRANT_LONG: Record<string, Weapon> = {
+  port_long_battery: { id: "port_long_battery", name: "Port weapons battery (FP 4)", kind: "battery", location: "port", arcs: ["left"], range: 45, speed: null, strength: 4 },
+  starboard_long_battery: { id: "starboard_long_battery", name: "Starboard weapons battery (FP 4)", kind: "battery", location: "starboard", arcs: ["right"], range: 45, speed: null, strength: 4 },
+  port_battery: { id: "port_battery", name: "Port weapons battery (FP 6)", kind: "battery", location: "port", arcs: ["left"], range: 45, speed: null, strength: 6 },
+  starboard_battery: { id: "starboard_battery", name: "Starboard weapons battery (FP 6)", kind: "battery", location: "starboard", arcs: ["right"], range: 45, speed: null, strength: 6 },
+};
+const NOVA_FOR_TORPEDOES = { prow_torpedoes: NOVA_CANNON };
+
+export const CATALOGUE: Readonly<Record<string, CatalogueEntry>> = {
+  ...CLASSES,
+  lunar_nova: variant("lunar", "lunar_nova", "Lunar class cruiser (nova cannon)", 200, NOVA_FOR_TORPEDOES),
+  tyrant_long: variant("tyrant", "tyrant_long", "Tyrant class cruiser (45 cm batteries)", 195, TYRANT_LONG),
+  tyrant_nova: variant("tyrant", "tyrant_nova", "Tyrant class cruiser (nova cannon)", 205, NOVA_FOR_TORPEDOES),
+  tyrant_long_nova: variant("tyrant", "tyrant_long_nova", "Tyrant class cruiser (45 cm batteries, nova cannon)", 215, { ...TYRANT_LONG, ...NOVA_FOR_TORPEDOES }),
+  // The Dominator's original 45 cm batteries, FP 6 (−5 pts, like the Hammer of Justice, p. 68).
+  dominator_long: variant("dominator", "dominator_long", "Dominator class cruiser (45 cm batteries)", 185, {
+    port_battery: { id: "port_battery", name: "Port weapons battery", kind: "battery", location: "port", arcs: ["left"], range: 45, speed: null, strength: 6 },
+    starboard_battery: { id: "starboard_battery", name: "Starboard weapons battery", kind: "battery", location: "starboard", arcs: ["right"], range: 45, speed: null, strength: 6 },
+  }),
 };
 
 /** Boarding modifier by faction (p. 90): Orks and Chaos +1, Space Marines +2. */

@@ -13,6 +13,7 @@ import { chooseFirstTurn, deployShip, rollDeployOrder, rollFirstTurn, rollLeader
 import { answerBrace, declareOrder } from "./handlers/orders";
 import { removeBlastMarkers, repair } from "./handlers/end";
 import { fire } from "./handlers/fire";
+import { fireNovaCannon } from "./nova";
 import { driftHulk, move } from "./movement";
 import { launchTorpedoes, moveOrdnance } from "./torpedoes";
 import { advanceStep, eliminatedSide, endGame, stepComplete } from "./steps";
@@ -71,6 +72,8 @@ function handle(ctx: Ctx, t: Transform): void {
       return removeBlastMarkers(ctx, t);
     case "fire":
       return fire(ctx, t);
+    case "fire_nova_cannon":
+      return fireNovaCannon(ctx, t);
     case "drift_hulk":
       return driftHulk(ctx, t.shipId);
     case "move":

@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.7, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.11](../game_state/SPEC.md) and [Transforms v0.9](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11).
+**Status:** draft v0.7, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.11](../game_state/SPEC.md) and [Transforms v0.9](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -334,7 +334,7 @@ Then check the path:
 | 10 | If `exit ≠ null`: the exit happens in the **last** step, which is an `advance` | `PATH_CONTINUES_OFF_TABLE` |
 | 11 | If `exit ≠ null`: `disengage = false` | `ALREADY_LEAVING_TABLE` |
 | 12 | `walk.total ≤ D`. For All Ahead Full, see 14. | `PATH_TOO_LONG` |
-| 13 | Unless `exit ≠ null`: `walk.total ≥ min(minDistance, D)`. A ship that can't make half speed must go as far as it can (p. 53). | `PATH_TOO_SHORT` |
+| 13 | Unless `exit ≠ null`: `walk.total ≥ min(minDistance, D′)`, where `D′` is `D`, or `maxIfBR − BM_SLOWDOWN` when the ship starts in contact with a BM (V12). A ship that can't make half speed must go as far as it can (p. 53). | `PATH_TOO_SHORT` |
 | 14 | **All Ahead Full only.** `walk.total ≈ aafEnd` (below), or the path leaves the table at or before `aafEnd`. | `MUST_STOP_AT_BLAST_MARKER` if `aafEnd` is a BM stop, else `MUST_MOVE_FULL_DISTANCE` |
 | 15 | If `boardTargetId` is given: `meta.options.boarding` | `BOARDING_OFF` |
 | 16 | … it names an enemy ship that is `active` (not a hulk, transform T9) | `INVALID_BOARDING_TARGET` |
@@ -636,6 +636,7 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V9 | **`arc` belongs to the main weapon.** A combined battery only needs the target in one of its own arcs; on a boundary it doesn't ask which, because the volley shares one column either way. |
 | V10 | **A nova cannon's aim is in arc** if `quadrantsOfPoint` meets the weapon's arcs, boundaries included; there's nothing for an `arc` choice to decide. |
 | V11 | **The nova cannon's range is checked to the template's near edge** with the usual tolerance, both ends: 30 cm and 150 cm both count. |
+| V12 | **A ship starting on a Blast Marker** has its minimum capped by the slowed limit even for a path that doesn't move: any move it makes is slowed (p. 69), so a ship whose speed the slowdown takes to 0 stays put legally instead of having no legal move. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |
 
 ## 8. Decisions

@@ -1,7 +1,7 @@
 /**
  * Lines of fire and targeting (validator spec §2.7).
  */
-import { EPS } from "./constants";
+import { EPS, NOVA_RADIUS } from "./constants";
 import { approxLe, baseRadius, distance, quadrantsOfPoint, segmentTouchesCircle } from "./basic";
 import { EngineError, isHulk } from "../state/derived";
 import type { GameState, Ordnance, Point, Quadrant, Ship, Weapon } from "../state/types";
@@ -82,4 +82,25 @@ export function nearestOrdnanceTargets(state: GameState, ship: Ship, weapon: Wea
 export function isNearest(state: GameState, ship: Ship, weapon: Weapon, target: Target): boolean {
   if (target.kind === "ship") return nearestShipTargets(state, ship, weapon).some((s) => s.id === target.ship.id);
   return nearestOrdnanceTargets(state, ship, weapon).some((o) => o.id === target.salvo.id);
+}
+
+// --- Nova cannon (validator spec §2.4, §2.7)
+
+/** From the stem to the template's near edge (state N13). */
+export const novaRange = (ship: Ship, aim: Point): number => distance(pose(ship).position, aim) - NOVA_RADIUS;
+
+/** A ship's base touches the template (r = NOVA_RADIUS) or its centre hole (r = NOVA_HOLE_RADIUS). */
+export function templateTouchesShip(centre: Point, ship: Ship, r: number): boolean {
+  if (ship.position === null) return false;
+  return approxLe(distance(centre, ship.position), r + baseRadius(ship.profile.baseSize));
+}
+
+/** A hulk lies across the line from the stem to the aim point, other than one the template touches there (T44). */
+export function novaLineBlocked(state: GameState, ship: Ship, aim: Point): boolean {
+  const from = pose(ship).position;
+  return state.ships.some((hulk) => {
+    if (!isHulk(hulk) || hulk.id === ship.id || hulk.position === null) return false;
+    if (templateTouchesShip(aim, hulk, NOVA_RADIUS)) return false;
+    return segmentTouchesCircle(from, aim, hulk.position, baseRadius(hulk.profile.baseSize));
+  });
 }

@@ -80,6 +80,7 @@ const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>
     required: { shipId: str, weaponId: str, target },
     optional: { arc: oneOf(QUADRANTS), aspect: oneOf(QUADRANTS), combineWith: arrayOf(str) },
   },
+  fire_nova_cannon: { required: { shipId: str, weaponId: str, aim: point } },
   launch_torpedoes: { required: { shipId: str, weaponId: str, bearing: num } },
   launch_attack_craft: {
     required: { shipId: str, waves: arrayOf(shape({ roles: arrayOf(oneOf(CRAFT_ROLES)), cap: bool })), recall: arrayOf(str) },

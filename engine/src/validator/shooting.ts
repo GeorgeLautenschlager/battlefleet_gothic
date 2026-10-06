@@ -1,9 +1,9 @@
-/** Shooting checks (validator spec §4.3): fire and launch_torpedoes. */
-import { approxLe, distance, quadrantsOf, quadrantsOfPoint } from "../geometry/basic";
-import { isNearest, lineOfFireBlocked, shootableOrdnance, type Target } from "../geometry/targeting";
-import { onTable, weaponDisabled } from "../state/derived";
+/** Shooting checks (validator spec §4.3): fire, fire_nova_cannon and launch_torpedoes. */
+import { approxGe, approxLe, distance, quadrantsOf, quadrantsOfPoint } from "../geometry/basic";
+import { isNearest, lineOfFireBlocked, novaLineBlocked, novaRange, shootableOrdnance, type Target } from "../geometry/targeting";
+import { novaCannonBarred, onTable, weaponDisabled } from "../state/derived";
 import type { GameState, Point, Ship, Weapon } from "../state/types";
-import type { Fire, LaunchTorpedoes } from "../transforms/types";
+import type { Fire, FireNovaCannon, LaunchTorpedoes } from "../transforms/types";
 import { isResult, ownActiveShip } from "./movement";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
 
@@ -150,6 +150,51 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
     if (failed && !isNearest(state, ship, extra, target)) {
       return reject("MUST_TARGET_NEAREST", `${ship.name} failed its Leadership test: ${extra.name} must fire at the nearest target`);
     }
+  }
+  return OK;
+}
+
+export function checkFireNovaCannon(state: GameState, t: FireNovaCannon): ValidationResult {
+  // 1–6
+  const ship = shooter(state, t.shipId, t.player);
+  if (isResult(ship)) return ship;
+  // 7–10
+  const weapon = readyWeapon(state, ship, t.weaponId, ["nova_cannon"]);
+  if (!isWeapon(weapon)) return weapon;
+  // 11
+  const barred = novaCannonBarred(ship);
+  if (barred !== null) {
+    const order = ship.specialOrder?.kind ?? null;
+    return reject(
+      "NOVA_CANNON_BARRED",
+      barred === "crippled" ? `${ship.name} is crippled: its nova cannon can't fire` : `${ship.name}'s special order stops its nova cannon firing`,
+      barred === "order" ? { why: barred, order } : { why: barred },
+    );
+  }
+  // 12
+  const { x, y } = t.aim;
+  if (!(approxGe(x, 0) && approxLe(x, state.table.width) && approxGe(y, 0) && approxLe(y, state.table.height))) {
+    return reject("AIM_OFF_TABLE", "The template's centre must be on the table", { aim: t.aim });
+  }
+  // 13
+  const quadrants = quadrantsOfPoint(ship.position as Point, ship.heading as number, t.aim);
+  if (!quadrants.some((q) => weapon.arcs.includes(q))) {
+    return reject("OUT_OF_ARC", `The aim point is outside ${weapon.name}'s arc`, { quadrants, arcs: weapon.arcs });
+  }
+  // 14
+  const range = novaRange(ship, t.aim);
+  const min = weapon.minRange ?? 0;
+  const max = weapon.range ?? 0;
+  if (!(approxGe(range, min) && approxLe(range, max))) {
+    return reject("OUT_OF_RANGE", `${weapon.name} reaches ${cm(min)}–${cm(max)} to the template's edge; that's ${cm(range)}`, {
+      range,
+      min,
+      max,
+    });
+  }
+  // 15
+  if (novaLineBlocked(state, ship, t.aim)) {
+    return reject("LINE_OF_FIRE_BLOCKED", "A hulk blocks the line of fire", { aim: t.aim });
   }
   return OK;
 }

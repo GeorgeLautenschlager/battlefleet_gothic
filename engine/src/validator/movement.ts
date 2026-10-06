@@ -3,7 +3,7 @@ import { BM_SLOWDOWN } from "../geometry/constants";
 import { approxEq, approxGe, approxLe, baseRadius, basesTouch, distance } from "../geometry/basic";
 import { exitDistance, touchesAnyBm, walkShipPath } from "../geometry/path";
 import { allAheadFullEnd, moveParameters } from "../rules/move";
-import { isHulk, onTable } from "../state/derived";
+import { bmsInContact, isHulk, onTable } from "../state/derived";
 import type { GameState, Point, Ship } from "../state/types";
 import type { DeclareOrder, DriftHulk, Move } from "../transforms/types";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
@@ -158,8 +158,10 @@ export function checkMove(state: GameState, t: Move): ValidationResult {
     if (!approxLe(walk.total, limit)) {
       return reject("PATH_TOO_LONG", `${ship.name} can move at most ${cm(limit)}`, { total: walk.total, limit, slowed });
     }
-    // 13: minimum, unless leaving the table
-    const minimum = Math.min(p.minDistance, limit);
+    // 13: minimum, unless leaving the table. A ship that starts on a Blast Marker can't move at all
+    // without being slowed, so its minimum is capped by the slowed limit even when it stays put (V12).
+    const startsOnBm = bmsInContact(state, ship).length > 0;
+    const minimum = Math.min(p.minDistance, startsOnBm ? p.maxIfBR - BM_SLOWDOWN : limit);
     if (exit === null && !approxGe(walk.total, minimum)) {
       return reject("PATH_TOO_SHORT", `${ship.name} must move at least ${cm(minimum)}`, {
         total: walk.total,

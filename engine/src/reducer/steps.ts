@@ -6,7 +6,7 @@
  */
 import { bmTouchesBase } from "../geometry/basic";
 import { emptyTurnState } from "../state/newGame";
-import { activePlayer, isHulk, onTable, otherPlayer, score, victoryPoints, weaponDisabled } from "../state/derived";
+import { activePlayer, isHulk, novaCannonBarred, onTable, otherPlayer, score, victoryPoints, weaponDisabled } from "../state/derived";
 import type { GameState, Ordnance, Phase, PlayerId, SetupStep, Step } from "../state/types";
 import type { Ctx } from "./context";
 import { anyTeleport, boardingsToFight } from "../rules/boarding";
@@ -87,7 +87,7 @@ export function stepComplete(state: GameState): boolean {
           canAct(s.id) &&
           s.profile.weapons.some(
             (w) =>
-              (w.kind === "battery" || w.kind === "lance") &&
+              (w.kind === "battery" || w.kind === "lance" || (w.kind === "nova_cannon" && novaCannonBarred(s) === null)) &&
               !(shipTurn(s.id)?.weaponsFired.includes(w.id) ?? false) &&
               !weaponDisabled(state, s, w),
           ),

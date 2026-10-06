@@ -99,7 +99,7 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
       className="new-game"
       onSubmit={(e) => {
         e.preventDefault();
-        if (dupes.length === 0 && problem === null) remote.join(side.name.trim(), side.fleet, shipEntries(side, carriers));
+        if (dupes.length === 0 && problem === null) remote.join(side.name.trim(), side.fleet, shipEntries(side, carriers, forces?.kind === "points"));
       }}
     >
       <h2>You've been invited</h2>

@@ -8,12 +8,12 @@ import { CATALOGUE, newGame, type FactionId, type Forces, type GameConfig, type 
 
 export type Fleet = "imperial_navy" | "chaos";
 
-/** `classId`: the fleet's standard cruiser; `classes`: every Cruiser Clash class it can field, carrier aside. */
+/** `classId`: the fleet's standard cruiser; `classes`: every cruiser class it can field, carrier aside (those over 185 pts only in a points battle). */
 export const FLEETS: Record<Fleet, { name: string; classId: string; classes: string[]; carrierClassId: string; names: string[] }> = {
   imperial_navy: {
     name: "Imperial Navy",
     classId: "lunar",
-    classes: ["lunar", "gothic", "tyrant"],
+    classes: ["lunar", "gothic", "tyrant", "dominator_long", "dominator", "lunar_nova", "tyrant_long", "tyrant_nova", "tyrant_long_nova"],
     carrierClassId: "dictator",
     names: ["Agrippa", "Hammer of Terra", "Sanctus Vigil", "Lord Valdane", "Righteous Fury", "Saint Kasimir", "Iron Litany", "Gothic Dawn"],
   },
@@ -54,13 +54,21 @@ export function profileOf(classId: string) {
 
 export const shipClass = (fleet: Fleet) => profileOf(FLEETS[fleet].classId);
 
-/** The classes a ship of this fleet may be: its cruisers, and its carrier when the game allows one. */
-export const classChoices = (fleet: Fleet, carriers: boolean): string[] =>
-  carriers ? [...FLEETS[fleet].classes, FLEETS[fleet].carrierClassId] : FLEETS[fleet].classes;
+/** Cruiser Clash's cap per ship (p. 128). Options over it (nova cannons, 45 cm Tyrant batteries) wait for a points battle. */
+export const CRUISER_CLASH_CAP = 185;
 
-/** The class of each of a side's ships. A carrier picked before the option was turned off reads as the standard cruiser. */
-export const classIds = (side: Side, carriers: boolean): string[] => {
-  const allowed = classChoices(side.fleet, carriers);
+/**
+ * The classes a ship of this fleet may be: its cruisers (in Cruiser Clash, only
+ * those within the 185-point cap), and its carrier when the game allows one.
+ */
+export const classChoices = (fleet: Fleet, carriers: boolean, points = false): string[] => {
+  const cruisers = FLEETS[fleet].classes.filter((id) => points || profileOf(id).points <= CRUISER_CLASH_CAP);
+  return carriers ? [...cruisers, FLEETS[fleet].carrierClassId] : cruisers;
+};
+
+/** The class of each of a side's ships. One picked before the rules changed (a carrier, a nova cannon) reads as the standard cruiser. */
+export const classIds = (side: Side, carriers: boolean, points = false): string[] => {
+  const allowed = classChoices(side.fleet, carriers, points);
   return side.ships.map((_, i) => {
     const picked = side.classes?.[i];
     return picked !== undefined && allowed.includes(picked) ? picked : FLEETS[side.fleet].classId;
@@ -68,8 +76,8 @@ export const classIds = (side: Side, carriers: boolean): string[] => {
 };
 
 /** A side's ships as `{ name, classId }`: the online protocol's shape. */
-export const shipEntries = (side: Side, carriers = false): { name: string; classId: string }[] => {
-  const classes = classIds(side, carriers);
+export const shipEntries = (side: Side, carriers = false, points = false): { name: string; classId: string }[] => {
+  const classes = classIds(side, carriers, points);
   return side.ships.map((name, i) => ({ name: name.trim(), classId: classes[i] ?? FLEETS[side.fleet].classId }));
 };
 
@@ -92,7 +100,7 @@ export const asFleet = (faction: string | null): Fleet => (faction === "chaos" ?
 
 export function cruiserClash(options: NewGameOptions, now = new Date()): GameConfig {
   const carriers = options.carriers ?? false;
-  const ships = (owner: PlayerId) => shipEntries(options[owner], carriersAllowed(options)).map((s) => ({ owner, ...s }));
+  const ships = (owner: PlayerId) => shipEntries(options[owner], carriersAllowed(options), options.forces?.kind === "points").map((s) => ({ owner, ...s }));
   return {
     seed: options.seed ?? randomSeed(),
     createdAt: now.toISOString(),

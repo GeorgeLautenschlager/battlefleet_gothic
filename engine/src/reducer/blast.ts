@@ -77,3 +77,8 @@ export function placeTrailing(ctx: Ctx, hulk: Ship): string {
   const stem = hulk.position as Point;
   return placeInSlots(ctx, ringSlots(stem, hulk, (hulk.heading ?? 0) + 180), "hulk");
 }
+
+/** A single BM exactly where it's put: a nova cannon shell that touched nothing (§5.3). */
+export function placeAt(ctx: Ctx, position: Point, cause: BlastMarker["cause"]): string {
+  return add(ctx, { ...position }, cause);
+}

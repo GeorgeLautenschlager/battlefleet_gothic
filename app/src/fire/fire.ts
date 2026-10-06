@@ -3,8 +3,9 @@
  * aspect choices the validator asks for, and torpedo bearings. Legality is
  * always the engine's; this only enumerates candidates and asks it.
  */
-import { effectiveStrength, geometry, onTable, validate, weaponDisabled } from "@bfg/engine";
-import type { Fire, GameState, Point, Quadrant, Ship, Transform, Weapon } from "@bfg/engine";
+import { effectiveStrength, geometry, novaScatterDice, onTable, targeting, validate, weaponDisabled } from "@bfg/engine";
+import { mm } from "../table/view";
+import type { Fire, FireNovaCannon, GameState, Point, Quadrant, Ship, Transform, Weapon } from "@bfg/engine";
 
 /** Each quadrant's bearings off the bow, as [from, to] clockwise (aviation style). */
 export const QUADRANT_SPAN: Record<Quadrant, [number, number]> = {
@@ -148,4 +149,33 @@ export function describeBearing(b: number): string {
   const s = signed(norm(b));
   if (s === 0) return "dead ahead";
   return `${Math.abs(s)}° to ${s > 0 ? "starboard" : "port"}`;
+}
+
+// --- Nova cannon
+
+export const novaShot = (ship: Ship, weapon: Weapon, aim: Point): FireNovaCannon => ({
+  type: "fire_nova_cannon",
+  player: ship.owner,
+  shipId: ship.id,
+  weaponId: weapon.id,
+  aim: mm(aim),
+});
+
+/** Range to the template's near edge, and how many D6 it scatters from there (p. 63). */
+export function novaReach(ship: Ship, aim: Point): { range: number; dice: number } {
+  const range = targeting.novaRange(ship, aim);
+  return { range, dice: novaScatterDice(range) };
+}
+
+/** Enemy ships to drop the template on, nearest first, each with the shot or the reason it can't be made. */
+export function novaTargets(state: GameState, ship: Ship, weapon: Weapon): { id: string; name: string; range: number; shot: FireNovaCannon | null; reason: string | null }[] {
+  if (ship.position === null) return [];
+  return state.ships
+    .filter((s) => s.owner !== ship.owner && onTable(s) && s.position !== null)
+    .map((s) => {
+      const shot = novaShot(ship, weapon, s.position as Point);
+      const v = validate(state, shot);
+      return { id: s.id, name: s.name, range: targeting.novaRange(ship, shot.aim), shot: v.ok ? shot : null, reason: v.ok ? null : v.reason.message };
+    })
+    .sort((a, b) => a.range - b.range);
 }
