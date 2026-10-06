@@ -332,7 +332,7 @@ First, identify the move:
 | 5 | `activation = null`, or `activation.stage = "ordered"` with `activation.shipId = shipId` | `ACTIVATION_OPEN` |
 | 5a | If `squadronMove` is set: the ship is one of its `members` | `SQUADRON_MOVING` |
 | 5b | If the ship's squadron is `disengaging`: the path leaves the table, or `disengage` is true | `MUST_DISENGAGE` |
-| 5c | In an escort squadron's move with `squadronMove.disengage ≠ null`: `disengage` equals it, unless the path leaves the table | `SQUADRON_DISENGAGE` |
+| 5c | In an escort squadron's move with `squadronMove.disengage ≠ null`, while the squadron isn't `disengaging`: `disengage` equals it, unless the path leaves the table | `SQUADRON_DISENGAGE` |
 
 Then work out the move's parameters, the same way the reducer does:
 

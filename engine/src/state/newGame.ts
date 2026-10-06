@@ -7,7 +7,7 @@ import { buildCommander, commanderPoints, fleetListProblem, type CommanderConfig
 import { EngineError } from "./derived";
 import { cloneJson } from "./json";
 import { createRng } from "./rng";
-import type { FactionId, Forces, GameState, PlayerId, Scenario, ScenarioId, Scoring, Ship, ShipProfile, ShipTurnState, TurnState } from "./types";
+import type { FactionId, Forces, GameState, PlayerId, Scenario, ScenarioId, Scoring, Ship, ShipProfile, ShipSquadron, ShipTurnState, TurnState } from "./types";
 
 export type GameConfig = {
   seed: number;
@@ -24,8 +24,8 @@ export type GameConfig = {
     p1: { name: string; faction: FactionId };
     p2: { name: string; faction: FactionId };
   };
-  /** `options`: the class's option ids (transform §5, T57). */
-  ships: { owner: PlayerId; name: string; classId: string; options?: string[]; commander?: CommanderConfig }[];
+  /** `options`: the class's option ids (transform §5, T57). `squadron`: its squadron's name (T76). */
+  ships: { owner: PlayerId; name: string; classId: string; options?: string[]; commander?: CommanderConfig; squadron?: string }[];
 };
 
 /** A ship's profile as fielded: its class with its options applied, or an EngineError. */
@@ -94,8 +94,8 @@ function validateConfig(config: GameConfig): void {
     if (entry.faction !== faction) {
       throw new EngineError(`ships[${i}]: a ${ship.classId} can't serve in a ${faction} fleet`);
     }
-    // Battleships come with points battles (T71).
-    if (entry.profile.type !== "cruiser" && !(forces.kind === "points" && entry.profile.type === "battleship")) {
+    // Battleships and escorts come with points battles (T71, state N45).
+    if (entry.profile.type !== "cruiser" && forces.kind !== "points") {
       throw new EngineError(`ships[${i}]: Cruiser Clash allows cruisers only`);
     }
     if (entry.legacy === true && (ship.options ?? []).length > 0) throw new EngineError(`ships[${i}]: ${ship.classId} takes no options`);
@@ -115,6 +115,7 @@ function validateConfig(config: GameConfig): void {
     }
     counts[ship.owner] += 1;
   }
+  squadronProblems(config, forces.kind === "points");
   // Rarity limits (T35): e.g. two Murder lance variants per 750 points of the side's fleet, or part.
   for (const player of ["p1", "p2"] as const) {
     const mine = config.ships.filter((s) => s.owner === player);
@@ -154,6 +155,43 @@ function validateConfig(config: GameConfig): void {
   if (counts.p1 !== counts.p2) {
     throw new EngineError(`both fleets need the same number of cruisers (p1 ${counts.p1}, p2 ${counts.p2})`);
   }
+}
+
+/** Squadrons (T76, state §7.5): escorts always in one, 1–6 (2–6 with fleet lists); capital squadrons of one type, 2+. */
+function squadronProblems(config: GameConfig, points: boolean): void {
+  const lists = config.options?.fleetLists === true;
+  for (const [i, ship] of config.ships.entries()) {
+    const type = CATALOGUE[ship.classId]?.profile.type;
+    if (ship.squadron !== undefined && (typeof ship.squadron !== "string" || ship.squadron.trim() === "")) {
+      throw new EngineError(`ships[${i}]: a squadron needs a name`);
+    }
+    if (type === "escort" && ship.squadron === undefined) throw new EngineError(`ships[${i}]: an escort must be in a squadron`);
+    if (ship.squadron !== undefined && !points) throw new EngineError(`ships[${i}]: squadrons come with points battles`);
+  }
+  for (const sq of squadronGroups(config)) {
+    const types = new Set(sq.members.map((m) => CATALOGUE[m.classId]?.profile.type));
+    const n = sq.members.length;
+    if (types.has("escort")) {
+      if (types.size > 1) throw new EngineError(`squadron "${sq.name}": escorts and capital ships can't share a squadron`);
+      const min = lists ? 2 : 1;
+      if (n < min || n > 6) throw new EngineError(`squadron "${sq.name}": an escort squadron has ${min}–6 ships, not ${n}`);
+    } else {
+      if (types.size > 1) throw new EngineError(`squadron "${sq.name}": a capital squadron's ships are all one type`);
+      if (n < 2) throw new EngineError(`squadron "${sq.name}": a capital squadron needs at least two ships`);
+    }
+  }
+}
+
+/** The config's squadrons in order of first appearance: ships of one owner sharing a name (T76). */
+function squadronGroups(config: GameConfig): { owner: PlayerId; name: string; members: (GameConfig["ships"][number] & { index: number })[] }[] {
+  const groups: { owner: PlayerId; name: string; members: (GameConfig["ships"][number] & { index: number })[] }[] = [];
+  for (const [index, ship] of config.ships.entries()) {
+    if (ship.squadron === undefined) continue;
+    let g = groups.find((x) => x.owner === ship.owner && x.name === ship.squadron);
+    if (g === undefined) groups.push((g = { owner: ship.owner, name: ship.squadron, members: [] }));
+    g.members.push({ ...ship, index });
+  }
+  return groups;
 }
 
 /** The scenario block (state §4): Cruiser Clash's zones and 8 rounds, or Fleet Engagement's maps and no round limit. */
@@ -205,6 +243,15 @@ export function newGame(config: GameConfig): GameState {
     };
   });
 
+  const squadrons: ShipSquadron[] = squadronGroups(config).map((g, k) => ({
+    id: `sq-${ships.length + k + 1}`,
+    owner: g.owner,
+    name: g.name,
+    type: g.members.every((m) => CATALOGUE[m.classId]?.profile.type === "escort") ? "escort" : "capital",
+    shipIds: g.members.map((m) => `ship-${m.index + 1}`),
+    disengaging: false,
+  }));
+
   const player = (id: PlayerId) => {
     const p = config.players[id];
     return { id, name: p.name, faction: p.faction, factionTraits: { boardingModifier: boardingModifier(p.faction) } };
@@ -240,6 +287,7 @@ export function newGame(config: GameConfig): GameState {
     },
     clock: { stage: "setup", setupStep: "roll_leadership", playerTurn: 0, phase: null, step: null },
     ships,
+    ...(squadrons.length > 0 ? { squadrons } : {}),
     blastMarkers: [],
     ordnance: [],
     turnState: emptyTurnState(0, ships),
@@ -247,7 +295,7 @@ export function newGame(config: GameConfig): GameState {
     pending: [],
     queue: [],
     rng: createRng(config.seed),
-    nextId: ships.length + 1,
+    nextId: ships.length + squadrons.length + 1,
     log: [],
     result: null,
   };

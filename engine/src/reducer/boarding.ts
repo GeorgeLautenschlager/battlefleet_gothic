@@ -7,7 +7,7 @@ import { activePlayer, bmsInContact, boardingValue, getShip, isBraced, isCripple
 import type { Ship } from "../state/types";
 import type { Board, Teleport } from "../transforms/types";
 import type { Ctx } from "./context";
-import { applyCritical, catastrophic, critical, damagePoint } from "./damage";
+import { applyCritical, catastrophic, critical, damagePoint, escortLost } from "./damage";
 import { placeAtStem } from "./blast";
 import { leaveGrapple } from "./grapple";
 import { releaseCap } from "./cap";
@@ -186,19 +186,25 @@ export function teleportAttack(ctx: Ctx, shipId: string, targetId: string): void
     return;
   }
   const roll = ctx.d6();
-  if (roll === 1) {
+  const escort = target.profile.type === "escort"; // 4+ destroys an escort, 1–3 fails (p. 92, R41)
+  if (roll === 1 || (escort && roll < 4)) {
     ctx.log("teleport", { shipId, targetId, rolls: [roll], result: "failed" });
     return;
   }
+  const hit = escort ? "destroyed" : "critical";
   if (isBraced(target)) {
     const save = ctx.d6();
     if (save >= 4) {
       ctx.log("teleport", { shipId, targetId, rolls: [roll], saveRolls: [save], result: "saved" });
       return;
     }
-    ctx.log("teleport", { shipId, targetId, rolls: [roll], saveRolls: [save], result: "critical" });
+    ctx.log("teleport", { shipId, targetId, rolls: [roll], saveRolls: [save], result: hit });
   } else {
-    ctx.log("teleport", { shipId, targetId, rolls: [roll], result: "critical" });
+    ctx.log("teleport", { shipId, targetId, rolls: [roll], result: hit });
+  }
+  if (escort) {
+    escortLost(ctx, target, "hit_and_run");
+    return;
   }
   applyCritical(ctx, target, roll, [roll]);
   if (target.damage >= target.profile.hits && target.status === "active") catastrophic(ctx, target);

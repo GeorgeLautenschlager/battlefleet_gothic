@@ -4,7 +4,7 @@
  * Every function here is a pure function of the state. They're the single
  * definition the validator, reducer and UI all share: never store their results.
  */
-import { DEFENCES_MOVE, EPS, MAX_LEADERSHIP, SLAANESH_RANGE } from "../geometry/constants";
+import { DEFENCES_MOVE, EPS, FORMATION_RANGE, MAX_LEADERSHIP, SLAANESH_RANGE } from "../geometry/constants";
 import { approxLe, bmTouchesBase, distance, quadrantsOfPoint } from "../geometry/basic";
 import type {
   AttackCraftWave,
@@ -18,6 +18,7 @@ import type {
   Point,
   Quadrant,
   Ship,
+  ShipSquadron,
   TorpedoSalvo,
   Weapon,
 } from "./types";
@@ -294,11 +295,81 @@ export function targetedAsDefences(ship: Ship): boolean {
 /**
  * Target for a Command check: Ld −1 with BMs in contact (Under Fire),
  * +1 if any enemy ship is on special orders (Enemy Contacts), capped at 10 (p. 48).
+ * A ship in formation checks for its squadron: the squadron's Leadership, and
+ * Under Fire if any member in formation has a BM in contact (p. 95).
  */
 export function commandCheckLd(state: GameState, ship: Ship): number {
-  const underFire = bmsInContact(state, ship).length > 0 ? 1 : 0;
+  const sq = squadronOf(state, ship);
+  const crew = sq !== undefined && inFormation(state, ship) ? formation(state, sq) : [ship];
+  const underFire = crew.some((s) => bmsInContact(state, s).length > 0) ? 1 : 0;
   const enemyContacts = state.ships.some((s) => s.owner !== ship.owner && s.specialOrder !== null) ? 1 : 0;
-  return Math.min(MAX_LEADERSHIP, leadership(state, ship) - underFire + enemyContacts);
+  const ld = sq !== undefined && crew.length > 1 ? squadronLd(state, sq) : leadership(state, ship);
+  return Math.min(MAX_LEADERSHIP, ld - underFire + enemyContacts);
+}
+
+/** The Leadership for a priority test: the squadron's for a ship in formation (state N40), else its own. */
+export function priorityLd(state: GameState, ship: Ship): number {
+  const sq = squadronOf(state, ship);
+  return sq !== undefined && inFormation(state, ship) ? squadronLd(state, sq) : leadership(state, ship);
+}
+
+// --- Squadrons (state §7.5, §11)
+
+export const squadronsOf = (state: GameState): ShipSquadron[] => state.squadrons ?? [];
+
+export const squadronOf = (state: GameState, ship: Ship): ShipSquadron | undefined =>
+  squadronsOf(state).find((sq) => sq.shipIds.includes(ship.id));
+
+export const getSquadron = (state: GameState, id: string): ShipSquadron | undefined => squadronsOf(state).find((sq) => sq.id === id);
+
+/**
+ * The members in formation (N35): the largest chain of `active` members on the
+ * table whose stems link within 15 cm; on a tie, the chain with the earliest member.
+ */
+export function formation(state: GameState, sq: ShipSquadron): Ship[] {
+  const members = sq.shipIds.flatMap((id) => state.ships.find((s) => s.id === id && s.status === "active" && s.position !== null) ?? []);
+  const seen = new Set<string>();
+  let best: Ship[] = [];
+  for (const start of members) {
+    if (seen.has(start.id)) continue;
+    const chain: Ship[] = [start];
+    seen.add(start.id);
+    for (let i = 0; i < chain.length; i++) {
+      const at = chain[i]?.position as Point;
+      for (const m of members) {
+        if (!seen.has(m.id) && approxLe(distance(at, m.position as Point), FORMATION_RANGE)) {
+          seen.add(m.id);
+          chain.push(m);
+        }
+      }
+    }
+    if (chain.length > best.length) best = chain; // members are in shipIds order, so the first chain wins a tie
+  }
+  return members.filter((m) => best.includes(m)); // in shipIds order
+}
+
+export const inFormation = (state: GameState, ship: Ship): boolean => {
+  const sq = squadronOf(state, ship);
+  return sq !== undefined && formation(state, sq).some((s) => s.id === ship.id);
+};
+
+/** The squadron's Leadership (p. 95): an escort squadron's shared value; a capital squadron's highest in formation. */
+export function squadronLd(state: GameState, sq: ShipSquadron): number {
+  const members = sq.shipIds.map((id) => getShip(state, id));
+  if (sq.type === "escort") {
+    const any = formation(state, sq)[0] ?? members.find((s) => s.leadership !== null); // where Slaanesh is measured from
+    if (any === undefined) throw new EngineError(`${sq.id} has no Leadership yet`);
+    return leadership(state, any);
+  }
+  const crew = formation(state, sq);
+  return Math.max(...(crew.length > 0 ? crew : members.filter((s) => s.status === "active")).map((s) => leadership(state, s)));
+}
+
+/** An escort squadron that has lost at least half its ships, rounding up (p. 123, N43). */
+export function escortSquadronCrippled(state: GameState, sq: ShipSquadron): boolean {
+  const members = sq.shipIds.map((id) => getShip(state, id));
+  const lost = members.filter((s) => s.status !== "active" && s.status !== "disengaged" && s.status !== "undeployed").length;
+  return lost >= Math.ceil(members.length / 2);
 }
 
 export type GunneryColumn = "A" | "B" | "C" | "D" | "E";
@@ -346,17 +417,32 @@ export function cruiserClashScore(state: GameState, player: PlayerId): number {
 // --- Victory points (pp. 122–123, state §11, N11–N12)
 
 export type ShipVP = { shipId: string; vp: number; why: "destroyed" | "crippled" | "disengaged" };
-export type VictoryPoints = { total: number; ships: ShipVP[]; field: number };
+export type SquadronVP = { squadronId: string; vp: number; why: "destroyed" | "disengaged" };
+export type VictoryPoints = { total: number; ships: ShipVP[]; squadrons: SquadronVP[]; field: number };
 
 const percent = (points: number, pct: number): number => Math.ceil((points * pct) / 100); // per ship, rounded up (N12)
 
 /** What an enemy ship is worth to its opponent now, or null if nothing. */
 export function shipVP(ship: Ship): ShipVP | null {
+  if (ship.profile.type === "escort") return null; // escorts score by squadron (N42)
   const points = shipValue(ship);
   if (destroyedForScoring(ship)) return { shipId: ship.id, vp: points, why: "destroyed" };
   if (ship.status === "disengaged") return { shipId: ship.id, vp: percent(points, isCrippled(ship) ? 25 : 10), why: "disengaged" };
   if (ship.status === "active" && isCrippled(ship)) return { shipId: ship.id, vp: percent(points, 25), why: "crippled" };
   return null;
+}
+
+/**
+ * What an enemy escort squadron is worth (p. 123, N42): its full value once every
+ * member is destroyed; else, once none is active, 10% or 25% if crippled.
+ */
+export function squadronVP(state: GameState, sq: ShipSquadron): SquadronVP | null {
+  if (sq.type !== "escort") return null;
+  const members = sq.shipIds.map((id) => getShip(state, id));
+  const full = members.reduce((n, s) => n + shipValue(s), 0);
+  if (members.every((s) => s.status === "destroyed")) return { squadronId: sq.id, vp: full, why: "destroyed" };
+  if (members.some((s) => s.status === "active" || s.status === "undeployed")) return null;
+  return { squadronId: sq.id, vp: percent(full, escortSquadronCrippled(state, sq) ? 25 : 10), why: "disengaged" };
 }
 
 /** Half of every hulk on the table, friend or foe, if `player` holds the field: no enemy active, one of theirs is (T38). */
@@ -370,8 +456,9 @@ export function holdingTheField(state: GameState, player: PlayerId): number {
 /** Victory points for `player`: enemy ships destroyed, crippled or disengaged, plus holding the field. */
 export function victoryPoints(state: GameState, player: PlayerId): VictoryPoints {
   const ships = state.ships.filter((s) => s.owner !== player).flatMap((s) => shipVP(s) ?? []);
+  const squadrons = squadronsOf(state).filter((sq) => sq.owner !== player).flatMap((sq) => squadronVP(state, sq) ?? []);
   const field = holdingTheField(state, player);
-  return { total: ships.reduce((n, s) => n + s.vp, 0) + field, ships, field };
+  return { total: ships.reduce((n, s) => n + s.vp, 0) + squadrons.reduce((n, s) => n + s.vp, 0) + field, ships, squadrons, field };
 }
 
 // --- Whose move is it? (§5, §12)
@@ -383,11 +470,16 @@ export function victoryPoints(state: GameState, player: PlayerId): VictoryPoints
 export function nextDeployer(state: GameState): PlayerId | null {
   const first = state.setup.firstDeployer;
   if (first === null) return null;
+  // A squadron is one placement (transform T80): its owner finishes it first.
+  const partial = partlyDeployedSquadron(state);
+  if (partial !== undefined) return partial.owner;
   const total = { p1: 0, p2: 0 };
   let deployed = 0;
-  for (const ship of state.ships) {
-    total[ship.owner] += 1;
-    if (ship.status !== "undeployed") deployed += 1;
+  for (const unit of deploymentUnits(state)) {
+    const owner = unit[0]?.owner;
+    if (owner === undefined) continue;
+    total[owner] += 1;
+    if (unit.every((s) => s.status !== "undeployed")) deployed += 1;
   }
   const remaining = { ...total };
   let current = first;
@@ -398,6 +490,22 @@ export function nextDeployer(state: GameState): PlayerId | null {
   }
   return remaining[current] > 0 ? current : null;
 }
+
+/** What deploys as one placement (T80): each squadron, and each ship in none. */
+export function deploymentUnits(state: GameState): Ship[][] {
+  const squads = squadronsOf(state);
+  const units: Ship[][] = squads.map((sq) => sq.shipIds.map((id) => getShip(state, id)));
+  for (const ship of state.ships) if (!squads.some((sq) => sq.shipIds.includes(ship.id))) units.push([ship]);
+  return units;
+}
+
+/** A squadron with some members deployed and some not (validator `deploy_ship` check 7). */
+export const partlyDeployedSquadron = (state: GameState, player?: PlayerId): ShipSquadron | undefined =>
+  squadronsOf(state).find((sq) => {
+    if (player !== undefined && sq.owner !== player) return false;
+    const members = sq.shipIds.map((id) => getShip(state, id));
+    return members.some((s) => s.status === "undeployed") && members.some((s) => s.status !== "undeployed");
+  });
 
 /** Who must submit the next transform: a player, "either", or null when nobody can (§12). */
 export type Actor = PlayerId | "either" | null;

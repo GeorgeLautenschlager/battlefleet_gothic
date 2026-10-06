@@ -76,7 +76,7 @@ describe("victory points (N11–N12)", () => {
     hulk(s.ships.find((x) => x.id === "ship-3")!); // and p1 lost a Lunar to a hulk
     expect(holdingTheField(s, "p1")).toBe(85 + 90);
     expect(holdingTheField(s, "p2")).toBe(0);
-    expect(victoryPoints(s, "p1")).toEqual({ total: 170 + 175, ships: [{ shipId: "ship-2", vp: 170, why: "destroyed" }], field: 175 });
+    expect(victoryPoints(s, "p1")).toEqual({ total: 170 + 175, ships: [{ shipId: "ship-2", vp: 170, why: "destroyed" }], squadrons: [], field: 175 });
     expect(score(s, "p2")).toBe(180); // the hulked Lunar
   });
 

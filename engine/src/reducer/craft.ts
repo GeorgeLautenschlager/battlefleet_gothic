@@ -10,7 +10,7 @@ import { bmsInContact, getShip, isBraced, isWave, launchBays, onTable, turrets }
 import type { AttackCraftWave, GameState, Point, Ship, Squadron, TorpedoSalvo } from "../state/types";
 import type { LaunchAttackCraft, MoveOrdnance, ReleaseCap } from "../transforms/types";
 import type { Ctx } from "./context";
-import { applyCritical, catastrophic, inflict } from "./damage";
+import { applyCritical, catastrophic, escortLost, inflict } from "./damage";
 import { salvoEnds } from "./movement";
 import { enqueueFront } from "./queue";
 import { turretDice } from "./turrets";
@@ -329,17 +329,23 @@ export function hitAndRun(ctx: Ctx, ordnanceId: string, targetId: string): void 
     return;
   }
   const roll = ctx.d6();
-  if (roll === 1) {
+  const escort = target.profile.type === "escort"; // 4+ destroys an escort, 1–3 fails (p. 92, R41)
+  if (roll === 1 || (escort && roll < 4)) {
     ctx.log("hit_and_run", { ordnanceId, targetId, rolls: [roll], result: "failed" });
     return;
   }
+  const hit = escort ? "destroyed" : "critical";
   if (isBraced(target)) {
     const save = ctx.d6();
-    const result = save >= 4 ? "saved" : "critical";
+    const result = save >= 4 ? "saved" : hit;
     ctx.log("hit_and_run", { ordnanceId, targetId, rolls: [roll], saveRolls: [save], result });
     if (result === "saved") return;
   } else {
-    ctx.log("hit_and_run", { ordnanceId, targetId, rolls: [roll], result: "critical" });
+    ctx.log("hit_and_run", { ordnanceId, targetId, rolls: [roll], result: hit });
+  }
+  if (escort) {
+    escortLost(ctx, target, "hit_and_run");
+    return;
   }
   applyCritical(ctx, target, roll, [roll]);
   if (target.damage >= target.profile.hits && target.status === "active") catastrophic(ctx, target);

@@ -3,7 +3,7 @@
  * pointer preview on top of it, and the engine's verdict on both.
  */
 import { useEffect, useState } from "react";
-import { activePlayer, geometry, type GameState, type PathStep, type Point, type Ship, type Transform } from "@bfg/engine";
+import { activePlayer, geometry, squadronOf, type GameState, type PathStep, type Point, type Ship, type Transform } from "@bfg/engine";
 import { pick } from "../game/pick";
 import { append, judge, propose, stats, type PlotStats, type Verdict } from "./plot";
 
@@ -35,11 +35,17 @@ export type Plot = {
   commit: () => void;
 };
 
-/** Ships the active player may pick to move next: none once one has declared an order (it must move first). */
+/**
+ * Ships the active player may pick to move next: none once one has declared an order (it must move first),
+ * and only a squadron's own members while it's part-way through its move (state N37).
+ */
 export function movableShips(state: GameState): Ship[] {
   if (state.clock.stage !== "battle" || state.clock.step !== "move_ships" || state.pending.length > 0 || state.activation !== null) return [];
   const player = activePlayer(state);
-  return state.ships.filter((s) => s.owner === player && s.status === "active" && state.turnState.ships[s.id]?.moved !== true);
+  const members = state.turnState.squadronMove?.members ?? null;
+  return state.ships.filter(
+    (s) => s.owner === player && s.status === "active" && state.turnState.ships[s.id]?.moved !== true && (members === null || members.includes(s.id)),
+  );
 }
 
 /** The ship the active player is plotting, if any: the one with an order, else the one picked (`focus`), else the first. */
@@ -56,7 +62,10 @@ export function usePlot(state: GameState | null, pointer: Point | null, straight
 
   const current = state !== null && ship !== null && plan?.shipId === ship.id && plan.playerTurn === state.clock.playerTurn ? plan : null;
   const path = current?.path ?? [];
-  const disengage = current?.disengage ?? false;
+  // A disengaging escort squadron's members, and those following a squadron-mate that asked, start with it ticked (state N41).
+  const sq = state === null || ship === null ? undefined : squadronOf(state, ship);
+  const sm = state?.turnState.squadronMove ?? null;
+  const disengage = current?.disengage ?? (sq?.disengaging === true || (sq?.type === "escort" && sm?.squadronId === sq.id && sm.disengage === true));
   const picked = current?.board ?? null;
 
   const update = (patch: Partial<Plan>) => {

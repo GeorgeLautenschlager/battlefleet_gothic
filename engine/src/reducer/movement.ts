@@ -5,7 +5,7 @@
 import { BM_RADIUS, BM_SLOWDOWN, EPS } from "../geometry/constants";
 import { approxGe, approxLe, baseRadius, basesTouch, distance, headingVector, norm } from "../geometry/basic";
 import { exitT, sweptCircleVsCircle, sweptCircleVsSegment } from "../geometry/sweep";
-import { moveParameters } from "../rules/move";
+import { moveParameters, movingOrder } from "../rules/move";
 import {
   armourFacing,
   facingQuadrants,
@@ -26,14 +26,24 @@ import { enqueueFront } from "./queue";
 import { releaseCap, syncCap } from "./cap";
 import { capOf, strikers, waveRadius } from "../rules/craft";
 import { rerollableTest } from "./reroll";
+import { afterSquadronMember, startSquadronMove } from "./squadrons";
 
 // --- The move transform (§8.1)
 
 export function move(ctx: Ctx, t: Move): void {
   const { state } = ctx;
   const ship = getShip(state, t.shipId);
-  if (state.activation === null) state.activation = newActivation(ship);
+  if (state.activation === null) {
+    // A squadron's first mover with no order starts the squadron's move (§8.1 step 0).
+    const sq = startSquadronMove(ctx, ship, null, null);
+    state.activation = newActivation(state, ship);
+    if (sq !== undefined) state.activation.squadronId = sq.id;
+  }
   const a = state.activation;
+  const sm = state.turnState.squadronMove ?? null;
+  if (sm !== null && sm.members.includes(ship.id) && sm.disengage === null && squadronOfType(state, ship) === "escort") {
+    sm.disengage = t.disengage; // the rest must match (validator move 5c)
+  }
   a.stage = "moving";
   a.remainingPath = cloneJson(t.path);
   a.disengage = t.disengage;
@@ -42,15 +52,16 @@ export function move(ctx: Ctx, t: Move): void {
   state.queue.push({ kind: "continue_move" });
 }
 
-/** An activation for a ship moving without a declared order. */
-function newActivation(ship: Ship): Activation {
-  const p = moveParameters(ship, null);
+/** An activation for a ship moving without a declared order of its own: none, or its squadron's (§8.1). */
+function newActivation(state: GameState, ship: Ship): Activation {
+  const o = movingOrder(state, ship);
+  const p = moveParameters(ship, o);
   return {
     kind: "move",
     shipId: ship.id,
     stage: "ordered",
-    order: null,
-    aafExtra: null,
+    order: o?.order ?? null,
+    aafExtra: o?.aafExtra ?? null,
     ram: null,
     maxDistance: p.maxIfBR,
     minDistance: p.minDistance,
@@ -314,9 +325,15 @@ function declareBoarding(ctx: Ctx, ship: Ship, a: Activation, targetId: string):
 
 function finishMove(ctx: Ctx, ship: Ship, a: Activation): void {
   const { state } = ctx;
+  // An escort squadron disengages together, after its last member (N41): no test of its own.
+  const escortInSquadron = a.squadronId !== undefined && squadronOfType(state, ship) === "escort";
+  let failedTest = false;
   if (ship.status === "active") {
     ship.lastMove = { playerTurn: state.clock.playerTurn, distance: a.distanceMoved };
-    if (a.disengage) disengageTest(ctx, ship);
+    if (a.disengage && !escortInSquadron) {
+      disengageTest(ctx, ship);
+      failedTest = state.turnState.ships[ship.id]?.disengage === "failed";
+    }
   }
   const entry = state.turnState.ships[ship.id];
   // `?? null`: an activation saved before boarding existed has no boardTargetId at all.
@@ -331,7 +348,11 @@ function finishMove(ctx: Ctx, ship: Ship, a: Activation): void {
     truncated: a.truncated,
   });
   state.activation = null;
+  afterSquadronMember(ctx, ship, failedTest, a.reroll === true);
 }
+
+const squadronOfType = (state: GameState, ship: Ship): "escort" | "capital" | undefined =>
+  (state.squadrons ?? []).find((sq) => sq.shipIds.includes(ship.id))?.type;
 
 /** Leadership + 1 per BM within 5 cm − 1 per enemy ship or salvo within 15 cm (p. 56, T5). */
 function disengageTest(ctx: Ctx, ship: Ship): void {

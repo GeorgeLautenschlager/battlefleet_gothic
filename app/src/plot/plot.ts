@@ -4,7 +4,7 @@
  * so it's all unit-testable. (Platform trig is fine here: these numbers only
  * propose a path; the engine walks it with its own deterministic maths.)
  */
-import { geometry, moveParameters, paths, validate } from "@bfg/engine";
+import { geometry, moveParameters, movingOrder, paths, validate } from "@bfg/engine";
 import type { GameState, PathStep, Point, Ship, Transform } from "@bfg/engine";
 
 /** Below this many degrees off the bow, a click means straight ahead. */
@@ -117,8 +117,7 @@ export type PlotStats = {
 };
 
 export function stats(state: GameState, ship: Ship, path: readonly PathStep[]): PlotStats {
-  const a = state.activation?.shipId === ship.id ? state.activation : null;
-  const p = moveParameters(ship, a);
+  const p = moveParameters(ship, movingOrder(state, ship));
   const walk = paths.walkShipPath(ship, path);
   const lastTurn = walk.turns.at(-1);
   const sinceTurn = lastTurn === undefined ? walk.total : walk.total - distanceAtStep(walk, lastTurn.stepIndex);

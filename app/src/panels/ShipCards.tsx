@@ -1,4 +1,4 @@
-import { leadership, maxShields, remainingHits, type Commander, type GameState, type Ship } from "@bfg/engine";
+import { inFormation, leadership, maxShields, remainingHits, squadronOf, type Commander, type GameState, type Ship } from "@bfg/engine";
 import { playerClass } from "../players";
 
 const words = (s: string) => s.replaceAll("_", " ");
@@ -28,12 +28,19 @@ function ShipCard({ ship, state, selected, onSelect }: { ship: Ship; state: Game
   const status = STATUS[ship.status];
   const boarding = state.turnState.ships[ship.id]?.boardingDeclared ?? null;
   const cap = state.ordnance.filter((o) => o.kind === "attack_craft" && o.cap === ship.id).length;
+  const squadron = squadronOf(state, ship);
   return (
     <button type="button" className={`card ${playerClass(ship.owner)} ${selected ? "selected" : ""}`} onClick={() => onSelect(ship.id)}>
       <div className="card-head">
         <strong>{ship.name}</strong>
         <span className="muted">{ship.profile.className}</span>
       </div>
+      {squadron !== undefined && (
+        <div className="squadron muted small">
+          {squadron.name}
+          {ship.status === "active" && !inFormation(state, ship) ? " · out of formation" : ""}
+        </div>
+      )}
       <div className="hits" aria-label={`${left} of ${hits} hits left`}>
         {Array.from({ length: hits }, (_, i) => (
           <span key={i} className={i < left ? "hit" : "hit lost"} />

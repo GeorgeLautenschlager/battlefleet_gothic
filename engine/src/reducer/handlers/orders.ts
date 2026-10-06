@@ -1,10 +1,11 @@
 /** Special orders: declare_order (reducer §8.1) and answer_brace (§11). */
-import { activePlayer, commandCheckLd, getShip, leadership } from "../../state/derived";
+import { activePlayer, commandCheckLd, formation, getShip, inFormation, leadership, squadronOf } from "../../state/derived";
 import { moveParameters } from "../../rules/move";
 import type { Activation, ShipType } from "../../state/types";
 import type { AnswerBrace, DeclareOrder } from "../../transforms/types";
 import { sum, type Ctx } from "../context";
 import { rerollableTest } from "../reroll";
+import { startSquadronMove } from "../squadrons";
 
 /** Size order for rams (p. 55): escort < cruiser < battleship (< defence). */
 const SIZE: Record<ShipType, number> = { escort: 0, cruiser: 1, battleship: 2 };
@@ -20,9 +21,12 @@ export function declareOrder(ctx: Ctx, t: DeclareOrder): void {
   const ship = getShip(state, t.shipId);
   const now = state.clock.playerTurn;
 
+  // A ship in formation declares for its squadron (N38, T81): one check, the order for every member in formation.
+  const sq = squadronOf(state, ship);
+  const crew = sq !== undefined && inFormation(state, ship) ? formation(state, sq) : [ship];
   const target = commandCheckLd(state, ship);
   const check = rerollableTest(ctx, ship, 2, target, t.reroll === true, "command_check", (r) =>
-    ctx.log("command_check", { shipId: ship.id, order: t.order, target, rolls: r.rolls, passed: r.passed }),
+    ctx.log("command_check", { shipId: ship.id, order: t.order, target, rolls: r.rolls, passed: r.passed, ...(crew.length > 1 && sq !== undefined ? { squadronId: sq.id } : {}) }),
   );
 
   let order: Activation["order"] = null;
@@ -31,9 +35,12 @@ export function declareOrder(ctx: Ctx, t: DeclareOrder): void {
 
   if (check.passed) {
     order = t.order;
-    ship.specialOrder = { kind: t.order, issued: now, expires: { playerTurn: now + 2, at: "movement_start" }, replaced: null };
-    if (t.order === "reload_ordnance") {
-      for (const key of Object.keys(ship.loaded) as (keyof typeof ship.loaded)[]) ship.loaded[key] = true;
+    for (const s of crew) {
+      s.specialOrder = { kind: t.order, issued: now, expires: { playerTurn: now + 2, at: "movement_start" }, replaced: null };
+      if (t.order === "reload_ordnance") {
+        for (const key of Object.keys(s.loaded) as (keyof typeof s.loaded)[]) s.loaded[key] = true;
+      }
+      if (s !== ship) ctx.log("order_set", { shipId: s.id, order: t.order });
     }
     if (t.order === "all_ahead_full") {
       if (t.ramTargetId !== undefined) {
@@ -73,6 +80,7 @@ export function declareOrder(ctx: Ctx, t: DeclareOrder): void {
     disengage: false,
     boardTargetId: null,
   };
+  if (startSquadronMove(ctx, ship, order, aafExtra) !== undefined && sq !== undefined) activation.squadronId = sq.id;
   const p = moveParameters(ship, activation);
   activation.maxDistance = p.maxIfBR;
   activation.minDistance = order === "all_ahead_full" ? p.d0 : p.minDistance;
@@ -89,22 +97,28 @@ export function answerBrace(ctx: Ctx, t: AnswerBrace): void {
     ctx.log("brace_check", { shipId: ship.id, declined: true });
     return;
   }
+  // A squadron braces together (N38): the answer covers every member in formation.
+  const sq = squadronOf(state, ship);
+  const crew = sq !== undefined && inFormation(state, ship) ? formation(state, sq) : [ship];
   const target = commandCheckLd(state, ship);
   const check = rerollableTest(ctx, ship, 2, target, t.reroll === true, "command_check", (r) =>
     ctx.log("brace_check", { shipId: ship.id, target, rolls: r.rolls, passed: r.passed }),
   );
-  if (check.passed) {
-    // "Until the end of its next turn" (state §7.3).
-    const now = state.clock.playerTurn;
-    const ownTurn = activePlayer(state) === ship.owner;
-    ship.specialOrder = {
-      kind: "brace_for_impact",
-      issued: now,
-      expires: { playerTurn: ownTurn ? now + 2 : now + 1, at: "turn_end" },
-      replaced: ship.specialOrder?.kind ?? null,
-    };
-  } else {
-    // Can't try again against this source; doesn't lock the fleet's orders (state N4).
-    state.turnState.braceFailures.push({ shipId: ship.id, source: { ...decision.source } });
+  for (const s of crew) {
+    if (check.passed) {
+      // "Until the end of its next turn" (state §7.3).
+      const now = state.clock.playerTurn;
+      const ownTurn = activePlayer(state) === s.owner;
+      s.specialOrder = {
+        kind: "brace_for_impact",
+        issued: now,
+        expires: { playerTurn: ownTurn ? now + 2 : now + 1, at: "turn_end" },
+        replaced: s.specialOrder?.kind ?? null,
+      };
+      if (s !== ship) ctx.log("order_set", { shipId: s.id, order: "brace_for_impact" });
+    } else {
+      // Can't try again against this source; doesn't lock the fleet's orders (state N4).
+      state.turnState.braceFailures.push({ shipId: s.id, source: { ...decision.source } });
+    }
   }
 }

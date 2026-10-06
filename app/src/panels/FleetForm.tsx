@@ -1,6 +1,6 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
 import { CATALOGUE, type CommanderConfig, type Mark } from "@bfg/engine";
-import { classChoices, classIds, commandPoints, defaultCommand, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, mostExpensive, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, withOption, type Command, type Fleet, type NewGameOptions, type Side } from "../game/config";
+import { classChoices, classIds, commandPoints, DEFAULT_ESCORT_SQUADRON, defaultCommand, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, mostExpensive, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, withOption, type Command, type Fleet, type NewGameOptions, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
 export function duplicates(names: string[]): string[] {
@@ -241,6 +241,17 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
               })}
             </select>
           </label>
+          {pointsLimit !== null && (
+            <label>
+              {count === 1 ? "Squadron" : `Ship ${i + 1} squadron`}
+              <input
+                value={side.squadrons?.[i] ?? ""}
+                placeholder={CATALOGUE[classes[i] ?? ""]?.profile.type === "escort" ? DEFAULT_ESCORT_SQUADRON : "none"}
+                onChange={(e) => onChange({ squadrons: side.ships.map((_, j) => (j === i ? e.target.value : (side.squadrons?.[j] ?? ""))) })}
+                maxLength={30}
+              />
+            </label>
+          )}
           {(CATALOGUE[classes[i] ?? ""]?.options ?? []).length > 0 && (
             <fieldset className="ship-options">
               <legend className="muted small">{count === 1 ? "Options" : `Ship ${i + 1} options`}</legend>

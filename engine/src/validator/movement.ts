@@ -2,8 +2,8 @@
 import { BM_SLOWDOWN } from "../geometry/constants";
 import { approxEq, approxGe, approxLe, baseRadius, basesTouch, distance } from "../geometry/basic";
 import { exitDistance, touchesAnyBm, walkShipPath } from "../geometry/path";
-import { allAheadFullEnd, moveParameters } from "../rules/move";
-import { bmsInContact, canBeBoarded, isHulk, onTable, rerollFor } from "../state/derived";
+import { allAheadFullEnd, moveParameters, movingOrder } from "../rules/move";
+import { bmsInContact, canBeBoarded, isHulk, onTable, rerollFor, squadronOf } from "../state/derived";
 import type { GameState, Point, Ship } from "../state/types";
 import type { DeclareOrder, DriftHulk, Move } from "../transforms/types";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
@@ -76,7 +76,17 @@ export function checkDeclareOrder(state: GameState, t: DeclareOrder): Validation
     }
   }
   // 11: a re-roll to use if the check fails
-  return rerollCheck(state, ship, t.reroll);
+  const reroll = rerollCheck(state, ship, t.reroll);
+  if (!reroll.ok) return reroll;
+  // 12–13: a squadron that has begun moving already has its order; another squadron's move comes first
+  const sm = state.turnState.squadronMove ?? null;
+  if (sm !== null) {
+    if (squadronOf(state, ship)?.id === sm.squadronId) {
+      return reject("SQUADRON_ORDERED", `${ship.name}'s squadron is already moving on its order`, { squadronId: sm.squadronId });
+    }
+    return reject("SQUADRON_MOVING", "Another squadron must finish moving first", { squadronId: sm.squadronId });
+  }
+  return OK;
 }
 
 export function checkMove(state: GameState, t: Move): ValidationResult {
@@ -93,8 +103,22 @@ export function checkMove(state: GameState, t: Move): ValidationResult {
     });
   }
 
+  // 5a–5c: squadron moves (state N37, N41)
+  const sm = state.turnState.squadronMove ?? null;
+  if (sm !== null && !sm.members.includes(ship.id)) {
+    return reject("SQUADRON_MOVING", "Another squadron must finish moving first", { squadronId: sm.squadronId });
+  }
+  const sq = squadronOf(state, ship);
+  const leaves = exitDistance(walkShipPath(ship, t.path), state.table) !== null;
+  if (sq?.disengaging === true && !leaves && !t.disengage) {
+    return reject("MUST_DISENGAGE", `${ship.name}'s squadron is disengaging: it must try to as well`, { squadronId: sq.id });
+  }
+  if (sq?.type === "escort" && sm !== null && sm.squadronId === sq.id && sm.disengage !== null && !sq.disengaging && !leaves && t.disengage !== sm.disengage) {
+    return reject("SQUADRON_DISENGAGE", `An escort squadron disengages together: ${sm.disengage ? "every" : "no"} member asks for the test`, { disengage: sm.disengage });
+  }
+
   // Parameters, as the reducer computes them
-  const p = moveParameters(ship, activation);
+  const p = moveParameters(ship, movingOrder(state, ship));
   const walk = walkShipPath(ship, t.path);
   const exit = exitDistance(walk, state.table);
   const slowed = touchesAnyBm(state, ship, walk);

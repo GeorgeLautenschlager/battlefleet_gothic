@@ -151,8 +151,8 @@ damagePoint(ship, critCheck):
   if critCheck and ship.damage < ship.profile.hits and d6() = 6: critical(ship)    // §6
 
 escortLost(ship, cause):                         // 0 hits, or any critical (p. 67): no hulk, no catastrophic roll
-  bm = a single Blast Marker at its stem (§5.3); releaseCap(ship) (§7.5); leave any grapple (§7.4)
-  status = "destroyed", position, heading and specialOrder null
+  bm = a single Blast Marker at its stem, cause "escort_lost" (§5.3); releaseCap(ship) (§7.5); leave any grapple (§7.4)
+  damage = profile.hits (so invariant 2 holds after a critical); status = "destroyed", position, heading and specialOrder null
   log escort_lost { shipId, cause, blastMarkerId: bm }
 ```
 
@@ -214,7 +214,7 @@ if shooter is on Lock On: rerolls = nD6(dice − hits); hits += count(rerolls, r
 | Condition | Shift |
 |---|---|
 | distance ≤ `SHORT_RANGE` | −1 |
-| distance > `LONG_RANGE` | +1 |
+| distance > `LONG_RANGE`, unless the shooter has the `noLongRangeShift` trait (the Idolator) | +1 |
 | shooter has the `targetingMatrix` trait (weapons batteries) | −1 |
 | stem-to-stem line touches a BM, or shooter or target has a BM in contact | +1 |
 
@@ -548,7 +548,7 @@ continue_move:
 5. **In a squadron's move** (state N37, N41):
    - An escort's step 2 is skipped: its squadron tests once, below. An escort that left by the table edge sets its squadron's `disengaging`.
    - A capital member that failed its test leaves the squadron: its id is removed from `shipIds`; log `left_squadron { shipId, squadronId }`.
-   - If no member of `squadronMove` is still `active` and unmoved: for an escort squadron whose move asked to disengage, run its one test (§2.2). Pass: every member still `active` is `disengaged` (`releaseCap` first), log `disengaged { reason: "test" }` for each. Fail: each gets `disengage = "failed"`. Either way, a pass or a member already off the table sets `disengaging`. Then `squadronMove = null`.
+   - If no member of `squadronMove` is still `active` and unmoved: for an escort squadron whose move asked to disengage, or that is `disengaging` (a member left by the table edge, before or during this move), run its one test (§2.2), logged `disengage_test` with `squadronId`. Pass: every member still `active` is `disengaged` (`releaseCap` first), log `disengaged { reason: "test" }` for each, and set `disengaging`. Fail: each gets `disengage = "failed"`. Then `squadronMove = null`.
 
 ### 8.3 `ram`
 
@@ -1025,7 +1025,7 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `cap_screen` | `shipId, ordnanceId, capIds` (CAP against a torpedo salvo) |
 | `craft_meets_ship` | `ordnanceId, targetId, result: "no_effect"` (fighters only, after any CAP) |
 | `craft_attack` | `ordnanceId, targetId, bombers, escorts, own, bomberRolls, attacks, need, attackRolls, hits, boats` |
-| `hit_and_run` | `ordnanceId, targetId, rolls, saveRolls?, result: "failed" \| "saved" \| "critical"` |
+| `hit_and_run` | `ordnanceId, targetId, rolls, saveRolls?, result: "failed" \| "saved" \| "critical" \| "destroyed"` |
 | `hulk_drift` | `shipId, rolls, distance` |
 | `hulk_lost` | `shipId, reason: "table_edge"` |
 | `disengaged` | `shipId, reason: "table_edge" \| "test"` |
@@ -1041,7 +1041,7 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `teleport` | `shipId, targetId, rolls, saveRolls?, result: "failed" \| "saved" \| "critical" \| "destroyed"` |
 | `bm_removal` | `rolls, removed` |
 | `skipped` | `item` |
-| `game_end` | `reason, scores, winner`; with victory points also `scoring: "victory_points"` and `breakdown: { p1, p2 }`, each `{ ships: { shipId, vp, why: "destroyed" \| "crippled" \| "disengaged" }[], field }` |
+| `game_end` | `reason, scores, winner`; with victory points also `scoring: "victory_points"` and `breakdown: { p1, p2 }`, each `{ ships: { shipId, vp, why: "destroyed" \| "crippled" \| "disengaged" }[], squadrons: { squadronId, vp, why: "destroyed" \| "disengaged" }[], field }` |
 
 `actor` is the player whose transform led to the entry, or `null` for housekeeping.
 

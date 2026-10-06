@@ -348,7 +348,7 @@ type ShipTraits = {
   noLongRangeShift?: boolean         // its batteries take no column shift for firing over 30 cm (the Idolator, p. 281)
 }
 
-type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship"
+type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship" | "escort"   // escorts count in no ratio (transform T77)
 
 type Weapon = {
   id: string                         // unique within the profile: "port_lances"
@@ -444,7 +444,7 @@ type Mark = "slaanesh" | "khorne" | "tzeentch" | "nurgle"
 
 ```ts
 type Squadron = {
-  id: string                         // "sq-1"
+  id: string                         // "sq-6": numbered after the ships (transform §5)
   owner: PlayerId
   name: string                       // "Blue Squadron"
   type: "escort" | "capital"         // escorts, or capital ships squadroned before the game (p. 95)
@@ -590,12 +590,13 @@ type BlastMarker = {
   id: string
   position: Point                    // centre
   placed: number                     // playerTurn
-  cause: "shield_hit" | "hulk" | "explosion" | "nova_miss"
+  cause: "shield_hit" | "hulk" | "explosion" | "nova_miss" | "escort_lost"
 }
 ```
 
 - Blast Markers are circles of diameter **2.5 cm** (engine constant). The rulebook only says a BM is smaller than a small base (p. 71).
 - A nova cannon shell that touches no ship and no ordnance leaves a single BM where its template landed, `cause: "nova_miss"` (p. 64).
+- A lost escort leaves a single BM at its stem, `cause: "escort_lost"` (p. 68, N34).
 - Placement (in the line of fire, fanned around the base without stacking, p. 68) is the reducer's job. The state only stores where they ended up. BMs never move once placed.
 
 ### 10.2 Ordnance: torpedo salvoes and attack craft

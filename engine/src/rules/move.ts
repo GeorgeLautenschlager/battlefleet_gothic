@@ -23,7 +23,16 @@ export type MoveParameters = {
   turnDistance: number;
 };
 
-export function moveParameters(ship: Ship, activation: Activation | null): MoveParameters {
+/** The order a ship moves on now: its activation's, or its squadron's move's (state N37), or none. */
+export function movingOrder(state: GameState, ship: Ship): Pick<Activation, "shipId" | "order" | "aafExtra"> | null {
+  const a = state.activation;
+  if (a !== null && a.shipId === ship.id) return a;
+  const sm = state.turnState.squadronMove ?? null;
+  if (sm !== null && sm.members.includes(ship.id)) return { shipId: ship.id, order: sm.order, aafExtra: sm.aafExtra };
+  return null;
+}
+
+export function moveParameters(ship: Ship, activation: Pick<Activation, "shipId" | "order" | "aafExtra"> | null): MoveParameters {
   const order = activation !== null && activation.shipId === ship.id ? activation.order : null;
   const aafExtra = activation !== null && activation.shipId === ship.id ? (activation.aafExtra ?? 0) : 0;
   const baseSpeed = speed(ship);

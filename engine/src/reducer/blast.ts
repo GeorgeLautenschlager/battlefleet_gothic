@@ -67,9 +67,9 @@ export function placeCluster(ctx: Ctx, centre: Point, n: number): string[] {
   return ids;
 }
 
-/** A new hulk's single BM, on its stem (§5.3). */
-export function placeAtStem(ctx: Ctx, ship: Ship): string {
-  return add(ctx, { ...(ship.position as Point) }, "hulk");
+/** A new hulk's single BM, on its stem (§5.3); or a lost escort's (state N34). */
+export function placeAtStem(ctx: Ctx, ship: Ship, cause: BlastMarker["cause"] = "hulk"): string {
+  return add(ctx, { ...(ship.position as Point) }, cause);
 }
 
 /** A drifting hulk's BM, trailing it (§5.3). */

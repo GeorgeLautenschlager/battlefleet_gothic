@@ -13,14 +13,14 @@ export const FLEETS: Record<Fleet, { name: string; classId: string; classes: str
   imperial_navy: {
     name: "Imperial Navy",
     classId: "lunar",
-    classes: ["lunar", "gothic", "tyrant", "dominator", "dauntless", "mars", "overlord", "emperor", "retribution"],
+    classes: ["lunar", "gothic", "tyrant", "dominator", "dauntless", "mars", "overlord", "emperor", "retribution", "firestorm", "sword", "cobra"],
     carrierClassId: "dictator",
     names: ["Agrippa", "Hammer of Terra", "Sanctus Vigil", "Lord Valdane", "Righteous Fury", "Saint Kasimir", "Iron Litany", "Gothic Dawn"],
   },
   chaos: {
     name: "Chaos",
     classId: "murder",
-    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "styx", "hecate", "hades", "acheron", "repulsive", "chaos_battle_barge", "despoiler", "desolator"],
+    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "styx", "hecate", "hades", "acheron", "repulsive", "chaos_battle_barge", "despoiler", "desolator", "idolator", "infidel", "iconoclast"],
     carrierClassId: "devastation",
     names: ["Unclean", "Carrion Hymn", "Woe Eternal", "Flayed Saint", "Hungering Dark", "Ninth Wound", "Red Lament", "Sorrowmaw"],
   },
@@ -28,11 +28,17 @@ export const FLEETS: Record<Fleet, { name: string; classId: string; classes: str
 
 export const MAX_SHIPS = 4;
 /** Ships a side in a points battle: the app's limit (the engine has none). */
-export const MAX_POINTS_SHIPS = 8;
+export const MAX_POINTS_SHIPS = 16;
 export const POINTS_LIMITS = [500, 750, 1000, 1500] as const;
 
-/** `classes[i]`: ship i's class; missing means the fleet's standard cruiser. `options[i]`: its option ids (T57). `command`: commanders, with fleet lists. */
-export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[]; options?: string[][]; command?: Command | undefined };
+/**
+ * `classes[i]`: ship i's class; missing means the fleet's standard cruiser. `options[i]`: its option ids (T57).
+ * `command`: commanders, with fleet lists. `squadrons[i]`: its squadron's name, "" for none (T76).
+ */
+export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[]; options?: string[][]; command?: Command | undefined; squadrons?: string[] };
+
+/** An escort left without a squadron name joins this one (every escort is in a squadron, T76). */
+export const DEFAULT_ESCORT_SQUADRON = "Escorts";
 
 /**
  * A side's commanders (transform §5, T60). `fleet`: the Admiral or Warmaster, or
@@ -90,7 +96,8 @@ export const CRUISER_CLASH_CAP = 185;
  * those within the 185-point cap), and its carrier when the game allows one.
  */
 export const classChoices = (fleet: Fleet, carriers: boolean, points = false): string[] => {
-  const cruisers = FLEETS[fleet].classes.filter((id) => points || cheapest(id) <= CRUISER_CLASH_CAP);
+  // Cruiser Clash: cruisers only (p. 128), within the cap; escorts and battleships wait for a points battle.
+  const cruisers = FLEETS[fleet].classes.filter((id) => points || (cheapest(id) <= CRUISER_CLASH_CAP && CATALOGUE[id]?.profile.type === "cruiser"));
   return carriers ? [...cruisers, FLEETS[fleet].carrierClassId] : cruisers;
 };
 
@@ -163,21 +170,33 @@ export function commanders(side: Side, carriers: boolean, points = false): (Comm
 export const commandPoints = (side: Side, carriers: boolean, points = false): number =>
   commanders(side, carriers, points).reduce((n, c) => n + (c !== undefined ? commanderPoints(c) : 0), 0);
 
-/** A side's ships as `{ name, classId, options?, commander? }`: the online protocol's shape. Commanders only with fleet lists. */
+/** Each ship's squadron name, "" for none: points battles only (state N45); an unnamed escort joins the default squadron. */
+export function squadronNames(side: Side, carriers: boolean, points = false): string[] {
+  const classes = classIds(side, carriers, points);
+  return side.ships.map((_, i) => {
+    if (!points) return "";
+    const name = (side.squadrons?.[i] ?? "").trim();
+    return name === "" && CATALOGUE[classes[i] ?? ""]?.profile.type === "escort" ? DEFAULT_ESCORT_SQUADRON : name;
+  });
+}
+
+/** A side's ships as `{ name, classId, options?, commander?, squadron? }`: the online protocol's shape. Commanders only with fleet lists. */
 export const shipEntries = (
   side: Side,
   carriers = false,
   points = false,
   lists = false,
-): { name: string; classId: string; options?: string[]; commander?: CommanderConfig }[] => {
+): { name: string; classId: string; options?: string[]; commander?: CommanderConfig; squadron?: string }[] => {
   const classes = classIds(side, carriers, points);
   const options = optionIds(side, carriers, points);
   const command = lists ? commanders(side, carriers, points) : [];
+  const squadrons = squadronNames(side, carriers, points);
   return side.ships.map((name, i) => ({
     name: name.trim(),
     classId: classes[i] ?? FLEETS[side.fleet].classId,
     ...((options[i] ?? []).length > 0 ? { options: options[i] } : {}),
     ...(command[i] !== undefined ? { commander: command[i] } : {}),
+    ...((squadrons[i] ?? "") !== "" ? { squadron: squadrons[i] } : {}),
   }));
 };
 

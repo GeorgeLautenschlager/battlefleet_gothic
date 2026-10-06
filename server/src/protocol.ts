@@ -15,11 +15,11 @@ export const MAX_NAME_LENGTH = 40;
 /** Cruiser Clash (p. 128): 1–4 cruisers a side. */
 export const MAX_SHIPS = 4;
 /** Ships a side in a points battle (the app's limit too). */
-export const MAX_POINTS_SHIPS = 8;
+export const MAX_POINTS_SHIPS = 16;
 
 /** One ship a player brings: its name and its class in the engine catalogue. */
-/** `options`: the class's option ids (transform §5, T57); `commander`: aboard, with fleet lists (T60). */
-export type ShipEntry = { name: string; classId: string; options?: string[]; commander?: CommanderConfig };
+/** `options`: the class's option ids (transform §5, T57); `commander`: aboard, with fleet lists (T60); `squadron`: its squadron's name (T76). */
+export type ShipEntry = { name: string; classId: string; options?: string[]; commander?: CommanderConfig; squadron?: string };
 
 // --- Client → server (§4.1)
 
@@ -117,6 +117,7 @@ export const shipEntry = (s: ShipEntry): ShipEntry => ({
   classId: s.classId,
   ...(s.options !== undefined ? { options: [...s.options] } : {}),
   ...(s.commander !== undefined ? { commander: JSON.parse(JSON.stringify(s.commander)) as CommanderConfig } : {}),
+  ...(s.squadron !== undefined ? { squadron: s.squadron } : {}),
 });
 
 const MARKS = ["slaanesh", "khorne", "tzeentch", "nurgle"];
@@ -141,7 +142,8 @@ export function isShipList(v: unknown): v is ShipEntry[] {
         isString(s["name"]) &&
         isString(s["classId"], 40) &&
         (s["options"] === undefined || (Array.isArray(s["options"]) && s["options"].length <= 8 && s["options"].every((o) => isString(o, 40)))) &&
-        (s["commander"] === undefined || isCommander(s["commander"])),
+        (s["commander"] === undefined || isCommander(s["commander"])) &&
+        (s["squadron"] === undefined || isString(s["squadron"], 30)),
     )
   );
 }
