@@ -5,6 +5,7 @@ import { EPS, NOVA_RADIUS } from "./constants";
 import { approxLe, baseRadius, distance, quadrantsOfPoint, segmentTouchesCircle } from "./basic";
 import { EngineError, formation, gunneryColumn, inFormation, isHulk, squadronOf } from "../state/derived";
 import type { GameState, Ordnance, Point, Quadrant, Ship, Weapon } from "../state/types";
+import { planetBlocks } from "../rules/planets";
 
 /** `salvo` is any ordnance: a torpedo salvo or an attack craft wave. */
 export type Target = { kind: "ship"; ship: Ship } | { kind: "ordnance"; salvo: Ordnance };
@@ -20,10 +21,11 @@ function pose(ship: Ship): { position: Point; heading: number } {
   return { position: ship.position, heading: ship.heading };
 }
 
-/** A hulk other than the shooter and the target lies across the stem-to-stem line (p. 71). */
+/** A hulk other than the shooter and the target (p. 71), or a planet (state N65), lies across the stem-to-stem line. */
 export function lineOfFireBlocked(state: GameState, shooter: Ship, target: Ship): boolean {
   const from = pose(shooter).position;
   const to = pose(target).position;
+  if (planetBlocks(state, from, to)) return true;
   return state.ships.some((hulk) => {
     if (!isHulk(hulk) || hulk.id === shooter.id || hulk.id === target.id || hulk.position === null) return false;
     return segmentTouchesCircle(from, to, hulk.position, baseRadius(hulk.profile.baseSize));
@@ -42,7 +44,8 @@ export function canEngage(state: GameState, ship: Ship, weapon: Weapon, target: 
   const point = targetPosition(target);
   if (!approxLe(distance(pose(ship).position, point), weapon.range)) return false;
   if (arcsBearing(ship, weapon, point).length === 0) return false;
-  return target.kind === "ordnance" || !lineOfFireBlocked(state, ship, target.ship);
+  // Hulks don't block shots at ordnance; planets do (transform T111).
+  return target.kind === "ordnance" ? !planetBlocks(state, pose(ship).position, point) : !lineOfFireBlocked(state, ship, target.ship);
 }
 
 /** Of `candidates`, those within EPS of the minimum distance from `from`. */
@@ -143,6 +146,7 @@ export function templateTouchesShip(centre: Point, ship: Ship, r: number): boole
 /** A hulk lies across the line from the stem to the aim point, other than one the template touches there (T44). */
 export function novaLineBlocked(state: GameState, ship: Ship, aim: Point): boolean {
   const from = pose(ship).position;
+  if (planetBlocks(state, from, aim)) return true;
   return state.ships.some((hulk) => {
     if (!isHulk(hulk) || hulk.id === ship.id || hulk.position === null) return false;
     if (templateTouchesShip(aim, hulk, NOVA_RADIUS)) return false;

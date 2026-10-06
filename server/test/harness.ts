@@ -1,6 +1,6 @@
 /** A room plus fake connections, for tests: send raw messages, collect what each connection receives. */
 import { createHash } from "node:crypto";
-import type { FactionId, Forces, GameState, PlayerId, ScenarioId, Scoring } from "@bfg/engine";
+import type { FactionId, Forces, GameState, PlanetSize, PlayerId, ScenarioId, Scoring } from "@bfg/engine";
 import { GameRoom, createRoom, type Deps } from "../src/room";
 import { PROTOCOL, type ServerMessage, type ShipEntry } from "../src/protocol";
 
@@ -40,12 +40,12 @@ export class Harness {
   ) {}
 
   static async create(
-    opts: { side?: PlayerId; seed?: number; fleet?: Fleet; ramming?: boolean; boarding?: boolean; carriers?: boolean; fleetLists?: boolean; scenario?: ScenarioId; forces?: Forces; scoring?: Scoring; attacker?: PlayerId } = {},
+    opts: { side?: PlayerId; seed?: number; fleet?: Fleet; ramming?: boolean; boarding?: boolean; carriers?: boolean; fleetLists?: boolean; scenario?: ScenarioId; forces?: Forces; scoring?: Scoring; attacker?: PlayerId; planet?: PlanetSize } = {},
   ): Promise<Harness> {
     const deps = testDeps(opts.seed);
     const fleet = opts.fleet ?? HOST_FLEET;
     const created = await createRoom(
-      { name: "Ann", side: opts.side ?? "p1", faction: fleet.faction, ships: [...fleet.ships], ramming: opts.ramming ?? true, boarding: opts.boarding ?? false, carriers: opts.carriers ?? false, ...(opts.scenario ? { scenario: opts.scenario } : {}), ...(opts.fleetLists ? { fleetLists: true } : {}), ...(opts.forces ? { forces: opts.forces } : {}), ...(opts.scoring ? { scoring: opts.scoring } : {}), ...(opts.attacker ? { attacker: opts.attacker } : {}) },
+      { name: "Ann", side: opts.side ?? "p1", faction: fleet.faction, ships: [...fleet.ships], ramming: opts.ramming ?? true, boarding: opts.boarding ?? false, carriers: opts.carriers ?? false, ...(opts.scenario ? { scenario: opts.scenario } : {}), ...(opts.fleetLists ? { fleetLists: true } : {}), ...(opts.forces ? { forces: opts.forces } : {}), ...(opts.scoring ? { scoring: opts.scoring } : {}), ...(opts.attacker ? { attacker: opts.attacker } : {}), ...(opts.planet ? { planet: opts.planet } : {}) },
       deps,
     );
     if ("error" in created) throw new Error(created.error);

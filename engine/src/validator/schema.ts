@@ -66,7 +66,7 @@ const point = shape({ x: num, y: num });
 const pathStep: FieldCheck = (v, path) => {
   if (!isObject(v)) return path;
   if (v.kind === "advance") return shape({ kind: str, distance: num })(v, path);
-  if (v.kind === "turn") return shape({ kind: str, degrees: num })(v, path);
+  if (v.kind === "turn" || v.kind === "gravity_turn") return shape({ kind: str, degrees: num })(v, path);
   return `${path}.kind`;
 };
 

@@ -34,6 +34,14 @@ export function PlotPanel({ plot }: { plot: Plot }) {
         back, clear, move.
       </p>
       <StepEntry plot={plot} />
+      {plot.gravityTurn !== null && plot.gravityTurn.kind === "gravity_turn" && (
+        <div className="buttons">
+          <button type="button" onClick={() => plot.gravityTurn !== null && plot.add(plot.gravityTurn)} title="Free, at the start or end of the move (p. 112)">
+            Gravity turn {Math.abs(plot.gravityTurn.degrees)}° to {plot.gravityTurn.degrees < 0 ? "port" : "starboard"}
+            {plot.path.length === 0 ? "" : " to finish"}
+          </button>
+        </div>
+      )}
       {plot.boardable.length > 0 && (
         <div className="picker" role="group" aria-label="Board">
           <span className="muted small">Ends in base contact. Board (no shooting this turn):</span>

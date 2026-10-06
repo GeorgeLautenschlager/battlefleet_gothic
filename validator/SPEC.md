@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.13, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.18](../game_state/SPEC.md) and [Transforms v0.16](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21). v0.13 adds The Raiders: `choose_facing`, spacing at deployment (`deploy_ship` 6a), and raiders who can't wait (`end_step` in `move_ships`, check 1a) (V22–V23).
+**Status:** draft v0.14, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.19](../game_state/SPEC.md) and [Transforms v0.17](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21). v0.13 adds The Raiders: `choose_facing`, spacing at deployment (`deploy_ship` 6a), and raiders who can't wait (`end_step` in `move_ships`, check 1a) (V22–V23). v0.14 adds planets: blocked lines of fire (§2.7), gravity turns (`move` 6a) and high orbit (`move` 13) (V24–V27).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -148,12 +148,13 @@ type Leg = {
 type Walk = {
   legs: Leg[]
   turns: { stepIndex: number, degrees: number, sinceLastTurn: number }[]
+  gravityTurns: { stepIndex: number, degrees: number, at: Point, headingBefore: number }[]   // state N68
   total: number                    // total forward distance
   end: { position: Point, heading: number }
 }
 ```
 
-Turns rotate in place at the stem; only `advance` steps produce legs. `sinceLastTurn` is the forward distance since the start of the move or since the previous turn.
+Turns rotate in place at the stem; only `advance` steps produce legs. `sinceLastTurn` is the forward distance since the start of the move or since the previous turn. A `gravity_turn` rotates in place too, but goes in `gravityTurns`, not `turns`, and doesn't reset `sinceLastTurn`.
 
 Path queries built on it:
 
@@ -168,13 +169,14 @@ Path queries built on it:
 ```
 lineOfFireBlocked(shooter, target) =
   some hulk H ≠ shooter, H ≠ target has segmentTouchesCircle(shooter.position, target.position, H.position, baseRadius(H))
+  or planetBlocks(shooter.position, target.position)                          // state §11, N65
 ```
 
 `canEngage(ship, weapon, target)` is true when **all** of:
 
 1. `distance ≤ weapon.range`;
 2. `quadrantsOfPoint(ship, target.position)` intersects `weapon.arcs`;
-3. the line of fire isn't blocked (ship targets only; ordnance never blocks).
+3. the line of fire isn't blocked: for a ship target, `lineOfFireBlocked`; for ordnance, only `planetBlocks(ship.position, ordnance.position)` (hulks don't block shots at ordnance, planets do: transform T111).
 
 **Nearest target, per weapon** (ruling V1):
 
@@ -201,6 +203,7 @@ isNearest(ship, weapon, target)      = for a squadron target: some member of for
 ```
 novaLineBlocked(ship, aim) =
   some hulk H ≠ ship, !templateTouchesShip(aim, H, NOVA_RADIUS), has segmentTouchesCircle(ship.position, aim, H.position, baseRadius(H))
+  or planetBlocks(ship.position, aim)
 ```
 
 ### 2.8 Deterministic maths
@@ -380,15 +383,16 @@ Then check the path:
 
 | # | Check | Code |
 |---|---|---|
-| 6 | Every `advance.distance > 0` and every `turn.degrees ≠ 0` | `INVALID_PATH_STEP` |
+| 6 | Every `advance.distance > 0` and every `turn.degrees ≠ 0` and `gravity_turn.degrees ≠ 0` | `INVALID_PATH_STEP` |
+| 6a | Each gravity turn (state N68, transform T108–T109): it's the first step or the last, at most one of each and only one without an advance; its stem is in a gravity well, `gravityWellAt(at)`; and with `delta` the signed angle from `headingBefore` to `tableBearing(at, planet.position)` (in −180…180), `degrees` has `delta`'s sign (either sign when `|delta| = 180`) and `|degrees| ≤ min(45, |delta|) + EPS` | `INVALID_GRAVITY_TURN` |
 | 7 | Every `|turn.degrees| ≤ ship.profile.turns` | `TURN_TOO_SHARP` |
 | 8 | Number of turns ≤ `turnsAllowed` | `TOO_MANY_TURNS` |
 | 9 | Each turn has `sinceLastTurn ≥ turnDist`. Exception: under Burn Retros, a turn with `sinceLastTurn = 0` is fine. | `TURN_TOO_EARLY` |
 | 10 | If `exit ≠ null`: the exit happens in the **last** step, which is an `advance` | `PATH_CONTINUES_OFF_TABLE` |
 | 11 | If `exit ≠ null`: `disengage = false` | `ALREADY_LEAVING_TABLE` |
 | 12 | `walk.total ≤ D`. For All Ahead Full, see 14. | `PATH_TOO_LONG` |
-| 13 | Unless `exit ≠ null`: `walk.total ≥ min(minDistance, D′)`, where `D′` is `D`, or `maxIfBR − BM_SLOWDOWN` when the ship starts in contact with a BM (V12). A ship that can't make half speed must go as far as it can (p. 53). | `PATH_TOO_SHORT` |
-| 14 | **All Ahead Full only.** `walk.total ≈ aafEnd` (below), or the path leaves the table at or before `aafEnd`. | `MUST_STOP_AT_BLAST_MARKER` if `aafEnd` is a BM stop, else `MUST_MOVE_FULL_DISTANCE` |
+| 13 | Unless `exit ≠ null`: `walk.total ≥ min(minDistance, D′)`, where `D′` is `D`, or `maxIfBR − BM_SLOWDOWN` when the ship starts in contact with a BM (V12). A ship that can't make half speed must go as far as it can (p. 53). A ship whose stem starts in a gravity well has no minimum (high orbit, state N69). | `PATH_TOO_SHORT` |
+| 14 | **All Ahead Full only.** `walk.total ≈ aafEnd` (below), or the path leaves the table at or before `aafEnd`. `aafEnd` is measured along the heading after any first gravity turn. | `MUST_STOP_AT_BLAST_MARKER` if `aafEnd` is a BM stop, else `MUST_MOVE_FULL_DISTANCE` |
 | 15 | If `boardTargetId` is given: `meta.options.boarding` | `BOARDING_OFF` |
 | 16 | … it names an enemy ship that is `active` (not a hulk, transform T9) and `canBeBoarded` (not on the Mark of Nurgle, T62) | `INVALID_BOARDING_TARGET` |
 | 17 | … the target isn't grappled (T9) | `TARGET_GRAPPLED` |
@@ -629,6 +633,7 @@ In `move_ships` (transform T95):
 | `NOT_ON_ENTRY_EDGE` | An arriving stem isn't on an entry edge |
 | `NOT_FACING_IN` | An arriving ship doesn't face into the table |
 | `SHIPS_TO_MOVE` | `end_step` in `move_ships` before every ship on the table has moved |
+| `INVALID_GRAVITY_TURN` | A gravity turn that isn't first or last, isn't in a gravity well, turns away from the planet or past it, or turns more than 45° |
 | `TOO_CLOSE` | The Raiders: a deployed ship within 20 cm of a ship of another unit |
 | `RESERVES_MUST_ARRIVE` | The Raiders: `end_step` while raiders are still off the table |
 | `FILL_DIVISIONS_FIRST` | Fleet Engagement: a division still needs a ship before this one gets another (p. 142) |
@@ -662,7 +667,7 @@ In `move_ships` (transform T95):
 | `OUT_OF_RANGE` / `OUT_OF_ARC` | Range and arc |
 | `ARC_CHOICE_REQUIRED` / `INVALID_ARC_CHOICE` | Target on an arc boundary |
 | `ASPECT_CHOICE_REQUIRED` / `INVALID_ASPECT_CHOICE` | Shooter on the target's quadrant boundary |
-| `LINE_OF_FIRE_BLOCKED` | A hulk is in the way |
+| `LINE_OF_FIRE_BLOCKED` | A hulk or a planet is in the way |
 | `MUST_TARGET_NEAREST` | Priority test failed; only the nearest target is allowed |
 | `INVALID_TARGET_ASPECT` | `targetAspect` on a single ship, or an aspect no reachable member shows |
 | `INVALID_SQUADRON_FIRE` | `withShips` from a ship not in formation, or naming ships outside its squadron's formation |
@@ -748,6 +753,10 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V21 | **`deploy_ship` with a reserve** says why (`IN_RESERVE`) rather than `ALREADY_DEPLOYED`: the ship isn't on the table, it's waiting. |
 | V22 | **`TOO_CLOSE.details`** is `{ shipId }`, the nearest ship it's too close to. Squadron-mates are exempt: they follow the 15 cm formation rule. |
 | V23 | **`RESERVES_MUST_ARRIVE`** comes after `NO_ENTRY_EDGE`: when reserves can't arrive at all, the step isn't being held for them. |
+| V24 | **A planet's template blocks a line that passes closer than its radius** (less `EPS`) to its centre; a line that only grazes the edge isn't blocked, and a line with an end on the template isn't blocked by that planet (state N65). |
+| V25 | **`INVALID_GRAVITY_TURN.details`** is `{ stepIndex, reason }`, with `reason` one of `"position"`, `"not_in_well"`, `"direction"`, `"too_sharp"`. |
+| V26 | **A gravity turn's legality uses the planned pose**: the stem and heading where the path puts it. The reducer re-checks it when the step is reached and skips it if a contact stopped the ship short (transform §4.2). |
+| V27 | **High orbit waives the minimum only** (state N69): a ship in a well still can't exceed its maximum, and All Ahead Full still moves its full distance. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |
 
 ## 8. Decisions

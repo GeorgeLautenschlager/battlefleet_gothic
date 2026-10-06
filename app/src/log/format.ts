@@ -220,7 +220,13 @@ export function describe(state: GameState, entry: LogEntry): string {
     case "hulk_drift":
       return `${ship("shipId")} drifts ${dice(d["rolls"])} ${num(d["distance"])} cm`;
     case "hulk_lost":
-      return `${ship("shipId")} drifts off the table`;
+      return d["reason"] === "planet" ? `${ship("shipId")} drifts into the planet and is gone` : `${ship("shipId")} drifts off the table`;
+    case "gravity_turn":
+      return d["skipped"] === true
+        ? `${ship("shipId")} can't make its gravity turn`
+        : `${ship("shipId")} swings ${num(Math.abs(Number(d["degrees"])))}° to ${Number(d["degrees"]) < 0 ? "port" : "starboard"} in the planet's gravity well`;
+    case "planet_contact":
+      return d["ordnanceId"] !== undefined ? "A torpedo salvo breaks up against the planet" : `${ship("shipId")} meets the planet`;
     case "disengaged":
       return `${ship("shipId")} disengages${d["reason"] === "table_edge" ? " off the table edge" : ""}`;
     case "repair":

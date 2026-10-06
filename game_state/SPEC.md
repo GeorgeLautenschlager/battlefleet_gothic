@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.18, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29). v0.15 adds battleships: the `battleship` category, the traits that bar Come to New Heading and raise Leadership, and options that exclude each other (§7.1, §11, N30–N33). v0.16 adds escorts and squadrons, escort and capital: §3, §7.5, §8, §9.1, §11, §13, N34–N45. v0.17 adds the second scenario, The Bait (p. 130), and with it reserves: ships that start off the table and arrive along an entry edge during the battle (§4, §5, §6, §7, §11, §13, N47–N55). v0.18 adds the third scenario, The Raiders (p. 131): the defender's facing and spacing, raiders arriving from any edge in their first turn, and the defenders' surprise (§4, §5, §11, §13, N56–N63).
+**Status:** draft v0.19, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29). v0.15 adds battleships: the `battleship` category, the traits that bar Come to New Heading and raise Leadership, and options that exclude each other (§7.1, §11, N30–N33). v0.16 adds escorts and squadrons, escort and capital: §3, §7.5, §8, §9.1, §11, §13, N34–N45. v0.17 adds the second scenario, The Bait (p. 130), and with it reserves: ships that start off the table and arrive along an entry edge during the battle (§4, §5, §6, §7, §11, §13, N47–N55). v0.18 adds the third scenario, The Raiders (p. 131): the defender's facing and spacing, raiders arriving from any edge in their first turn, and the defenders' surprise (§4, §5, §11, §13, N56–N63). v0.19 adds the first celestial phenomenon, a planet in the table centre (pp. 112–113): its template, line of sight, torpedoes and drifting hulks, and its gravity well's free turns and high orbit (§4, §9.1, §11, §13, N64–N71).
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -151,7 +151,21 @@ type Forces =
 
 type Rect = { x: number, y: number, width: number, height: number }  // x,y = bottom-left
 
-type Table = { width: number, height: number }   // Phase 1: 180 × 120
+type Table = {
+  width: number, height: number                  // 180 × 120
+  features?: Feature[]                           // celestial phenomena (pp. 102–116); absent: an empty table
+}
+
+type Feature = Planet                            // more kinds (gas clouds, asteroid fields, moons…) to come
+
+type Planet = {
+  kind: "planet"
+  id: string
+  position: Point                                // the template's centre
+  size: "small" | "medium" | "large"
+  diameter: number                               // cm: small 15, medium 25, large 35 (N64)
+  well: number                                   // gravity well, cm beyond the template's edge: small 10, medium 15, large 30 (p. 112)
+}
 
 type Player = {
   id: "p1" | "p2"
@@ -190,6 +204,8 @@ A deployed ship's stem must be inside one of its zone's divisions, and it faces 
 Reinforcements arrive along the pursued player's **entry edges** (`entryEdges`, §11): the east short edge from the first round; from round *r* ≥ 2, also the last 30 × (*r* − 1) cm of each long edge next to it (N51).
 
 **The Raiders (p. 131, N56–N63).** The defender deploys everything in one division, `30, 30, 120, 60`: every stem at least 30 cm from every table edge, all facing the table edge the defender chose (`raid.facing`, §5). Ships of different units (a ship in no squadron, or a squadron) stand at least 20 cm apart, stem to stem (N59). The raiders (`scenario.attacker`) start in **reserve** and all arrive in their first Movement Phase, each unit from any table edge (N60): `entryEdges` is all four edges in player turn 1, and none after.
+
+**Planets (pp. 112–113, N64–N71).** A game can have one planet, its template centred on the table. Its **template** is the circle of radius `diameter / 2` around `position`; its **gravity well** reaches `well` cm beyond that edge. A stem *on the planet* is inside the template, edge included; a stem *in the gravity well* is within `diameter / 2 + well` of the centre, template included (N67).
 
 ---
 
@@ -565,6 +581,7 @@ type Activation = {
 type PathStep =
   | { kind: "advance", distance: number }   // straight ahead, cm
   | { kind: "turn", degrees: number }       // signed, + = starboard
+  | { kind: "gravity_turn", degrees: number }  // a gravity well's free turn toward the planet, first and/or last step only (N68)
 ```
 
 The validator checks the whole path against everything it can know in advance: speed limits, the minimum move, distance before turning (10 cm for a cruiser; not reduced by BM slowing, p. 201), turn count and angle for the order, Engine Room damage, BMs the path crosses (−5 cm), an AAF ship having to stop on contact with a BM in its last 5 cm, and leaving the table.
@@ -715,6 +732,9 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `onTable(s)` | `status ∈ {active, drifting_hulk, blazing_hulk}` |
 | `entryEdges(player)` | the segments of the table edge where `player`'s reserves may arrive this turn, each `{ from: Point, to: Point, inward: heading }`. The Bait, the pursued player: the east edge, `(180, 0)`–`(180, 120)`, inward 270; from round *r* = ⌈`playerTurn`/2⌉ ≥ 2 also `(180 − 30(r − 1), 0)`–`(180, 0)` inward 0 and `(180 − 30(r − 1), 120)`–`(180, 120)` inward 180, clipped to the table (N51). The Raiders, the raiders, in player turn 1 only: all four edges, inward 180 (top), 270 (east), 0 (bottom) and 90 (west) (N60). Otherwise none |
 | `canArrive(player)` | `stage = "battle"`, `step = "move_ships"`, `player` is active, has a ship in `reserve`, and `entryEdges(player)` isn't empty |
+| `onPlanet(p)` | the planet whose template holds point `p` (`distance(p, position) ≤ diameter/2`, within `EPS`), or none |
+| `gravityWellAt(p)` | the planet whose gravity well holds `p` (`distance(p, position) ≤ diameter/2 + well`, within `EPS`), or none (N67) |
+| `planetBlocks(from, to)` | some planet's template lies across the line from `from` to `to` (it passes closer than `diameter/2 − EPS` to the centre), and neither end is on that planet (N65) |
 | `eliminated(player)` | no ship of `player`'s is `active` or in `reserve` (D6, N52) |
 | `reservesMayWait(player)` | `player`'s reserves may stay off the table at the end of their Movement Phase: The Bait, yes; The Raiders, no, they all arrive in their first turn (N60) |
 | `surprised(s)` | The Raiders: `s` is the defender's and the round ⌈`playerTurn`/2⌉ is at most `raid.surpriseTurns` (N61) |
@@ -789,7 +809,7 @@ Properties every valid state satisfies. These are good property-test fodder.
 11. `clock.stage = "ended"` ⇔ `result ≠ null`.
 12. Grapples are consistent. A ship with `grapple ≠ null` is `active`. Every ship its grapple names is `active` and carries an identical `grapple`. `defenderId ∉ attackerIds`, `attackerIds` is non-empty, and the attackers are all the defender's enemies. No ship is in two grapples.
 13. Attack craft are consistent: every wave has ≥ 1 squadron. A wave with `cap ≠ null` is a single fighter, its ship is the owner's and `active`, and its `position` is that ship's stem.
-14. `setup.engagement` is present ⇔ `scenario.id = "fleet_engagement"`, and `scenario.deploymentZones` is present ⇔ `scenario.id = "cruiser_clash"`. `maxRounds` is 8 in Cruiser Clash and null in The Bait and Fleet Engagement; when it's set, `playerTurn ≤ 2 × maxRounds`. `scenario.attacker` is present ⇔ `scenario.id ∈ {the_bait, raiders}`. `setup.raid` is present ⇔ `scenario.id = "raiders"`, where `maxRounds` is 8.
+14. At most one feature, a planet, whose id is unique like any other. `setup.engagement` is present ⇔ `scenario.id = "fleet_engagement"`, and `scenario.deploymentZones` is present ⇔ `scenario.id = "cruiser_clash"`. `maxRounds` is 8 in Cruiser Clash and null in The Bait and Fleet Engagement; when it's set, `playerTurn ≤ 2 × maxRounds`. `scenario.attacker` is present ⇔ `scenario.id ∈ {the_bait, raiders}`. `setup.raid` is present ⇔ `scenario.id = "raiders"`, where `maxRounds` is 8.
 15. Squadrons are consistent: every escort is in exactly one squadron and every capital ship in at most one; a squadron's members share its `owner`, and its `type` (escort squadrons hold escorts; capital squadrons ships of one `profile.type`). Every member of an escort squadron has the same `leadership`.
 16. `turnState.squadronMove` is non-null only in `movement / move_ships`. Its members are the squadron's, the active player's, and at least one hasn't `moved`. While it's set, `activation` is null or for one of its members.
 17. Ships in `reserve` exist only in The Bait, where they're the pursued player's (not `scenario.attacker`), and The Raiders, where they're the raiders' (`scenario.attacker`). A squadron's members are all in `reserve` or none is.
@@ -1042,6 +1062,14 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N61 | **The defenders' surprise**: the D6 is rolled with Leadership (`roll_leadership`), openly. "The first D6 turns" are game turns (rounds): the defenders take −1 Leadership in rounds 1 to *n*, on every Command check and Leadership test, as a change to `leadership(s)`. | §5, §11 |
 | N62 | **The Raiders' battlezone** is "mutually agreed": the plain 180 × 120 table until celestial phenomena are in (N54). | §4 |
 | N63 | **The Raiders' length**: 8 rounds (`maxRounds = 8`), or until a fleet is gone (D6). | §4 |
+| N64 | **Planet sizes** (p. 112): small up to 15 cm across, medium 16–25, large 26–50. A template's size is the player's to choose within those; the engine fixes one per size so games agree: 15, 25 and 35 cm. Gravity wells as the book: 10, 15 and 30 cm. | §4 |
+| N65 | **A planet blocks line of sight** (p. 112): a line of fire, from stem to stem (or to an aim point or ordnance), that passes over the template, closer than its radius to the centre, is blocked. A stem on the template sees out and is seen, so a line with either end on the planet isn't blocked by it. Grazing the edge isn't blocking. | §11 |
+| N66 | **Torpedoes are destroyed at the template's edge** (p. 112, "either direction"): a salvo that touches the edge going in, or whose centre reaches it coming out (launched from a ship on the planet), is removed there. Attack craft aren't affected: the book names torpedoes only. | §10.2 |
+| N67 | **"In a gravity well"** includes the template itself: a ship on the planet is in its well. | §4, §11 |
+| N68 | **Gravity well turns** (p. 112): a ship whose stem is in a well at the start and/or end of its move may make one free turn of up to 45° there, toward the planet: it turns the bow toward the planet's centre and no further. It's a `gravity_turn` step, first or last in the path. It isn't a turn for the order's turn limit or for distance before turning, and it's allowed on any order and with an Engine Room critical, since gravity does the turning. | §9.1 |
+| N69 | **High orbit** (p. 112): a ship whose stem starts its move in a gravity well needn't move: its minimum move is 0. All Ahead Full still moves its full distance. A ship that stays put is targeted on the Defences column, as any ship moving less than 5 cm (N7). | §9.1 |
+| N70 | **Hulks drifting into a planet are destroyed** (p. 112): when a drifting hulk's stem reaches the template, it's removed. Ships moving under power pass over or under (p. 112). | §6 |
+| N71 | **Low orbit isn't in yet**: it needs a separate low-orbit table, and only Planetary Assault and Exterminatus use it. | §4 |
 | N29 | **Grand cruisers' immunity to prow criticals** (Vengeance, Exorcist, Avenger, Retaliator, Executor) isn't needed yet: the only grand cruiser on the Gothic War lists, the Repulsive, doesn't have it. It arrives as a trait with the first class that does. | §7.1 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
 
@@ -1051,7 +1079,7 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 
 The shapes above leave room for these without breaking changes. Each will add fields or union members, never repurpose existing ones.
 
-- **Terrain:** `table.features: Feature[]` (gas clouds, asteroid fields, planets with gravity wells), `table.sunwardEdge`.
+- **Terrain:** `table.features` holds a planet (§4); gas clouds, asteroid fields, moons, low orbit and `table.sunwardEdge` come later.
 - **Other scenarios:** new `scenario.id`s with their own set-up blocks. Fleet Engagement, The Bait, The Raiders, reserves and victory points are in (§4, §5, §7, §11); attack ratings and the random scenario tables (p. 120) come with the next scenarios.
 
 ---

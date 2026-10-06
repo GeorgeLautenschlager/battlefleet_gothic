@@ -34,6 +34,7 @@ export function checkInvariants(state: GameState): Violation[] {
   const ids = [
     ...state.ships.map((s) => s.id),
     ...(state.squadrons ?? []).map((sq) => sq.id),
+    ...(state.table.features ?? []).map((f) => f.id),
     ...state.ships.flatMap((s) => s.criticals.map((c) => c.id)),
     ...state.blastMarkers.map((b) => b.id),
     ...state.ordnance.map((o) => o.id),

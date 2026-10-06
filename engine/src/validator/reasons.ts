@@ -115,6 +115,8 @@ export const REASON_CODES = [
   // The Raiders (validator spec v0.13)
   "TOO_CLOSE",
   "RESERVES_MUST_ARRIVE",
+  // Planets (validator spec v0.14)
+  "INVALID_GRAVITY_TURN",
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

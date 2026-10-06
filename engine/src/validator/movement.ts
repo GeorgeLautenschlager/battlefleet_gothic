@@ -1,6 +1,7 @@
 /** Movement checks (validator spec §4.2): drift_hulk, declare_order, move. */
 import { BM_SLOWDOWN } from "../geometry/constants";
-import { approxEq, approxGe, approxLe, baseRadius, basesTouch, distance } from "../geometry/basic";
+import { approxEq, approxGe, approxLe, baseRadius, basesTouch, distance, norm } from "../geometry/basic";
+import { gravityTurnProblem, gravityWellAt } from "../rules/planets";
 import { exitDistance, touchesAnyBm, walkShipPath } from "../geometry/path";
 import { allAheadFullEnd, moveParameters, movingOrder } from "../rules/move";
 import { bmsInContact, canBeBoarded, isHulk, onTable, rerollFor, squadronOf } from "../state/derived";
@@ -129,6 +130,22 @@ export function checkMove(state: GameState, t: Move): ValidationResult {
     const bad = step.kind === "advance" ? !(step.distance > 0) : step.degrees === 0;
     if (bad) return reject("INVALID_PATH_STEP", `Step ${stepIndex} doesn't move or turn`, { stepIndex });
   }
+  // 6a: gravity turns, first and/or last, in a well, toward the planet (state N68)
+  const last = t.path.length - 1;
+  for (const g of walk.gravityTurns) {
+    const where = g.stepIndex === 0 || g.stepIndex === last;
+    const both = walk.gravityTurns.length > 1 && walk.legs.length === 0;
+    const problem = !where || both ? "position" : gravityTurnProblem(state, g.at, g.headingBefore, g.degrees);
+    if (problem !== null) {
+      const why = {
+        position: "A gravity turn comes at the start or the end of the move",
+        not_in_well: `${ship.name} isn't in a gravity well there`,
+        direction: "A gravity turn swings the bow toward the planet",
+        too_sharp: "A gravity turn is at most 45°, and no further than the planet",
+      }[problem];
+      return reject("INVALID_GRAVITY_TURN", why, { stepIndex: g.stepIndex, reason: problem });
+    }
+  }
   // 7: turn angle
   for (const turn of walk.turns) {
     if (!approxLe(Math.abs(turn.degrees), ship.profile.turns)) {
@@ -171,7 +188,8 @@ export function checkMove(state: GameState, t: Move): ValidationResult {
 
   // 14: All Ahead Full replaces 12 and 13
   if (p.order === "all_ahead_full") {
-    const aaf = allAheadFullEnd(state, ship, p.d0);
+    const first = walk.gravityTurns.find((g) => g.stepIndex === 0);
+    const aaf = allAheadFullEnd(state, ship, p.d0, first === undefined ? ship.heading : norm((ship.heading as number) + first.degrees));
     const leavesFirst = exit !== null && approxLe(exit, aaf.end);
     if (!leavesFirst && !approxEq(walk.total, aaf.end)) {
       const code = aaf.stoppedByBm ? "MUST_STOP_AT_BLAST_MARKER" : "MUST_MOVE_FULL_DISTANCE";
@@ -189,7 +207,9 @@ export function checkMove(state: GameState, t: Move): ValidationResult {
     // 13: minimum, unless leaving the table. A ship that starts on a Blast Marker can't move at all
     // without being slowed, so its minimum is capped by the slowed limit even when it stays put (V12).
     const startsOnBm = bmsInContact(state, ship).length > 0;
-    const minimum = Math.min(p.minDistance, startsOnBm ? p.maxIfBR - BM_SLOWDOWN : limit);
+    // High orbit (state N69): a ship that starts in a gravity well needn't move.
+    const orbit = gravityWellAt(state, ship.position as Point) !== undefined;
+    const minimum = orbit ? 0 : Math.min(p.minDistance, startsOnBm ? p.maxIfBR - BM_SLOWDOWN : limit);
     if (exit === null && !approxGe(walk.total, minimum)) {
       return reject("PATH_TOO_SHORT", `${ship.name} must move at least ${cm(minimum)}`, {
         total: walk.total,

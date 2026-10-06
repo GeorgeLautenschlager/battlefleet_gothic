@@ -1,5 +1,5 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
-import { CATALOGUE, type CommanderConfig, type Mark, type PlayerId } from "@bfg/engine";
+import { CATALOGUE, type CommanderConfig, type Mark, type PlanetSize, type PlayerId } from "@bfg/engine";
 import { classChoices, classIds, commandPoints, DEFAULT_ESCORT_SQUADRON, defaultCommand, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, mostExpensive, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, withOption, type Command, type Fleet, type NewGameOptions, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
@@ -194,6 +194,29 @@ export function BattleFields({ value, onChange, players = PLAYER_LABELS }: { val
         </select>
       </label>
     </div>
+  );
+}
+
+const PLANETS: { id: PlanetSize; name: string }[] = [
+  { id: "small", name: "Small (15 cm, gravity well 10 cm)" },
+  { id: "medium", name: "Medium (25 cm, gravity well 15 cm)" },
+  { id: "large", name: "Large (35 cm, gravity well 30 cm)" },
+];
+
+/** A planet in the table centre (pp. 112–113, T107): it blocks fire, wrecks torpedoes, and its gravity well turns ships. */
+export function PlanetField({ value, onChange }: { value: PlanetSize | undefined; onChange: (planet: PlanetSize | undefined) => void }) {
+  return (
+    <label>
+      Planet in the centre
+      <select value={value ?? ""} onChange={(e) => onChange(e.target.value === "" ? undefined : (e.target.value as PlanetSize))}>
+        <option value="">None</option>
+        {PLANETS.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

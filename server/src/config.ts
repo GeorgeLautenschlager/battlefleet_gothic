@@ -19,6 +19,7 @@ export function cruiserClash(
     forces: options.forces,
     scoring: options.scoring,
     ...((options.scenario === "the_bait" || options.scenario === "raiders") && options.attacker !== undefined ? { attacker: options.attacker } : {}),
+    ...(options.planet !== undefined ? { planet: options.planet } : {}),
     players: {
       p1: { name: seats.p1.name, faction: seats.p1.faction },
       p2: { name: seats.p2.name, faction: seats.p2.faction },

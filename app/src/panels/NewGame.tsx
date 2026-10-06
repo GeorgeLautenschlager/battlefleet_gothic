@@ -1,7 +1,13 @@
 import { useState } from "react";
 import type { PlayerId } from "@bfg/engine";
 import { carriersAllowed, configProblem, defaultNames, listsOn, MAX_SHIPS, pursuedOf, type NewGameOptions, type Side } from "../game/config";
-import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks } from "./FleetForm";
+import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, PlanetField, resize, RulesChecks } from "./FleetForm";
+
+const withoutPlanet = (o: NewGameOptions): NewGameOptions => {
+  const rest = { ...o };
+  delete rest.planet;
+  return rest;
+};
 
 const PLAYERS: PlayerId[] = ["p1", "p2"];
 
@@ -58,6 +64,7 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
           setO(toClash ? { ...o, ...patch, p1: { ...o.p1, ships: resize(o.p1.ships, o.p1.fleet, n, o.p2.ships) }, p2: { ...o.p2, ships: resize(o.p2.ships, o.p2.fleet, n, o.p1.ships) } } : { ...o, ...patch });
         }}
       />
+      <PlanetField value={o.planet} onChange={(planet) => setO(planet === undefined ? withoutPlanet(o) : { ...o, planet })} />
       {points === null && <CountSelect value={count} onChange={setCount} />}
       {PLAYERS.map((p) => (
         <FleetFields

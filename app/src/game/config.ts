@@ -4,7 +4,7 @@
  * classes. Mirror matches are fine. With the carriers option (p. 129), a
  * side may also field its fleet's carrier.
  */
-import { CATALOGUE, commanderPoints, newGame, profileWithOptions, type CommanderConfig, type FactionId, type Mark, type Forces, type GameConfig, type PlayerId, type ScenarioId, type Scoring } from "@bfg/engine";
+import { CATALOGUE, commanderPoints, newGame, profileWithOptions, type CommanderConfig, type FactionId, type Mark, type Forces, type GameConfig, type PlanetSize, type PlayerId, type ScenarioId, type Scoring } from "@bfg/engine";
 
 export type Fleet = "imperial_navy" | "chaos";
 
@@ -66,6 +66,8 @@ export type NewGameOptions = {
   scoring?: Scoring;
   /** The Bait: the pursuers (state N47); the other player is pursued and fields the bait and its reinforcements. */
   attacker?: PlayerId;
+  /** A planet in the table centre (transform T107). */
+  planet?: PlanetSize;
   seed?: number;
 };
 
@@ -254,6 +256,7 @@ export function cruiserClash(options: NewGameOptions, now = new Date()): GameCon
     ...(options.forces !== undefined ? { forces: options.forces } : {}),
     ...(options.scoring !== undefined ? { scoring: options.scoring } : {}),
     ...(options.scenario === "the_bait" || options.scenario === "raiders" ? { attacker: options.attacker ?? "p2" } : {}),
+    ...(options.planet !== undefined ? { planet: options.planet } : {}),
     players: {
       p1: { name: options.p1.name.trim(), faction: options.p1.fleet satisfies FactionId },
       p2: { name: options.p2.name.trim(), faction: options.p2.fleet satisfies FactionId },
