@@ -1,34 +1,60 @@
 import { useState } from "react";
 import { craft, craftInPlay, fleetBays, launchCapacity, type CraftRole, type GameState, type Ship, type Transform } from "@bfg/engine";
 import { Act } from "../controls/Act";
-import { defaultCounts, freeWaves, launchTransform, ROLE_NAMES, waveName, type Counts } from "./craft";
+import { defaultCounts, freeWaves, launchTransform, NO_CRAFT, ROLE_NAMES, waveName, type Counts } from "./craft";
 
 /**
- * A carrier's launch (p. 73): how many squadrons of each kind in one strike
- * wave, fighters on CAP over the carrier, and waves in flight to recall to
- * stay inside the fleet's limit.
+ * A carrier's launch (p. 73): one or more strike waves, each with how many
+ * squadrons of each kind (squadrons combine into waves only at launch, p. 85),
+ * fighters on CAP over the carrier, and waves in flight to recall to stay
+ * inside the fleet's limit.
  */
 export function LaunchCraft({ state, ship, onApply }: { state: GameState; ship: Ship; onApply: (t: Transform) => void }) {
   const capacity = launchCapacity(ship);
   const roles = craft.rolesCarried(ship);
-  const [counts, setCounts] = useState<Counts>(() => defaultCounts(ship, capacity));
+  const [strikes, setStrikes] = useState<Counts[]>(() => [defaultCounts(ship, capacity)]);
   const [cap, setCap] = useState(0);
   const [recall, setRecall] = useState<string[]>([]);
   const inFlight = freeWaves(state, ship.owner);
   const recalling = recall.filter((id) => inFlight.some((w) => w.id === id));
-  const total = roles.reduce((n, r) => n + counts[r], 0) + cap;
+  const total = strikes.reduce((n, counts) => n + roles.reduce((m, r) => m + counts[r], 0), 0) + cap;
   const inPlay = craftInPlay(state, ship.owner);
   const limit = fleetBays(state, ship.owner);
-  const set = (role: CraftRole, n: number) => setCounts({ ...counts, [role]: Math.max(0, n) });
+  const set = (i: number, role: CraftRole, n: number) => setStrikes(strikes.map((c, j) => (j === i ? { ...c, [role]: Math.max(0, n) } : c)));
+  const several = strikes.length > 1;
+  const waveCount = strikes.filter((c) => roles.some((r) => c[r] > 0)).length + (cap > 0 ? 1 : 0);
 
   return (
     <div className="launch-craft">
       <p className="muted small">
         Launch bays: {capacity} squadron{capacity === 1 ? "" : "s"} · fleet {inPlay} of {limit} in play
       </p>
-      {roles.map((role) => (
-        <Counter key={role} label={`${craft.craftFor(ship, role)?.name ?? role} ${ROLE_NAMES[role]}`} value={counts[role]} onChange={(n) => set(role, n)} max={capacity} />
+      {strikes.map((counts, i) => (
+        <fieldset key={i} className="strike-wave">
+          {several && (
+            <legend className="muted small">
+              Wave {i + 1}{" "}
+              <button type="button" className="link" onClick={() => setStrikes(strikes.filter((_, j) => j !== i))}>
+                remove
+              </button>
+            </legend>
+          )}
+          {roles.map((role) => (
+            <Counter
+              key={role}
+              label={`${several ? `Wave ${i + 1} ` : ""}${craft.craftFor(ship, role)?.name ?? role} ${ROLE_NAMES[role]}`}
+              value={counts[role]}
+              onChange={(n) => set(i, role, n)}
+              max={capacity}
+            />
+          ))}
+        </fieldset>
       ))}
+      <div className="buttons">
+        <button type="button" disabled={strikes.length >= capacity} onClick={() => setStrikes([...strikes, { ...NO_CRAFT }])}>
+          Add a wave
+        </button>
+      </div>
       {roles.includes("fighter") && <Counter label="Fighters on CAP over this ship" value={cap} onChange={(n) => setCap(Math.max(0, n))} max={capacity} />}
       {inFlight.length > 0 && (
         <fieldset className="recall">
@@ -46,8 +72,9 @@ export function LaunchCraft({ state, ship, onApply }: { state: GameState; ship: 
         </fieldset>
       )}
       <div className="buttons">
-        <Act state={state} transform={launchTransform(ship, counts, cap, recalling)} onApply={onApply} primary showReason>
+        <Act state={state} transform={launchTransform(ship, strikes, cap, recalling)} onApply={onApply} primary showReason>
           Launch {total} squadron{total === 1 ? "" : "s"}
+          {waveCount > 1 ? ` in ${waveCount} waves` : ""}
         </Act>
       </div>
     </div>

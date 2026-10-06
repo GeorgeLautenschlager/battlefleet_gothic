@@ -55,11 +55,22 @@ describe("launching", () => {
     expect(s.clock.step).toBe("launch_ordnance");
     const ship = s.ships.find((x) => x.owner === activePlayer(s))!;
     expect(defaultCounts(ship, 4)).toMatchObject({ fighter: 2, bomber: 2 });
-    const t = launchTransform(ship, { fighter: 1, bomber: 2, assault_boat: 0 }, 1, []);
+    const t = launchTransform(ship, [{ fighter: 1, bomber: 2, assault_boat: 0 }], 1, []);
     expect(t.waves).toEqual([{ roles: ["fighter", "bomber", "bomber"], cap: false }, { roles: ["fighter"], cap: true }]);
     expect(validate(s, t).ok).toBe(true);
     const after = current(play(h, t));
     expect(waves(after).map((w) => [w.squadrons.length, w.cap])).toEqual([[3, null], [1, ship.id]]);
+  });
+
+  test("several strike waves in one launch, empty ones dropped (p. 85)", () => {
+    const h = launchStep();
+    const s = current(h);
+    const ship = s.ships.find((x) => x.owner === activePlayer(s))!;
+    const t = launchTransform(ship, [{ fighter: 0, bomber: 2, assault_boat: 0 }, { fighter: 0, bomber: 0, assault_boat: 0 }, { fighter: 2, bomber: 0, assault_boat: 0 }], 0, []);
+    expect(t.waves).toEqual([{ roles: ["bomber", "bomber"], cap: false }, { roles: ["fighter", "fighter"], cap: false }]);
+    expect(validate(s, t).ok).toBe(true);
+    const after = current(play(h, t));
+    expect(waves(after).map((w) => w.squadrons.map((q) => q.role))).toEqual([["bomber", "bomber"], ["fighter", "fighter"]]);
   });
 });
 
@@ -69,7 +80,7 @@ describe("flying", () => {
     let h = launchStep();
     const s = current(h);
     const ship = s.ships.find((x) => x.owner === activePlayer(s))!;
-    h = play(h, launchTransform(ship, { fighter: 1, bomber: 2, assault_boat: 0 }, 1, []));
+    h = play(h, launchTransform(ship, [{ fighter: 1, bomber: 2, assault_boat: 0 }], 1, []));
     // The Dictator still has torpedoes: done launching.
     if (current(h).clock.step === "launch_ordnance") h = play(h, { type: "end_step", player: activePlayer(current(h)) });
     return h;
