@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.15, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29). v0.15 adds battleships: the `battleship` category, the traits that bar Come to New Heading and raise Leadership, and options that exclude each other (§7.1, §11, N30–N33).
+**Status:** draft v0.16, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29). v0.15 adds battleships: the `battleship` category, the traits that bar Come to New Heading and raise Leadership, and options that exclude each other (§7.1, §11, N30–N33). v0.16 adds escorts and squadrons, escort and capital: §3, §7.5, §8, §9.1, §11, §13, N34–N45.
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -94,6 +94,7 @@ type GameState = {
   setup: SetupState
   clock: Clock
   ships: Ship[]
+  squadrons: Squadron[]       // escort squadrons, and capital ships squadroned before the game (§7.5); absent in older saves: []
   blastMarkers: BlastMarker[]
   ordnance: Ordnance[]
   turnState: TurnState        // scratch data for the current player turn
@@ -222,7 +223,7 @@ type Colour = "white" | "dark"
 
 A result naming two set-ups is a **split**. A plain **B** leaves the colours open, so it's offered as two set-ups too, B with each colour (N19). Either way the roll-off's winner picks one of the two.
 
-Who deploys next during `deploy` is derived: start with `firstDeployer`, then alternate, skipping a player who has no undeployed ships left.
+Who deploys next during `deploy` is derived: start with `firstDeployer`, then alternate, skipping a player who has no undeployed ships left. A squadron is one placement: while a player has a squadron partly deployed, they deploy next (transform T80).
 
 ---
 
@@ -344,6 +345,7 @@ type ShipTraits = {
   targetingMatrix?: boolean          // its weapons batteries take one column shift left (Mars, Overlord options)
   noComeToNewHeading?: boolean       // may not use Come to New Heading (the battleships, N31)
   leadershipBonus?: number           // added to its Leadership, max 10 (the Emperor's +1, N32)
+  noLongRangeShift?: boolean         // its batteries take no column shift for firing over 30 cm (the Idolator, p. 281)
 }
 
 type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship"
@@ -438,6 +440,25 @@ type Mark = "slaanesh" | "khorne" | "tzeentch" | "nurgle"
 - **Fleet commander re-rolls** (fleets book, p. 11) let the player re-roll a failed Command check or Leadership test, once per re-roll. A fleet commander's re-rolls serve any of their side's ships; a Chaos Lord's (Mark of Tzeentch) only his own (N24). Re-rolls go when the commander's ship suffers Bridge Smashed (p. 11), or stops being `active` (N23).
 - **Marks of Chaos** (p. 232): Slaanesh, −2 Leadership to enemy ships within 15 cm of the ship (an area effect, line of sight ignored); Khorne, the ship's boarding value doubles, and a Warmaster's adds +1 to his rolls for boarding criticals; Tzeentch, +1 re-roll; Nurgle, +1 hit (already in `profile.hits`) and the ship can't be boarded. A Warmaster may have up to four Marks, each once; a Lord one.
 
+### 7.5 Squadrons
+
+```ts
+type Squadron = {
+  id: string                         // "sq-1"
+  owner: PlayerId
+  name: string                       // "Blue Squadron"
+  type: "escort" | "capital"         // escorts, or capital ships squadroned before the game (p. 95)
+  shipIds: string[]                  // its members, in config order
+  disengaging: boolean               // escort squadrons: one escort has left or disengaged, so every move
+                                     // from now on attempts to disengage (p. 56, N41)
+}
+```
+
+- **Composition** (p. 95): every escort is in exactly one squadron, of escorts only, up to six. A capital squadron has two or more capital ships of the same `type` (all cruisers, or all battleships), declared before the game; a capital ship is in at most one. Members are never added. A capital ship that fails a disengage test leaves its squadron for good (p. 56): its id is removed from `shipIds`.
+- **Leadership** (p. 45): an escort squadron rolls once and every member's `leadership` holds that value. Capital ships roll individually, as before.
+- **Formation** (p. 96): a squadron's members in formation are its largest chain of `active` members whose stems are linked, each within `FORMATION_RANGE` = 15 cm of another (N35). Others are **strays**: they act as single ships, with their own orders and targets, until they're back in formation (N36). Formation is derived from positions, never stored.
+- A squadron with one member left in formation is still a squadron for its orders, its Leadership and victory points; it just has no one to combine with.
+
 ---
 
 ## 8. Turn state (scratch for the current player turn)
@@ -453,6 +474,15 @@ type TurnState = {
   braceFailures: { shipId: string, source: AttackSource }[]   // can't re-try vs this source (p. 66)
   hulkRolls: { hulkId: string, source: AttackSource }[]       // catastrophic re-rolls already made (reducer R3)
   blastMarkersRemoved: boolean
+  squadronMove: SquadronMove | null  // a squadron part-way through its Movement Phase (N37); absent in older saves: null
+}
+
+type SquadronMove = {
+  squadronId: string
+  order: OrderKind | null            // the order its members took together, or null (none, or the check failed)
+  aafExtra: number | null            // the one All Ahead Full roll for the whole squadron (p. 95)
+  members: string[]                  // the ships in formation when it began: these move, one at a time, before anything else does
+  disengage: boolean | null          // escort squadrons: the disengage flag its first mover chose, which the rest must match (N41)
 }
 
 type ShipTurnState = {
@@ -508,6 +538,7 @@ type Activation = {
   zeroShieldBMTestDone: boolean      // 0-shield ship already rolled for moving through BMs
   disengage: boolean                 // the move asked for a disengage test at its end
   boardTargetId: string | null       // the move declares a boarding action against this ship (transform §4.2)
+  squadronId: string | null          // the ship moves as part of this squadron's move (turnState.squadronMove); absent in older saves: null
 }
 
 type PathStep =
@@ -652,6 +683,12 @@ Every one of these is a pure function of the state. They're defined here so the 
 |---|---|
 | `remainingHits(s)` | `profile.hits − damage` |
 | `isCrippled(s)` | `2 × damage ≥ profile.hits` (lost half its hits, p. 65) |
+| `squadronOf(s)` | the squadron listing `s` in `shipIds`, or none |
+| `formation(sq)` | its members in formation (§7.5, N35): the `active` members on the table, split into chains where each stem is within 15 cm of another in the chain; the largest chain, on a tie the one holding the earliest member in `shipIds` |
+| `inFormation(s)` | `s` is in `formation(squadronOf(s))`. A ship in no squadron is never in formation |
+| `squadronLd(sq)` | escorts: the shared `leadership` of any member; capital: the highest `leadership(s)` among `formation(sq)` (p. 95) |
+| `escortSquadronCrippled(sq)` | an escort squadron that has lost at least half its members, **rounding up**: ⌈n/2⌉ of its n starting ships no longer `active` or `disengaged` (p. 123, N43) |
+| `squadronVP(sq)` | escort squadrons only (p. 123, N42): every member `destroyed` → the sum of their values; otherwise, once no member is `active`: ⌈25%⌉ of the squadron's full value if `escortSquadronCrippled`, else ⌈10%⌉; otherwise 0 |
 | `isHulk(s)` | `status ∈ {drifting_hulk, blazing_hulk}` |
 | `onTable(s)` | `status ∈ {active, drifting_hulk, blazing_hulk}` |
 | `has(s, k)` | `s.criticals` contains an entry of kind `k` |
@@ -677,11 +714,11 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `novaCannonBarred(s)` | why `s` can't fire a nova cannon, or `null`: `"crippled"`, or `"order"` when its `specialOrder` is All Ahead Full, Come To New Heading, Burn Retros or Brace For Impact! (p. 64, p. 65). Lock On and Reload Ordnance don't matter to it. |
 | `effectiveStrength(s, w)` | `w.strength`, halved (round up) once for each that applies: crippled; braced; for direct fire only, on AAF / Come To New Heading / Burn Retros |
 | `targetedAsDefences(s)` | `lastMove.distance < 5` (p. 53) |
-| `commandCheckLd(s)` | `leadership(s) − (bmsInContact non-empty ? 1 : 0) + (any enemy ship has a live specialOrder ? 1 : 0)`, max 10; roll ≤ that, 11–12 always fail |
-| `gunneryColumn(target, aspect)` | defences → A; capital closing → B; capital moving away → C; capital abeam → D; ordnance → E |
+| `commandCheckLd(s)` | `leadership(s) − (bmsInContact non-empty ? 1 : 0) + (any enemy ship has a live specialOrder ? 1 : 0)`, max 10; roll ≤ that, 11–12 always fail. For a squadron, `squadronLd(sq)` replaces `leadership(s)`, and the −1 applies if any member in formation has a Blast Marker in contact (p. 95) |
+| `gunneryColumn(target, aspect)` | defences → A; capital closing → B; capital moving away → C; capital abeam → D; escort closing → C; escort moving away → D; escort abeam → E; ordnance → E |
 | `score(player)` | `scenario.scoring = "cruiser_clash"`: Σ over enemy ships: `damage` + (destroyedForScoring ? 3 : crippled ? 1 : 0) (p. 128). `"victory_points"`: `victoryPoints(player)` |
-| `victoryPoints(player)` | Σ over enemy ships of `shipVP(s)`, plus `holdingTheField(player)` (pp. 122–123, N11–N12) |
-| `shipVP(s)` | `destroyedForScoring(s)` → `points`; `disengaged` → ⌈25%⌉ if `crippled`, else ⌈10%⌉; `active` and `crippled` → ⌈25%⌉; otherwise 0. `points` is `shipValue(s)` (N25) |
+| `victoryPoints(player)` | Σ over enemy ships of `shipVP(s)`, plus Σ over enemy squadrons of `squadronVP(sq)`, plus `holdingTheField(player)` (pp. 122–123, N11–N12) |
+| `shipVP(s)` | escorts → 0 (they score by squadron, `squadronVP`); `destroyedForScoring(s)` → `points`; `disengaged` → ⌈25%⌉ if `crippled`, else ⌈10%⌉; `active` and `crippled` → ⌈25%⌉; otherwise 0. `points` is `shipValue(s)` (N25) |
 | `holdingTheField(player)` | if no enemy ship is `active` and at least one of the player's is: Σ ⌈50% × shipValue⌉ over every **hulk** on the table, friend or foe (N11); otherwise 0 |
 | `destroyedForScoring(s)` | `status ∈ {destroyed, drifting_hulk, blazing_hulk}` (D7) |
 | `deploymentDivisions(player)` | Cruiser Clash: one division, the player's zone rectangle facing `deploymentFacing[zone]`. Fleet Engagement: the divisions of the player's colour on `engagement.map` (§4) |
@@ -726,6 +763,8 @@ Properties every valid state satisfies. These are good property-test fodder.
 12. Grapples are consistent. A ship with `grapple ≠ null` is `active`. Every ship its grapple names is `active` and carries an identical `grapple`. `defenderId ∉ attackerIds`, `attackerIds` is non-empty, and the attackers are all the defender's enemies. No ship is in two grapples.
 13. Attack craft are consistent: every wave has ≥ 1 squadron. A wave with `cap ≠ null` is a single fighter, its ship is the owner's and `active`, and its `position` is that ship's stem.
 14. `setup.engagement` is present ⇔ `scenario.id = "fleet_engagement"`, and `scenario.deploymentZones` is present ⇔ `scenario.id = "cruiser_clash"`. `maxRounds` is 8 in Cruiser Clash and null in Fleet Engagement; when it's set, `playerTurn ≤ 2 × maxRounds`.
+15. Squadrons are consistent: every escort is in exactly one squadron and every capital ship in at most one; a squadron's members share its `owner`, and its `type` (escort squadrons hold escorts; capital squadrons ships of one `profile.type`). Every member of an escort squadron has the same `leadership`.
+16. `turnState.squadronMove` is non-null only in `movement / move_ships`. Its members are the squadron's, the active player's, and at least one hasn't `moved`. While it's set, `activation` is null or for one of its members.
 
 ```ts
 type GameResult = {
@@ -945,6 +984,18 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N31 | **No Come to New Heading**: every battleship on the Gothic War lists says it may not use the order (pp. 53–54, 255, 266–267). It's a trait, `noComeToNewHeading`, so a battleship without it can arrive later. | §7.1 |
 | N32 | **The Emperor's +1 Leadership** (p. 53) is added after a commander replaces the ship's value (N22), then capped at 10: an Admiral (Ld 9) aboard gives 10. Bridge Smashed and Slaanesh come off after the cap, as before. | §11 |
 | N33 | **Options can exclude each other**: options sharing a `group` replace the same weapons (the Chaos battle barge's two battery refits), so a ship takes at most one per group. | §7.1 |
+| N34 | **Escorts** (`type: "escort"`, Escort/1) follow the escort rules the engine has kept room for: they turn anywhere in their move (0 cm before turning), take the escort gunnery columns, and are the smallest size for rams. An escort reduced to 0 hits, or suffering a critical hit for any reason, is `destroyed` at once, leaving a Blast Marker where it was: no hulk, no Catastrophic Damage roll (pp. 67, 68). | §7.1 |
+| N35 | **Formation is measured stem to stem**, like every other range here, each link ≤ 15 cm (p. 96). The squadron is its largest chain; a tie goes to the chain with the earlier member in `shipIds`, so formation never depends on who looked last. | §7.5 |
+| N36 | **Strays** (p. 96: "no longer counts as part of the squadron until it moves back") act as single ships: their own orders and Command checks (with their own Leadership, which for an escort is still the squadron's), their own fire, and they're targeted on their own. "Must move back as soon as possible" is on the honour system; nothing refuses a move that keeps a stray away (George's call: rules as written, no softlocks). | §7.5 |
+| N37 | **A squadron moves as one activation, ship by ship** (p. 57: ships move one at a time, even in a squadron). Once its first member declares an order or moves, the members in formation at that moment are fixed in `squadronMove`, and they all move before any other ship. Members destroyed or disengaged mid-move are skipped. | §8 |
+| N38 | **Squadron orders** (p. 95): one Command check, against `squadronLd`, puts every member in formation on the order. All Ahead Full rolls its 4D6 once; each member adds it to its own speed and must use the whole distance. Brace For Impact! taken by one member braces every member in formation, replacing their orders. | §8, §9.1 |
+| N39 | **A squadron's ram**: only the member that declares All Ahead Full names a ram target and takes the ram test. The rest of the squadron follows on All Ahead Full without ramming. | §9.1 |
+| N40 | **Squadrons and target priority**: the squadron takes one priority test, against `squadronLd`, and its result holds for every member for the rest of the turn (`priorityTest` is written to each). | §8 |
+| N41 | **Escort squadrons disengage together** (p. 56): one test, when the last of its members has moved, with +1 per Blast Marker within 5 cm of any member and −1 per enemy ship or salvo within 15 cm of any member (each counted once). A pass takes every member off the table; a fail marks them all `disengage: "failed"`. Once any escort has left the table or disengaged, `disengaging` is set and every member's move from then on must attempt it. | §7.5 |
+| N42 | **Escorts score by squadron** (p. 123): the full value only when every member is destroyed; a squadron with no member left `active` and not wholly destroyed has disengaged, for 10%, or 25% if crippled. A squadron still fighting at the end scores nothing, however battered. | §11 |
+| N43 | **An escort squadron is crippled** when it has lost half its ships, **rounding up** (p. 123; George's call over p. 57's "rounding down"): 1 of 2, 2 of 3 or 4, 3 of 5 or 6. | §11 |
+| N44 | **Capital squadrons** use each member's own Leadership for its own tests (disengage, ram) and `squadronLd`, the highest in formation, for the squadron's Command checks, brace and priority tests (p. 95). They score ship by ship (p. 98). | §7.5, §11 |
+| N45 | **Squadrons are for points battles.** Cruiser Clash fields single cruisers (p. 128), so it has neither escorts nor capital squadrons. | §7.5 |
 | N29 | **Grand cruisers' immunity to prow criticals** (Vengeance, Exorcist, Avenger, Retaliator, Executor) isn't needed yet: the only grand cruiser on the Gothic War lists, the Repulsive, doesn't have it. It arrives as a trait with the first class that does. | §7.1 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
 
@@ -954,7 +1005,6 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 
 The shapes above leave room for these without breaking changes. Each will add fields or union members, never repurpose existing ones.
 
-- **Squadrons:** a top-level `squadrons: { id, owner, shipIds, leadership }[]`; orders move to the squadron.
 - **Terrain:** `table.features: Feature[]` (gas clouds, asteroid fields, planets with gravity wells), `table.sunwardEdge`.
 - **Other scenarios:** new `scenario.id`s with their own set-up blocks. Fleet Engagement and victory points are in (§4, §5, §11); attack ratings and the random scenario tables (p. 120) come with the next scenarios.
 

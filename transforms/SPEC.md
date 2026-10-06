@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.13, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.15](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16). v0.9 adds the nova cannon (pp. 63–64): `fire_nova_cannon` and the ship options that carry one (§2.3, §2.6, §4.3, §5, T40–T48, D17–D19). v0.10 adds the Fleet Engagement scenario (pp. 142–143): `choose_formation`, `roll_setup`, `choose_setup`, divisions at deployment, and no round limit (§2.3, §2.5, §3, §4.1, §5, T49–T55, D20–D23). v0.11 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders, re-rolls (`reroll` on four transforms) and the Marks of Chaos (§2.7, §3, §4.2–4.3, §4.5, §5, T56–T66, D24–D27). v0.12 adds the Gothic War lists' grand and light cruisers, the Repulsive and the Dauntless, with their options and the grand cruisers' ratio (§5, T67–T70, D28–D29). v0.13 adds the Gothic War lists' battleships, their options (some exclusive), the battleship ratio, and the ban on Come to New Heading (§4.2, §5, T71–T74, D30–D31).
+**Status:** draft v0.14, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.16](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16). v0.9 adds the nova cannon (pp. 63–64): `fire_nova_cannon` and the ship options that carry one (§2.3, §2.6, §4.3, §5, T40–T48, D17–D19). v0.10 adds the Fleet Engagement scenario (pp. 142–143): `choose_formation`, `roll_setup`, `choose_setup`, divisions at deployment, and no round limit (§2.3, §2.5, §3, §4.1, §5, T49–T55, D20–D23). v0.11 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders, re-rolls (`reroll` on four transforms) and the Marks of Chaos (§2.7, §3, §4.2–4.3, §4.5, §5, T56–T66, D24–D27). v0.12 adds the Gothic War lists' grand and light cruisers, the Repulsive and the Dauntless, with their options and the grand cruisers' ratio (§5, T67–T70, D28–D29). v0.13 adds the Gothic War lists' battleships, their options (some exclusive), the battleship ratio, and the ban on Come to New Heading (§4.2, §5, T71–T74, D30–D31). v0.14 adds escorts and squadrons, escort and capital: squadron Leadership, deployment, orders, moves, brace, disengaging, shooting by and at squadrons (`fire.withShips`, `fire.targetAspect`), escorts in boarding and teleport attacks, and the six Gothic War escorts (§2.6, §4.1–4.3, §4.5–4.6, §5, T75–T92, D32–D35).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -100,6 +100,8 @@ Wherever a summary below says **offer brace (X)**, the reducer checks whether sh
 
 Ship X **can brace** when it is `active` (not a hulk), its `specialOrder` is not already Brace For Impact!, and `turnState.braceFailures` has no entry for X against the current source.
 
+**Squadrons** (p. 95, state N38): a squadron braces together. The offer goes to one member in formation (the attack's first target among them, else the first in `shipIds`), and its answer covers every member in formation. A volley at a squadron makes one offer, not one per ship (T86).
+
 Brace is offered **before** every roll that can damage a ship: direct-fire to-hit rolls, torpedo attacks (before turrets), rams (target first, then rammer), explosion lance hits, and a 0-shield ship's Blast Marker roll. It is also offered before an **attack craft** attack on a ship (before turrets, like torpedoes), before a **nova cannon**'s scatter roll to every ship it could reach (T41), and before a **teleport attack**'s roll, since Brace protects against Hit-and-Run critical damage (p. 66). It is **not** offered against fire damage or critical extra damage, which follow from hits already rolled, nor in a boarding action (p. 66, p. 90).
 
 ### 2.7 Fleet commander re-rolls
@@ -132,7 +134,7 @@ Each failed test of the transform uses one re-roll, from `rerollFor(ship)` (stat
 | `declare_order` | `shipId`, `order`, `ramTargetId?`, `reroll?` | movement / `move_ships` |
 | `move` | `shipId`, `path`, `disengage`, `boardTargetId?`, `reroll?` | movement / `move_ships` |
 | `release_cap` | `ordnanceId` | movement / `move_ships` |
-| `fire` | `shipId`, `weaponId`, `combineWith?`, `target`, `arc?`, `aspect?`, `reroll?` | shooting / `direct_fire` |
+| `fire` | `shipId`, `weaponId`, `combineWith?`, `target`, `arc?`, `aspect?`, `reroll?`, `withShips?`, `targetAspect?` | shooting / `direct_fire` |
 | `fire_nova_cannon` | `shipId`, `weaponId`, `aim` | shooting / `direct_fire` |
 | `launch_torpedoes` | `shipId`, `weaponId`, `bearing` | shooting / `launch_ordnance` |
 | `launch_attack_craft` | `shipId`, `waves`, `recall` | shooting / `launch_ordnance` |
@@ -154,7 +156,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 
 #### `roll_leadership`
 - **Payload:** none.
-- **Reducer:** for each ship in `ships` order, draw 1D6 and set `leadership` from the table (1 → 6, 2–3 → 7, 4–5 → 8, 6 → 9). Sets `setup.leadershipRolled`.
+- **Reducer:** for each ship in `ships` order, draw 1D6 and set `leadership` from the table (1 → 6, 2–3 → 7, 4–5 → 8, 6 → 9). An escort whose squadron has already rolled takes that value without a draw: escort squadrons roll once (p. 45). Sets `setup.leadershipRolled`.
 
 #### `roll_zones`
 - **Reducer:** draw 1D6 for p1 → `zoneRoll`. 1–3: p1 in A, p2 in B; 4–6: the reverse.
@@ -184,6 +186,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 { type: "deploy_ship", player, shipId: string, position: Point }
 ```
 - **Legal when:** the ship belongs to `player` and is `undeployed`; `player` is the next deployer (state §5); `position` (the stem) lies inside one of `deploymentDivisions(player)` (state §11); while the player has no more undeployed ships than empty divisions, that division is an empty one (state N18); and its base doesn't overlap any already-deployed base (validator V5).
+  - **Squadrons** (T80): while the player has a squadron partly deployed, the ship must be one of its members; it goes in the same division as the squadron's first member, with its stem within 15 cm of an already-deployed member's. For filling divisions (N18), a squadron counts as one.
 - **Reducer:** `status = "active"`, `position` as given, `heading` = the division's heading. There's no heading in the payload: Cruiser Clash ships face the opposite long edge, and Fleet Engagement ships their division's arrow (p. 142).
 
 #### `roll_first_turn`
@@ -226,6 +229,10 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - **Fail:** `commandCheckFailed = true`; the ship moves with no order.
 
   Either way, open an `activation` with `stage: "ordered"` (state §9.1) and fill in `maxDistance`, `minDistance` and `ram`.
+- **Squadrons** (state N37–N39, T81–T82): a ship in formation in a squadron that hasn't begun moving declares for the squadron.
+  - The check is against the squadron's `commandCheckLd`. On a pass, every member in formation takes the order (Reload Ordnance reloads each). All Ahead Full draws its 4D6 once, for all of them; only the declaring ship may name a ram.
+  - `turnState.squadronMove` is set with the order (null on a fail), `aafExtra` and the members in formation; the activation carries `squadronId`.
+  - A member of a squadron that has begun moving can't declare: it already has the squadron's order (`SQUADRON_ORDERED`). A stray declares for itself (N36).
 
 #### `release_cap`
 ```ts
@@ -248,6 +255,8 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 - **Legal when:**
   - the ship is the active player's, `active`, and hasn't `moved`;
   - `activation` is null (no order), or is `stage: "ordered"` **for this ship**.
+  - **Squadron moves** (state N37): while `squadronMove` is set, only its members that haven't `moved` may move (`SQUADRON_MOVING`). A member's limits use the squadron's order and `aafExtra` with its own speed.
+  - **Disengaging escorts** (state N41): a member of a `disengaging` squadron must leave the table or have `disengage` true (`MUST_DISENGAGE`). In an escort squadron's move, every member's `disengage` is the same (`SQUADRON_DISENGAGE`).
   - **Path shape:** every `advance.distance > 0`; every `turn.degrees ≠ 0` with `|degrees| ≤ profile.turns`.
   - **Turns:** the number of turn steps is ≤ `turnsAllowed`. That's 0 for AAF and Lock On, 2 for Come To New Heading, 1 otherwise, and 0 with Engine Room damage.
   - **Distance before turning:** before each turn, the forward distance since the start or the previous turn is ≥ 10 cm (cruiser) / 15 cm (battleship) / 0 (escort). Burn Retros' only turn is exempt (p. 54).
@@ -273,6 +282,11 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 
   Then set `moved` and clear `activation`.
 
+  **In a squadron's move:** the first `move` of a squadron in formation with no order declared sets `squadronMove` with `order: null` and the members in formation, like `declare_order` does. Each member's own move then runs as above, except:
+  - An **escort** squadron's disengage test is taken once, when its last member has moved (state N41): one **2D6** against `squadronLd`, modifiers counted over all members. Pass: every member still `active` is `disengaged`. Fail: each gets `disengage: "failed"`. An escort leaving the table edge sets `disengaging`.
+  - A **capital** squadron's members test one by one, on their own Leadership (N44). A member that fails leaves the squadron (state §7.5).
+  - When no member of `squadronMove` is left to move (moved, or no longer `active`), `squadronMove` is cleared.
+
 ### 4.3 Shooting
 
 #### `fire`
@@ -285,7 +299,9 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   target: { kind: "ship" | "ordnance", id: string },
   arc?: Quadrant,             // required only when the target is on an arc boundary of the firer
   aspect?: Quadrant,          // required only when the firer is on a quadrant boundary of the target ship
-  reroll?: boolean            // re-roll a failed target-priority test (§2.7)
+  reroll?: boolean,           // re-roll a failed target-priority test (§2.7)
+  withShips?: { shipId: string, weaponIds: string[] }[],   // squadron-mates' weapons joining the volley (T84)
+  targetAspect?: "closing" | "moving_away" | "abeam"       // a squadron target: the aspect fired at (T85)
 }
 ```
 - **Legal when:**
@@ -296,7 +312,9 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - **Arc:** the target's bearing from the shooter falls in one of the weapon's `arcs`. On a boundary, `arc` must be supplied, must be one of the two adjacent quadrants, and must be one of the weapon's arcs. `aspect` follows the same rule for the target's quadrant facing the shooter.
   - **Line of fire:** the stem-to-stem line doesn't cross the base of a hulk other than the target (p. 71).
   - **Combined batteries** (`combineWith`, T32): only with a battery as `weaponId`. Each id names another of the ship's weapons batteries, once, not fired and not disabled, with the target in its range and in one of its arcs.
-  - **Target priority:** if `priorityTest = "failed"`, the target must be **nearest** for this weapon (and for each combined battery). That's the nearest non-hulk enemy ship (or enemy salvo, when shooting at ordnance) that this weapon could legally engage. See [validator §2.7](../validator/SPEC.md#27-lines-of-fire-and-targeting) and ruling V1 (p. 60, p. 75).
+  - **Squadron targets** (T83): a target ship in formation in a squadron means the squadron: its members in formation. At least one must be in range and arc of the volley. `targetAspect`, if given, must be the aspect of at least one such member. A stray, or a ship in no squadron, is a target on its own; `targetAspect` is refused for it.
+  - **Squadron fire** (`withShips`, T84): the shooter is in formation in a squadron, and each entry names another member in formation, once, with weapons of the volley's kind (all batteries, or all lances), each once, not fired, not disabled, with the target in range and arc.
+  - **Target priority:** if `priorityTest = "failed"`, the target must be **nearest** for this weapon (and for each combined battery). For a squadron target, it's nearest if any of its members in formation is. That's the nearest non-hulk enemy ship (or enemy salvo, when shooting at ordnance) that this weapon could legally engage. See [validator §2.7](../validator/SPEC.md#27-lines-of-fire-and-targeting) and ruling V1 (p. 60, p. 75).
 - **Reducer:**
   1. **Priority test** (Ld test on **2D6**, no modifiers; pass if ≤ Ld): only if the target isn't the nearest (for any weapon in the volley) and `priorityTest` is null. On a fail, record `"failed"`. The shot doesn't happen and the weapon isn't spent, so the player can fire it at the nearest target instead. On a pass, record `"passed"` and carry on.
   2. **Offer brace** (target), if it's a ship.
@@ -307,7 +325,9 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
      - If braced, draw **1D6 per remaining hit**; each 4+ is saved.
      - Each unsaved hit is 1 damage, with a critical check per point (**1D6**; on a 6, draw **2D6** on the table, plus any extra-damage dice).
      - Catastrophic damage if the ship reaches 0 hits.
-  6. Add `weaponId`, and every `combineWith` id, to `weaponsFired`.
+  6. Add `weaponId`, and every `combineWith` id, to `weaponsFired`, and each `withShips` weapon to its ship's.
+
+  **By and at squadrons** (reducer §4.5, T83–T88): the priority test is the squadron's, against `squadronLd`, and its result is written to every member in formation (N40). Batteries from ships in different positions are summed by gunnery column, each column's firepower looked up on its own and the dice added (p. 99). An **escort** squadron on an order that halves firepower halves its total, rounding up, instead of each ship's (p. 99). Against a squadron, hits go one at a time to the **nearest eligible member** they can hurt: shields first, then brace saves, then damage; when it's destroyed or a hulk, the next (pp. 96–98).
 
   Phase 1 has **no split fire**: a weapon fires once, at one target, at full effective strength (ruling T1).
 
@@ -437,8 +457,8 @@ When a torpedo salvo contacts any ship, or an attack craft wave contacts an enem
 - **Legal when:** `pendingId` is the **top** pending entry's id, and `player` is its `player`.
 - **Reducer:**
   - If `attempt`: draw **2D6** Command check against `commandCheckLd`.
-    - **Pass:** `specialOrder` becomes Brace, with `replaced` = the previous order kind and expiry per state §7.3.
-    - **Fail:** append to `braceFailures`. This doesn't set `commandCheckFailed` (state N4).
+    - **Pass:** `specialOrder` becomes Brace, with `replaced` = the previous order kind and expiry per state §7.3. In a squadron, every member in formation braces (state N38).
+    - **Fail:** append to `braceFailures` (for every member in formation, in a squadron). This doesn't set `commandCheckFailed` (state N4).
   - Pop the entry. The reducer then carries on with the work queue (reducer §1), which may push new decisions or finish a paused move.
 
 ### 4.6 End Phase
@@ -505,6 +525,8 @@ A decisive result inside a grapple doesn't end it: the ships fight on in the nex
 
   Fleets with a Hit-and-Run bonus (+1, or −1 against them) aren't in Cruiser Clash yet; they'd add a `factionTraits` entry.
 
+  **Against an escort** (p. 92, T90): the D6 destroys it on a **4+**. Brace saves it on a 4+, as for a critical.
+
 #### `repair`
 ```ts
 { type: "repair", player, shipId: string, priority: string[] }   // critical ids, most important first
@@ -552,7 +574,8 @@ type GameConfig = {
   ships: {
     owner: PlayerId, name: string, classId: string,
     options?: string[],                      // the class's option ids (T57)
-    commander?: CommanderConfig              // fleet lists only (T60)
+    commander?: CommanderConfig,             // fleet lists only (T60)
+    squadron?: string                        // a squadron's name: ships of one owner with the same name form it (T76)
   }[]
 }
 
@@ -585,11 +608,17 @@ type CommanderConfig =
 
   Options in the same group exclude each other (state N33); naming two throws.
  Chaos: `murder`, its lance variant `murder_lances` (p. 279), `carnage` (p. 277), `inferno` (p. 278), `slaughter` (p. 280, improved thrusters), and the carrier `devastation` (p. 276). A ship option that changes a profile is its own catalogue class (D13). Their launch bays carry their fleets' attack craft: Fury fighters and Starhawk bombers (Imperial Navy); Swiftdeath fighters, Doomfire bombers and Dreadclaw assault boats (Chaos).
+- **Escorts** (T75): Imperial Navy `firestorm` (p. 79, 40 pts), `sword` (p. 82, 35), `cobra` (p. 84, 30); Chaos `idolator` (p. 281, 45, no column shift for range over 30 cm), `infidel` (p. 282, 40), `iconoclast` (p. 283, 30). Escort/1, 90° turns, shields 1.
+- **Squadrons** (T76, state §7.5): ships with the same `squadron` name and owner form a squadron, `sq-1 …` in order of first appearance, named as given.
+  - Every escort has a `squadron`; an escort squadron holds escorts only, one to six (two to six under the fleet lists).
+  - A capital squadron holds two or more capital ships of one `profile.type`.
+  - Squadrons, and so escorts, come with points forces only (state N45).
 - **Cruiser Clash forces** (`forces.kind = "cruiser_clash"`): 1–4 ships per side, the same number each, all `cruiser`, each ≤ 185 points (p. 128). With `carriers` on, each side may also field **at most one** ship with launch bays above that cap ("allow one carrier each", p. 129).
 - **Points forces** (`forces.kind = "points"`, p. 129): each side's ships total ≤ `limit` points (a positive integer), at least one ship a side, any number, any classes of its fleet, battleships included (T71). There's no per-ship cap, so carriers need no option (T36). Without fleet lists, ship types are still limited to what the catalogue has, in any mix. A class with a rarity limit is held to it per side: the Murder lance variant, no more than two per 750 points, or part, of that side's fleet (p. 279). A bad config throws; it never produces an invalid state.
 - **Fleet lists** (`options.fleetLists`, points forces only, T58): each side follows its faction's Gothic War list (D24). Every class must be on it.
   - **Imperial Navy, Gothic Sector** (fleets book, p. 35): 0–12 cruisers (`lunar`, `gothic`, `tyrant`, `dominator`, `dictator`, and the light cruiser `dauntless`); up to one battlecruiser (`mars`, `overlord`) per two cruisers; up to one battleship (`emperor`, `retribution`) per three cruisers or battlecruisers; **0–1 Admiral**: Fleet-Admiral Ld 8 (50 pts), Admiral Ld 9 (100), Solar Admiral Ld 10 (150), with one re-roll, plus extra re-rolls (one +25, two +75, three +150). A fleet worth **over 750 points** (Admiral included) must have one.
   - **Chaos, Chaos Incursion** (p. 232): 0–12 cruisers (`murder`, `murder_lances`, `carnage`, `inferno`, `slaughter`, `devastation`); up to one heavy cruiser (`styx`, `hecate`, `hades`, `acheron`) per two cruisers; up to one grand cruiser (`repulsive`) per three cruisers or heavy cruisers; up to one battleship (`chaos_battle_barge`, `despoiler`, `desolator`) per three cruisers or heavy cruisers; **one Chaos Warmaster**, always: Ld 8 (50) or Ld 9 (100), one re-roll, aboard the side's most expensive ship (by its points with options; any of them on a tie), with up to four Marks, each once; **0–3 Chaos Lords**, Ld 8 (50), each on a different ship from the Warmaster and each other, with up to one Mark. Marks: Slaanesh +25, Khorne +20, Tzeentch +30, Nurgle +35.
+  - Both lists add **escorts** in any number, in squadrons of 2–6 (p. 35, p. 233): Gothic Sector `firestorm`, `sword`, `cobra`; Chaos Incursion `idolator`, `infidel`, `iconoclast`. They don't count towards any ratio (T77).
   - The commander's points count towards the limit. Without fleet lists, `commander` is refused (T60).
 - **Commanders on the ship** (state §7.4): `leadership` as bought (Lords 8); `points` the commander, extra re-rolls and Marks; `rerolls` one for an Admiral or Warmaster plus extras, +1 with the Mark of Tzeentch (a Lord's only re-roll); `marks`. The Mark of Nurgle adds 1 to `profile.hits`.
 - `scoring` is copied into `scenario.scoring`, and `forces` into `scenario.forces`. Either scoring goes with either forces (T37).
@@ -664,6 +693,24 @@ type CommanderConfig =
 | T72 | **The battleship ratio** (Gothic Sector p. 35, Chaos Incursion p. 233): at most ⌊(cruisers + battlecruisers) ÷ 3⌋ for the Imperial Navy, ⌊(cruisers + heavy cruisers) ÷ 3⌋ for Chaos. A light cruiser counts as a cruiser (T67); grand cruisers and other battleships don't count. Each ratio is checked on its own. |
 | T73 | **Come to New Heading** is refused for a ship with the `noComeToNewHeading` trait (validator `declare_order` check 8). Every other order is open to battleships. |
 | T74 | **The Emperor's Sharks** add the Shark assault boat to both launch bays' craft (Imperial Navy rules: "some ships may carry Shark assault boats at an additional cost"). They use the assault boat rules the Chaos Dreadclaws already use. |
+| T75 | **The Gothic War escorts** are the six on the two lists. The Cobra's long-range detection gear waits (D34). |
+| T76 | **Squadrons are named in the config** (p. 95: capital squadrons "declared before the game"; escorts "chosen from the fleet list" in squadrons). A name, not an id, so the forms and saves read naturally. Without fleet lists an escort may be a squadron of one. |
+| T77 | **Escorts sit outside the ratios**: the lists count cruisers, heavy cruisers and battlecruisers for their larger hulls, never escorts. |
+| T78 | **An escort squadron's Leadership** is one draw, at its first member in `ships` order; the others copy it, so the dice order stays one draw per ship or squadron. |
+| T79 | **Squadron names** are free text, unique per owner; the engine never reads them. |
+| T80 | **A squadron deploys as one placement** (p. 142: "ship or squadron"): its members go one after another, in one division, each stem within 15 cm of a member already down, before the other player places again. For filling divisions it counts once. |
+| T81 | **The squadron's order is declared through any member in formation.** The check uses `commandCheckLd` with `squadronLd`; the −1 for Blast Markers applies if any member in formation has one in contact (p. 95). |
+| T82 | **Squadron moves, ship by ship**: members in `squadronMove` move one at a time in any order, each with its own path and limits, before any other ship (state N37). A member that becomes a stray partway doesn't change who's in the move. |
+| T83 | **Shooting at a squadron** (pp. 96–98): naming any member in formation targets the squadron, since a Leadership test can't pick a ship out of one. A member is **eligible** for hits if it's in range and arc of at least one weapon in the volley, and its aspect is no harder than `targetAspect` (its column is the same or further left). |
+| T84 | **Shooting by a squadron** is opt-in per weapon, like combined batteries (T32): `withShips` names the squadron-mates' weapons that join. A member that can't reach the target fires separately, at another (p. 99). |
+| T85 | **`targetAspect`** is the aspect the shooter fires at (p. 96). Omitted, it's the aspect of the nearest member in range and arc of the volley. The volley rolls on that aspect's column, with each firing ship's range and Blast Marker shifts measured to the nearest eligible member from that ship. |
+| T86 | **One brace offer per volley** at a squadron, to its nearest eligible member; its answer braces the squadron (state N38). |
+| T87 | **Allocating hits** (pp. 96–98): batteries' hitting dice are taken lowest first, each against the nearest eligible member it can hurt (roll ≥ that member's armour on the facing towards the nearest firing ship); lances' hits go nearest first. Each hit is resolved in full before the next: a shield, then a brace save, then damage with its critical check, so a capital ship's critical extra damage counts before hits pass on (p. 98). A member that's destroyed or a hulk takes no more; hits left with no eligible member are lost (p. 97). |
+| T88 | **Different positions, one volley** (p. 99): each firing ship's batteries take that ship's column for the target; firepower is summed per column, each looked up on its own, and the dice added. An escort squadron on All Ahead Full, Come to New Heading or Burn Retros halves its total firepower, rounding up; capital ships halve their own (p. 99). |
+| T89 | **Torpedoes and attack craft launch ship by ship**, as before; combining salvoes from ships in base contact waits (D33). |
+| T90 | **Hit-and-Run against an escort** (p. 92): the D6 destroys it on 4+. A braced escort saves on 4+. |
+| T91 | **Escorts in boarding**: an escort boards or is boarded like any ship, on its boarding value (its remaining hits); any critical it suffers destroys it (state N34), so it can win a boarding action and still be lost (p. 90). Escorts can't teleport (T13). |
+| T92 | **Escorts and the End Phase**: with no criticals to keep, an escort never needs damage control. A destroyed escort's Blast Marker comes off like any other. |
 | T70 | **The Dauntless's torpedoes** are an option at 0 points (p. 77, like the Vigilant and Havock), so it's offered in Cruiser Clash too. |
 | T35 | **Rarity limits** count the side's whole fleet: "two per 750 points or part" allows two in any Cruiser Clash fleet (4 × 185 = 740). |
 | T31 | **Launch bays** are weapons at a location (port, starboard): that side's armament critical disables them (p. 67), which lowers the fleet's limit too. |
@@ -710,6 +757,10 @@ type CommanderConfig =
 | D28 | Which grand and light cruisers? | The Gothic War lists' own: the Repulsive and the Dauntless, as with the battlecruisers (D24). The other Imperial and Chaos grand and light cruisers (Vengeance, Exorcist, Avenger, Retaliator, Executor; Endeavour, Endurance, Defiant, Siluria) come with the fleet lists that carry them. |
 | D30 | Which battleships? | The Gothic War lists' own: Emperor and Retribution; the Chaos battle barge, Despoiler and Desolator. The rest (Apocalypse, Victory, Oberon, Vanquisher; the Legion battle barges) come with their fleet lists. |
 | D31 | The Chaos battle barge's other options? | Not yet: its Chaos Lord at +1 Leadership (+25), Chaos Space Marines (+35) and Chosen Terminators (+10) need the Chaos Space Marine rules (boarding and teleport bonuses), which come with the Black Crusade list. Its weapon refits are in (T57). |
+| D32 | Capital ship squadrons too, or escorts only? | Both (George's call). Capital squadrons are declared in the config and use the same machinery. |
+| D33 | Combined torpedo salvoes from squadron ships in base contact (p. 99)? | Later: their geometry (one salvo in every launcher's arc, measured from the furthest) is its own piece of work, and squadrons don't need it to fire their torpedoes (p. 79: "need not fire their torpedoes in a single salvo"). |
+| D34 | The Cobra's long-range detection gear? | Later: a squadron-wide refit with conditions on the squadron's make-up, and a doubled Enemy Contacts bonus. It needs squadron options. |
+| D35 | How strict is formation? | As written (George's call): ships may stray, and strays act alone until they're back (state N36). |
 | D29 | Light cruisers in Cruiser Clash? | Yes (state N27): the Dauntless is sold as a cruiser and costs 110 points. Fielding four against four Lunars is the player's own lookout. |
 | D12 | One wave entity, or one entity per marker? | One wave with a footprint (T17, state N8). Turrets fire once at a wave and a hit kills it all (p. 85), so the wave is the unit the rules care about. |
 

@@ -208,7 +208,7 @@ Stored per game:
 - **Versions:** each build stamps an `engine` id (the commit SHA of `engine/src`).
   - The client sends it in `hello`. On a mismatch the server answers with an error asking the client to reload, so the client never validates against different rules from the server's.
   - A game in progress keeps running on whatever engine the server has after a deploy. A rules change mid-game is accepted as a risk for Phase 1, since the rules are stable now.
-  - The `protocol` version follows the same pattern. Protocol 2 (fleets) replaced 1; rooms stored by protocol 1 are read as one Lunar vs one Murder. The boarding, carriers, scenario, forces and scoring options were added within protocol 2, as optional fields: rooms stored without them have them off, or Cruiser Clash. A carrier is just another `classId` in a seat's `ships`, which the engine accepts only with the option on.
+  - The `protocol` version follows the same pattern. Protocol 2 (fleets) replaced 1; rooms stored by protocol 1 are read as one Lunar vs one Murder. The boarding, carriers, scenario, forces and scoring options were added within protocol 2, as optional fields: rooms stored without them have them off, or Cruiser Clash. A carrier is just another `classId` in a seat's `ships`, which the engine accepts only with the option on. Squadrons (transforms v0.14) ride the same way: a ship entry's optional `squadron` name, checked by the engine.
 - **Limits:** messages up to 16 KB; at most 20 messages a second per socket; 2 sockets per seat (a second tab is allowed). Anything over a limit gets `error` and the socket is closed.
 - **Logs:** request metadata only, never tokens. Fragments never reach the server anyway, and tokens travel only inside the WebSocket.
 
