@@ -9,7 +9,7 @@ import { checkInvariants } from "../src/state/invariants";
 import { actor } from "../src/state/derived";
 import { deploymentDivisions, emptyDivisions, isSplit, setupBonus, setupOptions, SETUP_MAPS } from "../src/rules/engagement";
 import { validate } from "../src/validator/validate";
-import type { Formation, GameState } from "../src/state/types";
+import type { Commander, Formation, GameState } from "../src/state/types";
 import type { Transform } from "../src/transforms/types";
 import { LUNAR_VS_MURDER } from "./helpers";
 import { logOf, play, playDice } from "./reducer-helpers";
@@ -87,6 +87,23 @@ describe("formations and the set-up roll-off", () => {
     expect(logOf(s, "setup_roll").at(-1)?.data).toEqual({ rolls: [6, 2], bonus: [0, 1], totals: [6, 3], split: true, winner: "p1" });
     expect(s.clock.setupStep).toBe("choose_setup");
     expect(setupBonus(formations("cross", "cross"), "p2")).toBe(0);
+  });
+
+  test("on a split the better fleet commander gets +1: none loses to one, Lords don't count, ties give nothing (N46)", () => {
+    const split = formations("sphere", "wedge");
+    const bonuses = (s: GameState) => [setupBonus(s, "p1"), setupBonus(s, "p2")];
+    const lead = (s: GameState, i: number, commander: Commander) => {
+      s.ships[i]!.commander = commander;
+      return s;
+    };
+    const admiral = (leadership: number) => ({ kind: "admiral" as const, leadership, points: 50, marks: [], rerolls: 1 });
+    const chaos = (kind: "warmaster" | "lord", leadership: number) => ({ kind, leadership, points: 50, marks: [], rerolls: kind === "lord" ? 0 : 1 });
+    const c0 = split.ships.findIndex((s) => s.owner === "p2");
+    expect(bonuses(lead(cloneJson(split), 0, admiral(8)))).toEqual([1, 1]); // Murders still faster
+    expect(bonuses(lead(lead(cloneJson(split), 0, admiral(8)), c0, chaos("warmaster", 9)))).toEqual([0, 2]);
+    expect(bonuses(lead(lead(cloneJson(split), 0, admiral(9)), c0, chaos("warmaster", 9)))).toEqual([0, 1]);
+    expect(bonuses(lead(lead(cloneJson(split), 0, admiral(8)), c0, chaos("lord", 10)))).toEqual([1, 1]);
+    expect(bonuses(lead(cloneJson(formations("cross", "wedge")), 0, admiral(10)))).toEqual([0, 0]); // a plain B: no bonuses
   });
 
   test("the winner picks a map and their colour from the two on offer (T52)", () => {

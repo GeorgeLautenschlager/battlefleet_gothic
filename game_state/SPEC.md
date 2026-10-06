@@ -725,7 +725,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `deploymentDivisions(player)` | Cruiser Clash: one division, the player's zone rectangle facing `deploymentFacing[zone]`. Fleet Engagement: the divisions of the player's colour on `engagement.map` (§4) |
 | `setupOptions()` | Fleet Engagement, both formations chosen: the two set-ups `{ map, colours }` from p1's row of the formation table (§5), split or B with each colour |
 | `isSplit()` | the formation table gave two different maps, or Wedge against Wedge (D with each colour): a split result, which takes the roll-off bonuses |
-| `setupBonus(player)` | on a split only: +1 if the player's fastest ship (profile `speed`) is faster than any enemy ship; +1 if their fleet commander has the higher Leadership (none until fleet commanders arrive); +1 if they have more escorts (p. 142) |
+| `setupBonus(player)` | on a split only: +1 if the player's fastest ship (profile `speed`) is faster than any enemy ship; +1 if their fleet commander has the higher Leadership, or they have one and the enemy hasn't (N46); +1 if they have more escorts (p. 142) |
 | `actor(state)` | who must submit the next transform (§12) |
 
 ---
@@ -997,6 +997,7 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N43 | **An escort squadron is crippled** when it has lost half its ships, **rounding up** (p. 123; George's call over p. 57's "rounding down"): 1 of 2, 2 of 3 or 4, 3 of 5 or 6. | §11 |
 | N44 | **Capital squadrons** use each member's own Leadership for its own tests (disengage, ram) and `squadronLd`, the highest in formation, for the squadron's Command checks, brace and priority tests (p. 95). They score ship by ship (p. 98). | §7.5, §11 |
 | N45 | **Squadrons are for points battles.** Cruiser Clash fields single cruisers (p. 128), so it has neither escorts nor capital squadrons. | §7.5 |
+| N46 | **The best Admiral's bonus** (p. 142) compares fleet commanders, an Admiral or the Warmaster, by the Leadership they were bought with (`commander.leadership`), before the Emperor's bonus or any other modifier. A fleet with one beats a fleet without; a Chaos Lord isn't a fleet commander and doesn't count; equal Leadership gives neither side the bonus. | §11 |
 | N29 | **Grand cruisers' immunity to prow criticals** (Vengeance, Exorcist, Avenger, Retaliator, Executor) isn't needed yet: the only grand cruiser on the Gothic War lists, the Repulsive, doesn't have it. It arrives as a trait with the first class that does. | §7.1 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
 

@@ -65,7 +65,7 @@ export const isSplit = (state: GameState): boolean => {
 
 /**
  * The roll-off bonus on a split (p. 142): +1 for the fastest ship, faster than
- * any enemy's; +1 for the better fleet commander (none yet); +1 for more escorts.
+ * any enemy's; +1 for the better fleet commander (N46); +1 for more escorts.
  */
 export function setupBonus(state: GameState, player: PlayerId): number {
   if (!isSplit(state)) return 0;
@@ -73,7 +73,12 @@ export function setupBonus(state: GameState, player: PlayerId): number {
   const theirs = state.ships.filter((s) => s.owner === otherPlayer(player));
   const fastest = (ships: typeof mine) => Math.max(0, ...ships.map((s) => s.profile.speed));
   const escorts = (ships: typeof mine) => ships.filter((s) => s.profile.type === "escort").length;
-  return (fastest(mine) > fastest(theirs) ? 1 : 0) + (escorts(mine) > escorts(theirs) ? 1 : 0);
+  // An Admiral or the Warmaster, at the Leadership they were bought with; none counts as 0 (N46).
+  const admiral = (ships: typeof mine) =>
+    Math.max(0, ...ships.map((s) => (s.commander != null && s.commander.kind !== "lord" ? s.commander.leadership : 0)));
+  return (
+    (fastest(mine) > fastest(theirs) ? 1 : 0) + (admiral(mine) > admiral(theirs) ? 1 : 0) + (escorts(mine) > escorts(theirs) ? 1 : 0)
+  );
 }
 
 /** Where a player deploys (state §11): Cruiser Clash's zone, or their colour's divisions on the Fleet Engagement map. */
