@@ -16,8 +16,8 @@ export type FleetList = {
   page: number;
   /** Every class the list allows. */
   classes: readonly string[];
-  /** The larger hulls held to one per two cruisers (T59). */
-  larger: ShipCategory;
+  /** The larger hulls, each held to one per `per` of the hulls in `of` (T59, T68). */
+  ratios: readonly { category: ShipCategory; per: number; of: readonly ShipCategory[] }[];
   /** The fleet commander's kind. */
   commander: "admiral" | "warmaster";
 };
@@ -27,21 +27,31 @@ export const FLEET_LISTS: Partial<Record<FactionId, FleetList>> = {
     id: "gothic_sector",
     name: "Gothic Sector",
     page: 35,
-    classes: ["lunar", "gothic", "tyrant", "dominator", "dictator", "mars", "overlord"],
-    larger: "battlecruiser",
+    classes: ["lunar", "gothic", "tyrant", "dominator", "dictator", "dauntless", "mars", "overlord"],
+    ratios: [{ category: "battlecruiser", per: 2, of: ["cruiser", "light_cruiser"] }],
     commander: "admiral",
   },
   chaos: {
     id: "chaos_incursion",
     name: "Chaos Incursion",
     page: 232,
-    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "devastation", "styx", "hecate", "hades", "acheron"],
-    larger: "heavy_cruiser",
+    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "devastation", "styx", "hecate", "hades", "acheron", "repulsive"],
+    ratios: [
+      { category: "heavy_cruiser", per: 2, of: ["cruiser", "light_cruiser"] },
+      { category: "grand_cruiser", per: 3, of: ["cruiser", "light_cruiser", "heavy_cruiser"] },
+    ],
     commander: "warmaster",
   },
 };
 
 export const MAX_CRUISERS = 12;
+const LABELS: Record<ShipCategory, string> = {
+  cruiser: "cruiser",
+  light_cruiser: "light cruiser",
+  heavy_cruiser: "heavy cruiser",
+  battlecruiser: "battlecruiser",
+  grand_cruiser: "grand cruiser",
+};
 export const ADMIRAL_POINTS: Record<8 | 9 | 10, number> = { 8: 50, 9: 100, 10: 150 }; // Fleet-Admiral, Admiral, Solar Admiral
 export const EXTRA_REROLL_POINTS = [0, 25, 75, 150] as const;
 export const WARMASTER_POINTS: Record<8 | 9, number> = { 8: 50, 9: 100 };
@@ -75,11 +85,17 @@ export function fleetListProblem(faction: FactionId, ships: readonly { classId: 
   if (list === undefined) return `there's no fleet list for ${faction}`;
   const off = ships.find((s) => !list.classes.includes(s.classId));
   if (off !== undefined) return `a ${off.classId} isn't on the ${list.name} fleet list`;
-  const cruisers = ships.filter((s) => (s.profile.category ?? "cruiser") === "cruiser").length;
-  const larger = ships.filter((s) => s.profile.category === list.larger).length;
+  // A light cruiser is sold as a cruiser (T67): it counts towards the twelve and the ratios.
+  const count = (of: readonly ShipCategory[]) => ships.filter((s) => of.includes(s.profile.category ?? "cruiser")).length;
+  const cruisers = count(["cruiser", "light_cruiser"]);
   if (cruisers > MAX_CRUISERS) return `the ${list.name} list allows at most ${MAX_CRUISERS} cruisers`;
-  const label = list.larger === "battlecruiser" ? "battlecruiser" : "heavy cruiser";
-  if (larger > Math.floor(cruisers / 2)) return `one ${label} per two cruisers: ${cruisers} cruisers allow ${Math.floor(cruisers / 2)}`;
+  for (const r of list.ratios) {
+    const allowed = Math.floor(count(r.of) / r.per);
+    if (count([r.category]) > allowed) {
+      const of = r.of.includes("heavy_cruiser") ? "cruisers or heavy cruisers" : "cruisers";
+      return `one ${LABELS[r.category]} per ${r.per === 2 ? "two" : "three"} ${of}: ${count(r.of)} ${of} allow ${allowed}`;
+    }
+  }
 
   const commanders = ships.filter((s) => s.commander !== undefined);
   const fleet = commanders.filter((s) => s.commander?.kind === list.commander);

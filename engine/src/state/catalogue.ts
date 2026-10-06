@@ -2,13 +2,13 @@
  * Ship catalogue: profiles snapshotted into new games (state spec §7.1).
  *
  * Hand-entered from rules/fleets/imperial-navy/vessels.md (Mars p. 61, Overlord p. 66,
- * Dictator p. 67, Dominator p. 68, Tyrant p. 69, Gothic p. 70, Lunar p. 71), and the
- * Chaos heavy cruisers (Styx p. 272, Hecate p. 273, Hades p. 274, Acheron p. 275) and rules/fleets/chaos/vessels.md (Devastation p. 276,
+ * Dictator p. 67, Dauntless p. 77, Dominator p. 68, Tyrant p. 69, Gothic p. 70, Lunar p. 71), and the
+ * Chaos Repulsive grand cruiser (p. 269) and heavy cruisers (Styx p. 272, Hecate p. 273, Hades p. 274, Acheron p. 275) and rules/fleets/chaos/vessels.md (Devastation p. 276,
  * Carnage p. 277, Inferno p. 278, Murder p. 279, Slaughter p. 280). Launch bays
  * carry their fleet's default attack craft (imperial-navy/rules.md, chaos/rules.md).
  * Later phases will generate this from rules/fleets/.
  */
-import type { CraftOption, FactionId, ShipProfile, ShipTraits, Weapon } from "./types";
+import type { BaseSize, CraftOption, FactionId, ShipProfile, ShipTraits, Weapon } from "./types";
 
 const IMPERIAL_CRAFT: CraftOption[] = [
   { role: "fighter", name: "Fury", speed: 30 },
@@ -49,13 +49,15 @@ export type CatalogueEntry = {
   legacy?: true;
 };
 
-/** A ship option (transform §5): replaced weapons, extra turrets, a trait, and its points. */
+/** A ship option (transform §5): replaced weapons, extra turrets or shields, a bigger base, a trait, and its points. */
 export type ShipOption = {
   id: string;
   name: string;
   points: number;
   weapons?: Readonly<Record<string, Weapon>>;
   turrets?: number;
+  shields?: number;
+  baseSize?: BaseSize;
   traits?: ShipTraits;
 };
 
@@ -92,8 +94,11 @@ const BATTLECRUISER_OPTIONS: ShipOption[] = [
   { id: "third_turret", name: "Third turret", points: 10, turrets: 1 },
 ];
 
-const dorsalLances = (range: number): Weapon => ({
-  id: "dorsal_lances", name: "Dorsal lance battery", kind: "lance", location: "dorsal", arcs: ["left", "front", "right"], range, speed: null, strength: 2,
+const dorsalLances = (range: number, strength = 2): Weapon => ({
+  id: "dorsal_lances", name: "Dorsal lance battery", kind: "lance", location: "dorsal", arcs: ["left", "front", "right"], range, speed: null, strength,
+});
+const prowTorpedoes = (strength: number): Weapon => ({
+  id: "prow_torpedoes", name: "Prow torpedoes", kind: "torpedoes", location: "prow", arcs: ["front"], range: null, speed: 30, strength,
 });
 const prowBattery = (range: number, strength: number): Weapon => ({
   id: "prow_battery", name: "Prow weapons battery", kind: "battery", location: "prow", arcs: ["left", "front", "right"], range, speed: null, strength,
@@ -447,8 +452,35 @@ export const CATALOGUE: Readonly<Record<string, CatalogueEntry>> = {
   overlord: imperialBattlecruiser("overlord", "Overlord", 66, 220, [
     ...broadside("battery", 60, 8),
     dorsalLances(60),
-    { id: "prow_torpedoes", name: "Prow torpedoes", kind: "torpedoes", location: "prow", arcs: ["front"], range: null, speed: 30, strength: 6 },
+    prowTorpedoes(6),
   ]),
+  // Light cruiser (p. 77): Cruiser/6, 25 cm, 90°, improved thrusters (state N10).
+  dauntless: {
+    faction: "imperial_navy",
+    options: [{ id: "prow_torpedoes", name: "Prow torpedoes (Str 6) for the prow lances", points: 0, weapons: { prow_lances: prowTorpedoes(6) } }],
+    profile: {
+      classId: "dauntless", className: "Dauntless class light cruiser", source: { book: "fleets", page: 77 }, points: 110, type: "cruiser", category: "light_cruiser",
+      hits: 6, speed: 25, turns: 90, shields: 1, armour: { front: 5, left: 5, rear: 5, right: 5 }, turrets: 1, baseSize: "small",
+      weapons: [
+        ...broadside("battery", 30, 4),
+        { id: "prow_lances", name: "Prow lance battery", kind: "lance", location: "prow", arcs: ["front"], range: 30, speed: null, strength: 3 },
+      ],
+      traits: { allAheadFullDice: 5 },
+    },
+  },
+  // Grand cruiser (p. 269): Cruiser/10, 20 cm, 45°.
+  repulsive: {
+    faction: "chaos",
+    options: [
+      { id: "long_dorsal_lances", name: "Ancient targeting systems (45 cm dorsal lances)", points: 10, weapons: { dorsal_lances: dorsalLances(45, 3) } },
+      { id: "third_shield", name: "Third shield, on a large base", points: 15, shields: 1, baseSize: "large" },
+    ],
+    profile: {
+      classId: "repulsive", className: "Repulsive class grand cruiser", source: { book: "fleets", page: 269 }, points: 230, type: "cruiser", category: "grand_cruiser",
+      hits: 10, speed: 20, turns: 45, shields: 2, armour: { front: 5, left: 5, rear: 5, right: 5 }, turrets: 3, baseSize: "small",
+      weapons: [...broadside("battery", 45, 14), dorsalLances(30, 3), prowTorpedoes(6)],
+    },
+  },
   styx: chaosHeavy("styx", "Styx", 272, 260, 3, [...launchBays(3, CHAOS_CRAFT), dorsalLances(60), prowBattery(60, 6)]),
   hecate: chaosHeavy("hecate", "Hecate", 273, 230, 3, [...launchBays(2, CHAOS_CRAFT), ...broadside("battery", 45, 4), dorsalLances(60), prowBattery(45, 6)]),
   hades: chaosHeavy("hades", "Hades", 274, 200, 2, [
@@ -461,7 +493,7 @@ export const CATALOGUE: Readonly<Record<string, CatalogueEntry>> = {
 
 /**
  * A class's profile with options applied (transform §5, T57), in the
- * catalogue's order: replaced weapons, extra turrets, traits and points.
+ * catalogue's order: replaced weapons, extra turrets and shields, a bigger base, traits and points.
  * Throws on an unknown or repeated option.
  */
 export function profileWithOptions(classId: string, optionIds: readonly string[] = []): ShipProfile {
@@ -476,6 +508,8 @@ export function profileWithOptions(classId: string, optionIds: readonly string[]
   const base = entry.profile;
   let weapons = base.weapons.map((w) => ({ ...w, arcs: [...w.arcs], ...(w.craft ? { craft: w.craft.map((c) => ({ ...c })) } : {}) }));
   let turrets = base.turrets;
+  let shields = base.shields;
+  let baseSize = base.baseSize;
   let points = base.points;
   let traits: ShipTraits | undefined = base.traits ? { ...base.traits } : undefined;
   for (const o of chosen) {
@@ -485,6 +519,8 @@ export function profileWithOptions(classId: string, optionIds: readonly string[]
       return r === undefined ? w : { ...r, arcs: [...r.arcs] };
     });
     turrets += o.turrets ?? 0;
+    shields += o.shields ?? 0;
+    baseSize = o.baseSize ?? baseSize;
     points += o.points;
     if (o.traits) traits = { ...(traits ?? {}), ...o.traits };
   }
@@ -492,6 +528,8 @@ export function profileWithOptions(classId: string, optionIds: readonly string[]
     ...base,
     points,
     turrets,
+    shields,
+    baseSize,
     weapons,
     ...(traits !== undefined ? { traits } : {}),
     ...(chosen.length > 0 ? { options: chosen.map((o) => o.id) } : {}),

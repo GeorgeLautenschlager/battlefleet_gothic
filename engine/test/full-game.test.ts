@@ -53,6 +53,7 @@ describe("full games with fleets", () => {
     ["mirror: 4 Murders a side", fleets({ ...CHAOS, n: 4 }, { ...CHAOS, n: 4 })],
     ["Gothic, Tyrant and Lunar vs Carnage, Inferno and Slaughter", mixed(["gothic", "tyrant", "lunar"], ["carnage", "inferno", "slaughter"])],
     ["Tyrants vs Murder lance variants", mixed(["tyrant", "tyrant"], ["murder_lances", "murder_lances"])],
+    ["Dauntless light cruisers vs Murders", mixed(["dauntless", "dauntless", "lunar"], ["murder", "murder", "slaughter"])],
   ];
   for (const [name, config] of matchups) {
     test.each([1, 2, 3, 4, 5, 6])(`${name}, seed %i, plays to a result`, (seed) => {
@@ -99,6 +100,16 @@ describe("full games, points battles with victory points", () => {
     ["500 pts: two Tyrants vs three Slaughters", battle(["tyrant", "tyrant"], ["slaughter", "slaughter", "slaughter"], 500)],
     ["1000 pts: nova cannons (Dominator ×2, Lunar, Tyrant) vs Murder ×4, Carnage", battle(["dominator", "dominator_long", "lunar_nova", "tyrant_long_nova"], ["murder", "murder", "murder", "murder", "carnage"], 1000)],
     ["1500 pts: Mars, Overlord and cruisers vs Styx, Hecate, Hades, Acheron and cruisers", battle(["mars", "overlord", "lunar", "gothic", "dominator", "tyrant"], ["styx", "hecate", "hades", "acheron", "murder", "carnage"], 1500)],
+    [
+      "1000 pts: Dauntlesses (one with torpedoes), Lunar, Overlord vs a Repulsive (both options), Hades, Murders",
+      {
+        ...battle(["dauntless", "dauntless", "lunar", "overlord"], ["repulsive", "hades", "murder", "murder"], 1000),
+        ships: [
+          ...battle(["dauntless", "dauntless", "lunar", "overlord"], [], 1000).ships.map((s, i) => (i === 1 ? { ...s, options: ["prow_torpedoes"] } : s)),
+          ...battle([], ["repulsive", "hades", "murder", "murder"], 1000).ships.map((s, i) => (i === 0 ? { ...s, options: ["long_dorsal_lances", "third_shield"] } : s)),
+        ],
+      },
+    ],
   ];
   for (const [name, config] of matchups) {
     test.each([1, 2, 3, 4])(`${name}, seed %i, plays to a result`, (seed) => {
