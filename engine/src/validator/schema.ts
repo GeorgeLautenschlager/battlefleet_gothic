@@ -84,7 +84,14 @@ const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>
   release_cap: { required: { ordnanceId: str } },
   fire: {
     required: { shipId: str, weaponId: str, target },
-    optional: { arc: oneOf(QUADRANTS), aspect: oneOf(QUADRANTS), combineWith: arrayOf(str), reroll: bool },
+    optional: {
+      arc: oneOf(QUADRANTS),
+      aspect: oneOf(QUADRANTS),
+      combineWith: arrayOf(str),
+      reroll: bool,
+      withShips: arrayOf(shape({ shipId: str, weaponIds: arrayOf(str) })),
+      targetAspect: oneOf(["closing", "moving_away", "abeam"]),
+    },
   },
   fire_nova_cannon: { required: { shipId: str, weaponId: str, aim: point } },
   launch_torpedoes: { required: { shipId: str, weaponId: str, bearing: num } },

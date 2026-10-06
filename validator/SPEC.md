@@ -429,15 +429,15 @@ Grappled ships never reach the `declare_order` or `move` checks: they're marked 
 | 24 | … the target is within each one's range and in one of its arcs | `OUT_OF_RANGE` / `OUT_OF_ARC` |
 | 25 | … if `priorityTest = "failed"`: the target is nearest for each one | `MUST_TARGET_NEAREST` |
 | 26 | If `reroll`: `rerollFor(ship)` exists | `NO_REROLL` |
-| 27 | If `targetAspect` is given: the target is a squadron target (V15) | `INVALID_TARGET_ASPECT` |
-| 28 | … it's the aspect category (closing, moving away, abeam) of at least one member that `squadronEngageable` holds for, for some weapon in the volley | `INVALID_TARGET_ASPECT` |
-| 29 | If `withShips` is given: the shooter is in formation in a squadron | `INVALID_SQUADRON_FIRE` |
-| 30 | … each entry names another member in formation of that squadron, once | `INVALID_SQUADRON_FIRE` |
-| 31 | … each such ship passes checks 3–6 | `SHIP_NOT_ACTIVE` / `DISENGAGE_FAILED` / `GRAPPLED` / `BOARDING_SHIP` |
-| 32 | … each weapon id is on that ship's profile, once, and of the volley's kind (`battery` with a battery `weaponId`, `lance` with a lance) | `UNKNOWN_WEAPON` / `WRONG_WEAPON_KIND` |
-| 33 | … each is not in that ship's `weaponsFired` and not disabled | `WEAPON_ALREADY_FIRED` / `WEAPON_DISABLED` |
-| 34 | … the target can be engaged by each (for a squadron target, some member in formation, V15) | `OUT_OF_RANGE` / `OUT_OF_ARC` |
-| 35 | … if `priorityTest = "failed"`: the target is nearest for each | `MUST_TARGET_NEAREST` |
+| 27 | If `withShips` is given: the shooter is in formation in a squadron, and the target is a ship | `INVALID_SQUADRON_FIRE` |
+| 28 | … each entry names another member in formation of that squadron, once | `INVALID_SQUADRON_FIRE` |
+| 29 | … each such ship passes checks 3–6 | `SHIP_NOT_ACTIVE` / `DISENGAGE_FAILED` / `GRAPPLED` / `BOARDING_SHIP` |
+| 30 | … each weapon id is on that ship's profile, once, and of the volley's kind (`battery` with a battery `weaponId`, `lance` with a lance) | `UNKNOWN_WEAPON` / `WRONG_WEAPON_KIND` |
+| 31 | … each is not in that ship's `weaponsFired` and not disabled | `WEAPON_ALREADY_FIRED` / `WEAPON_DISABLED` |
+| 32 | … the target can be engaged by each (for a squadron target, some member in formation, V15) | `OUT_OF_RANGE` / `OUT_OF_ARC` |
+| 33 | … if `priorityTest = "failed"`: the target is nearest for each | `MUST_TARGET_NEAREST` |
+| 34 | If `targetAspect` is given: the target is a squadron target (V15) | `INVALID_TARGET_ASPECT` |
+| 35 | … it's the aspect (closing, moving away, abeam; the easier one on a boundary, V16) of at least one member that took fire from the volley (V17) | `INVALID_TARGET_ASPECT` |
 
 **Squadron targets** (V15): when the target ship is in formation in a squadron, checks 13–20 and 24–25 are taken against the squadron instead of the named ship. Range and arc pass if `squadronEngageable` is non-empty for the weapon; `arc` and `aspect` choices aren't asked for (V16); line of fire is per member, inside `squadronEngageable`; and check 20 passes if any member in formation is nearest.
 

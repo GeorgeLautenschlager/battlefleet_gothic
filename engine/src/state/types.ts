@@ -419,6 +419,10 @@ export type WorkItem =
       target: { kind: "ship" | "ordnance"; id: string };
       arc: Quadrant;
       aspect: Quadrant | null;
+      /** Squadron-mates' weapons in the volley (reducer §4.5). Absent: none. */
+      withShips?: { shipId: string; weaponIds: string[] }[];
+      /** A squadron target's aspect fired at. */
+      targetAspect?: "closing" | "moving_away" | "abeam";
     }
   | { kind: "continue_move" }
   | { kind: "ram"; rammerId: string; targetId: string }

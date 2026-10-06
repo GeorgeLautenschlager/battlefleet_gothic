@@ -267,9 +267,10 @@ for each firing ship f, in volley order (lead first):
   fp_f   = Σ strength of f's batteries in the volley, each halved by effectiveStrength's rules
            (escorts in a squadron: not halved for orders here, see below)
   m_f    = the member of E nearest f
-  col_f  = clamp(baseColumn(m_f, A) + shifts(f, m_f), A, E)      // §4.1: range and BMs from f to m_f; f's own traits
+  col_f  = clamp(baseColumn(m_f, A_f) + shifts(f, m_f), A, E)    // §4.1: range and BMs from f to m_f; f's own traits
+           // A_f: at a squadron, the aspect fired at; at a single ship, the aspect f sees (the lead's as validated)
 group the firing ships by col_f; for each column c, in first-appearance order:
-  fp_c = Σ fp_f; if the shooters are an escort squadron on AAF / Come to New Heading / Burn Retros: fp_c = ⌈fp_c / 2⌉
+  fp_c = Σ fp_f; if the shooters are an escort squadron whose lead is on AAF / Come to New Heading / Burn Retros / Brace: fp_c = ⌈fp_c / 2⌉
   dice_c = gunnery(fp_c, c)
 need  = min over m in E of armourFacing(m, lead)                  // mixed armour (p. 98)
 rolls = nD6(Σ dice_c) in column order; hits = the rolls ≥ need
@@ -1002,7 +1003,8 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `boarding_lapsed` | `shipId, targetId, reason: "truncated" \| "no_contact" \| "target_gone"` |
 | `blast_marker_contact` | `shipId, distance, maxDistance` (the slowed maximum) |
 | `ram` | `rammerId, targetId, headOn, facing, rammerRolls, rammerHits, targetRolls, targetHits` |
-| `attack` | `source, targetId, weapon: "battery" \| "lance" \| "torpedo" \| "explosion", column?, shifts?, facing? (torpedoes), need, rolls, rerolls, hits`; a combined volley adds `weaponIds` and `firepower`; a squadron volley adds `shooterIds`, `columns: { column, firepower, dice }[]`, and against a squadron `targetIds` (the members that took fire), `targetAspect` and `allocation: { roll, shipId \| null }[]` |
+| `attack` | `source, targetId, weapon: "battery" \| "lance" \| "torpedo" \| "explosion", column?, shifts?, facing? (torpedoes), need, rolls, rerolls, hits`; a combined volley adds `weaponIds` and `firepower`; a volley by or at a squadron (§4.5) adds `shooterIds`, `columns: { column, firepower, dice }[]` (batteries), and against a squadron `targetIds` (the eligible members) and `targetAspect` |
+| `allocation` | `source, allocation: { roll, shipId \| null }[]`: where a §4.5 volley's hits went, after they've landed (`null`: lost, R38) |
 | `nova_cannon` | `shipId, weaponId, aim, range, dice, rolls, scatter: "hit" \| { bearing, distance }, centre, ships: { shipId, hole, hits }[], ordnanceIds, blastMarkerId: string \| null` (`rolls`: the scatter die, then the direction, distance and hole dice in draw order) |
 | `shields` | `shipId, absorbed, blastMarkerIds` |
 | `brace_offer` | `pendingId, shipId, source` |

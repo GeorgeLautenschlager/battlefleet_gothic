@@ -3,7 +3,7 @@
  * aspect choices the validator asks for, and torpedo bearings. Legality is
  * always the engine's; this only enumerates candidates and asks it.
  */
-import { effectiveStrength, geometry, novaScatterDice, onTable, targeting, validate, weaponDisabled } from "@bfg/engine";
+import { effectiveStrength, formation, geometry, inFormation, novaScatterDice, onTable, squadronOf, targeting, validate, weaponDisabled } from "@bfg/engine";
 import { mm } from "../table/view";
 import type { Fire, FireNovaCannon, GameState, Point, Quadrant, Ship, Transform, Weapon } from "@bfg/engine";
 
@@ -78,6 +78,62 @@ export function withVolleys(state: GameState, ship: Ship, weapon: Weapon, option
   return out;
 }
 
+/**
+ * The same shots with every squadron-mate's ready weapon of this kind that can
+ * join (T84), offered first: a squadron combines its fire (p. 99).
+ */
+export function withSquadron(state: GameState, ship: Ship, weapon: Weapon, options: FireOption[]): FireOption[] {
+  const sq = squadronOf(state, ship);
+  if (sq === undefined || !inFormation(state, ship)) return options;
+  const mates = formation(state, sq).filter((m) => m.id !== ship.id);
+  const out: FireOption[] = [];
+  for (const o of options) {
+    if (o.transform.target.kind !== "ship") {
+      out.push(o);
+      continue;
+    }
+    const fired = (m: Ship) => state.turnState.ships[m.id]?.weaponsFired ?? [];
+    const joining = mates.flatMap((m) => {
+      const ids = m.profile.weapons
+        .filter((w) => w.kind === weapon.kind && !fired(m).includes(w.id) && !weaponDisabled(state, m, w))
+        .filter((w) => validate(state, { ...o.transform, withShips: [{ shipId: m.id, weaponIds: [w.id] }] }).ok)
+        .map((w) => w.id);
+      return ids.length > 0 ? [{ shipId: m.id, weaponIds: ids }] : [];
+    });
+    if (joining.length > 0) {
+      const transform = { ...o.transform, withShips: joining };
+      if (validate(state, transform).ok) {
+        const names = joining.map((j) => mates.find((m) => m.id === j.shipId)?.name ?? j.shipId).join(", ");
+        out.push({ transform, label: `${o.label === "Fire" ? "Squadron volley" : `${o.label}, squadron volley`} with ${names}` });
+      }
+    }
+    out.push(o);
+  }
+  return out;
+}
+
+const ASPECTS = [
+  { id: "closing", name: "closing" },
+  { id: "moving_away", name: "moving away" },
+  { id: "abeam", name: "abeam" },
+] as const;
+
+/** At a squadron, each aspect its ships in reach show is a choice (T85): the attacker picks which to fire at. */
+export function withAspects(state: GameState, options: FireOption[]): FireOption[] {
+  const out: FireOption[] = [];
+  for (const o of options) {
+    const target = o.transform.target.kind === "ship" ? state.ships.find((s) => s.id === o.transform.target.id) : undefined;
+    const squadron = target !== undefined && targeting.squadronTarget(state, target) !== null;
+    const shown = squadron ? ASPECTS.filter((a) => validate(state, { ...o.transform, targetAspect: a.id }).ok) : [];
+    if (shown.length < 2) {
+      out.push(o);
+      continue;
+    }
+    for (const a of shown) out.push({ transform: { ...o.transform, targetAspect: a.id }, label: `${o.label}, at its ${a.name} ships` });
+  }
+  return out;
+}
+
 /** Enemy ships and salvos this weapon might shoot at, nearest first, each with its options or the reason it can't. */
 export function targets(state: GameState, ship: Ship, weapon: Weapon): TargetChoice[] {
   const from = ship.position;
@@ -87,7 +143,7 @@ export function targets(state: GameState, ship: Ship, weapon: Weapon): TargetCho
   for (const s of state.ships) {
     if (s.owner === ship.owner || !onTable(s) || s.position === null) continue;
     const r = fireOptions(state, { ...base, target: { kind: "ship", id: s.id } });
-    const options = Array.isArray(r) ? withVolleys(state, ship, weapon, r) : [];
+    const options = Array.isArray(r) ? withAspects(state, withSquadron(state, ship, weapon, withVolleys(state, ship, weapon, r))) : [];
     out.push({ kind: "ship", id: s.id, name: s.name, distance: geometry.distance(from, s.position), options, reason: Array.isArray(r) ? null : r.reason });
   }
   for (const o of state.ordnance) {

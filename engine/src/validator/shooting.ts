@@ -1,7 +1,7 @@
 /** Shooting checks (validator spec §4.3): fire, fire_nova_cannon and launch_torpedoes. */
 import { approxGe, approxLe, distance, quadrantsOf, quadrantsOfPoint } from "../geometry/basic";
-import { isNearest, lineOfFireBlocked, novaLineBlocked, novaRange, shootableOrdnance, type Target } from "../geometry/targeting";
-import { novaCannonBarred, onTable, weaponDisabled } from "../state/derived";
+import { easiestAspect, isNearest, lineOfFireBlocked, novaLineBlocked, novaRange, shootableOrdnance, squadronTarget, tookFire, type Target } from "../geometry/targeting";
+import { formation, inFormation, novaCannonBarred, onTable, squadronOf, weaponDisabled } from "../state/derived";
 import type { GameState, Point, Ship, Weapon } from "../state/types";
 import type { Fire, FireNovaCannon, LaunchTorpedoes } from "../transforms/types";
 import { isResult, ownActiveShip, rerollCheck } from "./movement";
@@ -76,82 +76,157 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
   }
   const from = ship.position as Point;
   const at = target.kind === "ship" ? (target.ship.position as Point) : target.salvo.position;
-
-  // 13: range
-  const range = weapon.range ?? 0;
-  const d = distance(from, at);
-  if (!approxLe(d, range)) {
-    return reject("OUT_OF_RANGE", `${weapon.name} reaches ${cm(range)}; the target is ${cm(d)} away`, {
-      distance: d,
-      range,
-    });
-  }
-
-  // 14–16: arc
-  const bearingQuadrants = quadrantsOfPoint(from, ship.heading as number, at);
-  const q = bearingQuadrants.filter((x) => weapon.arcs.includes(x));
-  if (q.length === 0) {
-    return reject("OUT_OF_ARC", `The target is outside ${weapon.name}'s arc`, {
-      quadrants: bearingQuadrants,
-      arcs: weapon.arcs,
-    });
-  }
-  if (bearingQuadrants.length > 1 && q.length > 1 && t.arc === undefined) {
-    return reject("ARC_CHOICE_REQUIRED", "The target is on the line between two arcs: choose one", { options: q });
-  }
-  if (t.arc !== undefined && !q.includes(t.arc)) {
-    return reject("INVALID_ARC_CHOICE", `The target isn't in the ${t.arc} arc of ${weapon.name}`, { options: q });
-  }
-
-  // 17–18: aspect
-  if (target.kind === "ship") {
-    const aspects = quadrantsOfPoint(at, target.ship.heading as number, from);
-    if (aspects.length > 1 && t.aspect === undefined) {
-      return reject("ASPECT_CHOICE_REQUIRED", "You're on the line between two of the target's quadrants: choose one", {
-        options: aspects,
-      });
-    }
-    if (t.aspect !== undefined && !aspects.includes(t.aspect)) {
-      return reject("INVALID_ASPECT_CHOICE", `The target's ${t.aspect} quadrant doesn't face you`, { options: aspects });
-    }
-    // 19: line of fire
-    if (lineOfFireBlocked(state, ship, target.ship)) {
-      return reject("LINE_OF_FIRE_BLOCKED", "A hulk blocks the line of fire", { targetId: target.ship.id });
-    }
-  } else if (t.aspect !== undefined) {
-    return reject("INVALID_ASPECT_CHOICE", "Ordnance has no aspect", { options: [] });
-  }
-
-  // 20: target priority
   const failed = state.turnState.ships[ship.id]?.priorityTest === "failed";
-  if (failed && !isNearest(state, ship, weapon, target)) {
-    return reject("MUST_TARGET_NEAREST", `${ship.name} failed its Leadership test: it must fire at the nearest target`);
-  }
 
-  // 21–25: combined batteries (T32); then 26, the re-roll
-  if (t.combineWith === undefined) return rerollCheck(state, ship, t.reroll);
-  const ids = t.combineWith;
-  if (weapon.kind !== "battery" || new Set(ids).size !== ids.length || ids.includes(weapon.id)) {
-    return reject("INVALID_VOLLEY", "Only weapons batteries combine, each named once besides the main one", { combineWith: ids });
-  }
-  for (const id of ids) {
-    const extra = readyWeapon(state, ship, id, ["battery"]);
-    if (!isWeapon(extra)) return extra;
-    if (extra.range === null || !approxLe(distance(from, at), extra.range)) {
-      return reject("OUT_OF_RANGE", `${extra.name} reaches ${cm(extra.range ?? 0)}; the target is ${cm(distance(from, at))} away`, {
-        weaponId: extra.id,
-        distance: distance(from, at),
-        range: extra.range ?? 0,
+  // A squadron target (V15): checks 13–20 and 24–25 against its members in formation.
+  const members = target.kind === "ship" ? squadronTarget(state, target.ship) : null;
+  if (members !== null) {
+    const reach = reaches(state, ship, weapon, target, members);
+    if (!reach.ok) return reach;
+    if (failed && !isNearest(state, ship, weapon, target)) {
+      return reject("MUST_TARGET_NEAREST", `${ship.name} failed its Leadership test: it must fire at the nearest target`);
+    }
+  } else {
+    // 13: range
+    const range = weapon.range ?? 0;
+    const d = distance(from, at);
+    if (!approxLe(d, range)) {
+      return reject("OUT_OF_RANGE", `${weapon.name} reaches ${cm(range)}; the target is ${cm(d)} away`, {
+        distance: d,
+        range,
       });
     }
-    if (!bearingQuadrants.some((q) => extra.arcs.includes(q))) {
-      return reject("OUT_OF_ARC", `The target is outside ${extra.name}'s arc`, { weaponId: extra.id, quadrants: bearingQuadrants, arcs: extra.arcs });
+
+    // 14–16: arc
+    const bearingQuadrants = quadrantsOfPoint(from, ship.heading as number, at);
+    const q = bearingQuadrants.filter((x) => weapon.arcs.includes(x));
+    if (q.length === 0) {
+      return reject("OUT_OF_ARC", `The target is outside ${weapon.name}'s arc`, {
+        quadrants: bearingQuadrants,
+        arcs: weapon.arcs,
+      });
     }
-    if (failed && !isNearest(state, ship, extra, target)) {
-      return reject("MUST_TARGET_NEAREST", `${ship.name} failed its Leadership test: ${extra.name} must fire at the nearest target`);
+    if (bearingQuadrants.length > 1 && q.length > 1 && t.arc === undefined) {
+      return reject("ARC_CHOICE_REQUIRED", "The target is on the line between two arcs: choose one", { options: q });
+    }
+    if (t.arc !== undefined && !q.includes(t.arc)) {
+      return reject("INVALID_ARC_CHOICE", `The target isn't in the ${t.arc} arc of ${weapon.name}`, { options: q });
+    }
+
+    // 17–18: aspect
+    if (target.kind === "ship") {
+      const aspects = quadrantsOfPoint(at, target.ship.heading as number, from);
+      if (aspects.length > 1 && t.aspect === undefined) {
+        return reject("ASPECT_CHOICE_REQUIRED", "You're on the line between two of the target's quadrants: choose one", {
+          options: aspects,
+        });
+      }
+      if (t.aspect !== undefined && !aspects.includes(t.aspect)) {
+        return reject("INVALID_ASPECT_CHOICE", `The target's ${t.aspect} quadrant doesn't face you`, { options: aspects });
+      }
+      // 19: line of fire
+      if (lineOfFireBlocked(state, ship, target.ship)) {
+        return reject("LINE_OF_FIRE_BLOCKED", "A hulk blocks the line of fire", { targetId: target.ship.id });
+      }
+    } else if (t.aspect !== undefined) {
+      return reject("INVALID_ASPECT_CHOICE", "Ordnance has no aspect", { options: [] });
+    }
+
+    // 20: target priority
+    if (failed && !isNearest(state, ship, weapon, target)) {
+      return reject("MUST_TARGET_NEAREST", `${ship.name} failed its Leadership test: it must fire at the nearest target`);
     }
   }
-  return rerollCheck(state, ship, t.reroll);
+
+  // 21–25: combined batteries (T32)
+  const volley: { ship: Ship; weapon: Weapon }[] = [{ ship, weapon }];
+  if (t.combineWith !== undefined) {
+    const ids = t.combineWith;
+    if (weapon.kind !== "battery" || new Set(ids).size !== ids.length || ids.includes(weapon.id)) {
+      return reject("INVALID_VOLLEY", "Only weapons batteries combine, each named once besides the main one", { combineWith: ids });
+    }
+    for (const id of ids) {
+      const extra = readyWeapon(state, ship, id, ["battery"]);
+      if (!isWeapon(extra)) return extra;
+      const reach = reaches(state, ship, extra, target, members);
+      if (!reach.ok) return reach;
+      if (failed && !isNearest(state, ship, extra, target)) {
+        return reject("MUST_TARGET_NEAREST", `${ship.name} failed its Leadership test: ${extra.name} must fire at the nearest target`);
+      }
+      volley.push({ ship, weapon: extra });
+    }
+  }
+
+  // 26: the re-roll
+  const reroll = rerollCheck(state, ship, t.reroll);
+  if (!reroll.ok) return reroll;
+
+  // 29–35: squadron-mates' weapons (T84)
+  if (t.withShips !== undefined) {
+    const sq = squadronOf(state, ship);
+    const crew = sq !== undefined && inFormation(state, ship) ? formation(state, sq) : null;
+    if (crew === null || target.kind !== "ship") {
+      return reject("INVALID_SQUADRON_FIRE", target.kind !== "ship" ? "Squadrons combine their fire at ships" : `${ship.name} isn't in formation in a squadron`);
+    }
+    const seen = new Set<string>();
+    for (const entry of t.withShips) {
+      const mate = crew.find((m) => m.id === entry.shipId);
+      if (mate === undefined || mate.id === ship.id || seen.has(entry.shipId)) {
+        return reject("INVALID_SQUADRON_FIRE", `${entry.shipId} isn't another ship in formation in ${sq?.name ?? "the squadron"}`, { shipId: entry.shipId });
+      }
+      seen.add(entry.shipId);
+      const able = shooter(state, mate.id, t.player);
+      if (isResult(able)) return able;
+      if (entry.weaponIds.length === 0 || new Set(entry.weaponIds).size !== entry.weaponIds.length) {
+        return reject("INVALID_SQUADRON_FIRE", `Name each of ${mate.name}'s weapons once`, { shipId: mate.id });
+      }
+      for (const id of entry.weaponIds) {
+        const w = readyWeapon(state, mate, id, [weapon.kind]);
+        if (!isWeapon(w)) return w;
+        const reach = reaches(state, mate, w, target, members);
+        if (!reach.ok) return reach;
+        if (failed && !isNearest(state, mate, w, target)) {
+          return reject("MUST_TARGET_NEAREST", `The squadron failed its Leadership test: ${mate.name}'s ${w.name} must fire at the nearest target`);
+        }
+        volley.push({ ship: mate, weapon: w });
+      }
+    }
+  }
+
+  // 27–28: the aspect fired at (T85)
+  if (t.targetAspect !== undefined) {
+    if (members === null) return reject("INVALID_TARGET_ASPECT", "Only a squadron's aspect is chosen", { targetAspect: t.targetAspect });
+    const shown = tookFire(state, volley, members).map((m) => easiestAspect(m, from));
+    if (!shown.includes(t.targetAspect)) {
+      return reject("INVALID_TARGET_ASPECT", `No ship of the squadron in reach shows its ${t.targetAspect.replace("_", " ")} aspect`, { options: [...new Set(shown)] });
+    }
+  }
+  return OK;
+}
+
+/** Range and arc for one more weapon of the volley: against the target, or some member of a squadron target (V15). */
+function reaches(state: GameState, ship: Ship, w: Weapon, target: Target, members: Ship[] | null): ValidationResult {
+  const from = ship.position as Point;
+  if (members !== null) {
+    if (tookFire(state, [{ ship, weapon: w }], members).length > 0) return OK;
+    const inRange = members.some((m) => w.range !== null && approxLe(distance(from, m.position as Point), w.range));
+    return inRange
+      ? reject("OUT_OF_ARC", `No ship of the squadron is in ${w.name}'s arc, with a clear line of fire`, { weaponId: w.id, arcs: w.arcs })
+      : reject("OUT_OF_RANGE", `No ship of the squadron is within ${w.name}'s ${cm(w.range ?? 0)}`, { weaponId: w.id, range: w.range ?? 0 });
+  }
+  const at = target.kind === "ship" ? (target.ship.position as Point) : target.salvo.position;
+  const d = distance(from, at);
+  if (w.range === null || !approxLe(d, w.range)) {
+    return reject("OUT_OF_RANGE", `${w.name} reaches ${cm(w.range ?? 0)}; the target is ${cm(d)} away`, { weaponId: w.id, distance: d, range: w.range ?? 0 });
+  }
+  const quadrants = quadrantsOfPoint(from, ship.heading as number, at);
+  if (!quadrants.some((q) => w.arcs.includes(q))) {
+    return reject("OUT_OF_ARC", `The target is outside ${w.name}'s arc`, { weaponId: w.id, quadrants, arcs: w.arcs });
+  }
+  if (target.kind === "ship" && lineOfFireBlocked(state, ship, target.ship)) {
+    return reject("LINE_OF_FIRE_BLOCKED", "A hulk blocks the line of fire", { targetId: target.ship.id });
+  }
+  return OK;
 }
 
 export function checkFireNovaCannon(state: GameState, t: FireNovaCannon): ValidationResult {

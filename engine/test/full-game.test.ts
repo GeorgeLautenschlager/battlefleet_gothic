@@ -266,10 +266,18 @@ describe("full games with escorts and squadrons", () => {
     }, 60_000);
   }
 
-  test("across those games, squadrons move together and escorts are lost", () => {
+  test("across those games, squadrons move and fire together, and escorts are lost", () => {
     const kinds = new Set<string>();
-    for (const seed of [1, 2, 3, 4]) for (const e of playOut(seed, points).log) kinds.add(e.kind);
+    let volleys = 0;
+    for (const seed of [1, 2, 3, 4]) {
+      for (const e of playOut(seed, points).log) {
+        kinds.add(e.kind);
+        if (e.kind === "attack" && ((e.data["shooterIds"] as string[] | undefined)?.length ?? 0) > 1) volleys += 1;
+      }
+    }
     expect(kinds).toContain("escort_lost");
     expect(kinds).toContain("order_set");
+    expect(kinds).toContain("allocation");
+    expect(volleys).toBeGreaterThan(0);
   }, 60_000);
 });
