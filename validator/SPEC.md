@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.6, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.9](../game_state/SPEC.md) and [Transforms v0.7](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9).
+**Status:** draft v0.7, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.11](../game_state/SPEC.md) and [Transforms v0.9](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -47,6 +47,7 @@ Shared by validator and reducer: one module, one definition. Everything is 2D, i
 | `BM_SLOWDOWN` | 5 cm | p. 69 |
 | `TELEPORT_RANGE` | 10 cm | teleport attacks, pp. 91–92 |
 | `CRAFT_RADIUS` | 1 cm | one attack craft marker's footprint (state N8) |
+| `NOVA_RADIUS` / `NOVA_HOLE_RADIUS` | 2.5 / 0.6 cm | the nova cannon template and its centre hole (state N13) |
 
 ### 2.2 Tolerant comparison
 
@@ -96,6 +97,8 @@ bmTouchesShip(bm, ship)       = approxLe(distance(bm.position, ship.position), B
 bmsInContact(ship)            = blast markers with bmTouchesShip
 segmentPointDistance(a, b, p) = shortest distance from p to segment ab
 segmentTouchesCircle(a, b, c, r) = approxLe(segmentPointDistance(a, b, c), r)
+novaRange(ship, aim)          = distance(ship.position, aim) − NOVA_RADIUS      // to the template's near edge (state N13)
+templateTouchesShip(c, ship, r) = approxLe(distance(c, ship.position), r + baseRadius(ship))   // r: NOVA_RADIUS, or NOVA_HOLE_RADIUS for the hole
 ```
 
 Contact is **inclusive**: touching counts.
@@ -182,6 +185,13 @@ isNearest(ship, weapon, target)      = target ∈ the matching set above
 ```
 
 Hulks are never "the nearest", so shooting at an enemy hulk always needs the priority test (p. 71). Ties all count as nearest; the shooter picks.
+
+**Nova cannon line of fire** (transform T44):
+
+```
+novaLineBlocked(ship, aim) =
+  some hulk H ≠ ship, !templateTouchesShip(aim, H, NOVA_RADIUS), has segmentTouchesCircle(ship.position, aim, H.position, baseRadius(H))
+```
 
 ### 2.8 Deterministic maths
 
@@ -389,6 +399,23 @@ Grappled ships never reach the `declare_order` or `move` checks: they're marked 
 
 Check 15 only demands a choice when it makes a difference. A target on the front/right boundary of a weapon that only fires right doesn't need `arc`: `Q = {right}`.
 
+**`fire_nova_cannon`**
+
+| # | Check | Code |
+|---|---|---|
+| 1–6 | As `fire` 1–6 | as `fire` |
+| 7 | Weapon exists on the profile | `UNKNOWN_WEAPON` |
+| 8 | `weapon.kind = "nova_cannon"` | `WRONG_WEAPON_KIND` |
+| 9 | Weapon not in `weaponsFired` | `WEAPON_ALREADY_FIRED` |
+| 10 | Weapon not disabled | `WEAPON_DISABLED` |
+| 11 | `novaCannonBarred(ship) = null` (state §11) | `NOVA_CANNON_BARRED` |
+| 12 | `aim` is on the table: `0 ≤ x ≤ W`, `0 ≤ y ≤ H` | `AIM_OFF_TABLE` |
+| 13 | `quadrantsOfPoint(ship, aim) ∩ weapon.arcs` is non-empty | `OUT_OF_ARC` |
+| 14 | `approxGe(novaRange, weapon.minRange)` and `approxLe(novaRange, weapon.range)` | `OUT_OF_RANGE` |
+| 15 | `!novaLineBlocked(ship, aim)` | `LINE_OF_FIRE_BLOCKED` |
+
+`NOVA_CANNON_BARRED.details` is `{ why: "crippled" | "order", order? }`. `OUT_OF_RANGE.details` here is `{ range, min, max }`. There's no `arc` choice: nothing depends on which side of a boundary the aim is (V10). There's no target priority check (state N14). `fire` with a nova cannon's id fails check 8 with `WRONG_WEAPON_KIND`, and so does `fire_nova_cannon` with a battery's.
+
 **`launch_torpedoes`**
 
 | # | Check | Code |
@@ -555,6 +582,8 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 | `ALREADY_TELEPORTED` / `CANNOT_TELEPORT` | One teleport per ship per turn; escorts, crippled ships and ships on other orders can't |
 | `SHIELDS_UP` / `TARGET_TOO_LARGE` | Teleport target still has shields, or more hits left than the attacker |
 | `INVALID_VOLLEY` | `combineWith` on a lance, naming a weapon twice, or naming the main weapon |
+| `NOVA_CANNON_BARRED` | The ship is crippled, or on All Ahead Full, Come To New Heading, Burn Retros or Brace For Impact! (p. 64) |
+| `AIM_OFF_TABLE` | A nova cannon aimed with its template's centre off the table |
 | `NO_LAUNCH_BAYS` | `launch_attack_craft` from a ship without launch bays |
 | `EMPTY_WAVE` / `CRAFT_NOT_CARRIED` | A launch with an empty wave, or a craft role the ship's bays don't carry |
 | `TOO_MANY_SQUADRONS` / `FLEET_LIMIT` | More squadrons than the ship's bays, or than the fleet's ordnance limit (p. 73) |
@@ -605,6 +634,8 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V6 | **Deterministic maths.** Engine code uses only IEEE-exact operations and the `dmath` module; platform trig is forbidden (§2.8). |
 | V7 | **Boarding contact is `basesTouch`** at the end of the path: inclusive, and overlapping bases count (overlap is legal in play, V5). |
 | V9 | **`arc` belongs to the main weapon.** A combined battery only needs the target in one of its own arcs; on a boundary it doesn't ask which, because the volley shares one column either way. |
+| V10 | **A nova cannon's aim is in arc** if `quadrantsOfPoint` meets the weapon's arcs, boundaries included; there's nothing for an `arc` choice to decide. |
+| V11 | **The nova cannon's range is checked to the template's near edge** with the usual tolerance, both ends: 30 cm and 150 cm both count. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |
 
 ## 8. Decisions

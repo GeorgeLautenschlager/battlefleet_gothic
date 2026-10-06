@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.8, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.10](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16).
+**Status:** draft v0.9, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.11](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16). v0.9 adds the nova cannon (pp. 63–64): `fire_nova_cannon` and the ship options that carry one (§2.3, §2.6, §4.3, §5, T40–T48, D17–D19).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -64,7 +64,7 @@ check for game end
 | setup / `choose_first_turn` | chooser | `choose_first_turn` | no | `firstPlayer` set | on leaving: start the battle (§2.5) |
 | movement / `hulks_drift` | active | `drift_hulk` | no | every active-player hulk has `drifted` | — |
 | movement / `move_ships` | active | `declare_order`, `move`, `release_cap` | no | every active-player `active` ship has `moved` | grappled ships stay put (state §6) |
-| shooting / `direct_fire` | active | `fire` | **yes** | no active-player ship has an unfired, undisabled battery or lance | — |
+| shooting / `direct_fire` | active | `fire`, `fire_nova_cannon` | **yes** | no active-player ship has an unfired, undisabled battery, lance or nova cannon it could fire (a nova cannon can't while `novaCannonBarred`, state §11) | — |
 | shooting / `launch_ordnance` | active | `launch_torpedoes`, `launch_attack_craft` | **yes** | no active-player ship can launch torpedoes or attack craft (§4.3) | — |
 | ordnance / `active_ordnance` | active | `move_ordnance` | no | every active-player salvo and wave (CAP aside) moved this step | reset `ordnanceMoved` |
 | ordnance / `inactive_ordnance` | inactive | `move_ordnance` | no | every inactive-player salvo and wave (CAP aside) moved this step | reset `ordnanceMoved` |
@@ -95,7 +95,7 @@ Wherever a summary below says **offer brace (X)**, the reducer checks whether sh
 
 Ship X **can brace** when it is `active` (not a hulk), its `specialOrder` is not already Brace For Impact!, and `turnState.braceFailures` has no entry for X against the current source.
 
-Brace is offered **before** every roll that can damage a ship: direct-fire to-hit rolls, torpedo attacks (before turrets), rams (target first, then rammer), explosion lance hits, and a 0-shield ship's Blast Marker roll. It is also offered before an **attack craft** attack on a ship (before turrets, like torpedoes), and before a **teleport attack**'s roll, since Brace protects against Hit-and-Run critical damage (p. 66). It is **not** offered against fire damage or critical extra damage, which follow from hits already rolled, nor in a boarding action (p. 66, p. 90).
+Brace is offered **before** every roll that can damage a ship: direct-fire to-hit rolls, torpedo attacks (before turrets), rams (target first, then rammer), explosion lance hits, and a 0-shield ship's Blast Marker roll. It is also offered before an **attack craft** attack on a ship (before turrets, like torpedoes), before a **nova cannon**'s scatter roll to every ship it could reach (T41), and before a **teleport attack**'s roll, since Brace protects against Hit-and-Run critical damage (p. 66). It is **not** offered against fire damage or critical extra damage, which follow from hits already rolled, nor in a boarding action (p. 66, p. 90).
 
 ---
 
@@ -113,7 +113,8 @@ Brace is offered **before** every roll that can damage a ship: direct-fire to-hi
 | `declare_order` | `shipId`, `order`, `ramTargetId?` | movement / `move_ships` |
 | `move` | `shipId`, `path`, `disengage`, `boardTargetId?` | movement / `move_ships` |
 | `release_cap` | `ordnanceId` | movement / `move_ships` |
-| `fire` | `shipId`, `weaponId`, `target`, `arc?`, `aspect?` | shooting / `direct_fire` |
+| `fire` | `shipId`, `weaponId`, `combineWith?`, `target`, `arc?`, `aspect?` | shooting / `direct_fire` |
+| `fire_nova_cannon` | `shipId`, `weaponId`, `aim` | shooting / `direct_fire` |
 | `launch_torpedoes` | `shipId`, `weaponId`, `bearing` | shooting / `launch_ordnance` |
 | `launch_attack_craft` | `shipId`, `waves`, `recall` | shooting / `launch_ordnance` |
 | `move_ordnance` | `ordnanceId`, `path?`, `cap?` | ordnance / either step |
@@ -270,6 +271,27 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   6. Add `weaponId`, and every `combineWith` id, to `weaponsFired`.
 
   Phase 1 has **no split fire**: a weapon fires once, at one target, at full effective strength (ruling T1).
+
+#### `fire_nova_cannon`
+```ts
+{ type: "fire_nova_cannon", player, shipId: string, weaponId: string, aim: Point }   // where the template's centre is placed
+```
+- **Legal when:**
+  - **Shooter:** as `fire`, and `novaCannonBarred(ship)` is `null` (state §11): not crippled, and not on All Ahead Full, Come To New Heading, Burn Retros or Brace For Impact! (p. 64).
+  - **Weapon:** a `nova_cannon`, not in `weaponsFired` and not disabled by a critical.
+  - **Aim** (T43): on the table; in one of the weapon's arcs (`quadrantsOfPoint(ship, aim)`); and the template's near edge 30–150 cm from the stem (`minRange` to `range`, state N13).
+  - **Line of fire** (T44): the line from the stem to `aim` doesn't cross the base of a hulk, other than one the template touches at `aim`.
+  - There's **no target priority** (state N14). A failed priority test doesn't limit where the template goes.
+- **Reducer:**
+  1. Add the weapon to `weaponsFired`.
+  2. **Scatter dice** from the range (p. 63): near edge ≤ 45 cm → 1D6; ≤ 60 cm → 2D6; further → 3D6.
+  3. **Offer brace** to every `active` ship the template could touch after the longest scatter: its base within `NOVA_RADIUS + 6 × scatter dice` cm of `aim`. Enemy ships first, then the firer's own, each in `ships` order (T41).
+  4. **Scatter** (T42): draw **1D6** for the scatter die. On 1–2 it's a hit and the template stays at `aim`. On 3–6, draw **2D6** for the direction, table bearing `60 × (first − 1) + 10 × (second − 1)`, then the **scatter dice**: the template moves their total, in cm, along that bearing. It may end partly or wholly off the table.
+  5. **Ordnance** touching the template where it lands is removed, whoever owns it: salvoes, whole attack craft waves and CAP fighters (p. 64, p. 85, T45).
+  6. **Ships** on the table whose bases touch the template, hulks included, friend or foe: a base touching the centre hole takes **D6** hits (one draw per such ship, in `ships` order), and any other base touching the template **1** hit (p. 64). The hits are automatic, whatever the armour. Each ship then takes its hits, in `ships` order, as from direct fire: shields, brace saves, damage with critical checks, catastrophic damage.
+  7. **Nothing touched**, no ship and no ordnance: a single Blast Marker at the template's centre (`nova_miss`), unless the centre is off the table (T46).
+
+  Lock On and Reload Ordnance don't affect it (T47).
 
 #### `launch_torpedoes`
 ```ts
@@ -491,7 +513,7 @@ type GameConfig = {
 }
 ```
 
-- Profiles come from a ship catalogue built from `rules/fleets/`. Imperial Navy: `lunar`, `gothic` (p. 70), `tyrant` (p. 69), and the carrier `dictator` (p. 67). Chaos: `murder`, its lance variant `murder_lances` (p. 279), `carnage` (p. 277), `inferno` (p. 278), `slaughter` (p. 280, improved thrusters), and the carrier `devastation` (p. 276). A ship option that changes a profile is its own catalogue class (D13). Their launch bays carry their fleets' attack craft: Fury fighters and Starhawk bombers (Imperial Navy); Swiftdeath fighters, Doomfire bombers and Dreadclaw assault boats (Chaos).
+- Profiles come from a ship catalogue built from `rules/fleets/`. Imperial Navy: `lunar` and `lunar_nova` (p. 71); `gothic` (p. 70); `tyrant`, `tyrant_long`, `tyrant_nova` and `tyrant_long_nova` (p. 69); `dominator` and `dominator_long` (p. 68); and the carrier `dictator` (p. 67). Chaos: `murder`, its lance variant `murder_lances` (p. 279), `carnage` (p. 277), `inferno` (p. 278), `slaughter` (p. 280, improved thrusters), and the carrier `devastation` (p. 276). A ship option that changes a profile is its own catalogue class (D13). Their launch bays carry their fleets' attack craft: Fury fighters and Starhawk bombers (Imperial Navy); Swiftdeath fighters, Doomfire bombers and Dreadclaw assault boats (Chaos).
 - **Cruiser Clash forces** (`forces.kind = "cruiser_clash"`): 1–4 ships per side, the same number each, all `cruiser`, each ≤ 185 points (p. 128). With `carriers` on, each side may also field **at most one** ship with launch bays above that cap ("allow one carrier each", p. 129).
 - **Points forces** (`forces.kind = "points"`, p. 129): each side's ships total ≤ `limit` points (a positive integer), at least one ship a side, any number, any classes of its fleet. There's no per-ship cap, so carriers need no option (T36). Ship types are still limited to what the catalogue has (cruisers today); the fleet lists' ratios come later (D16). A class with a rarity limit is held to it per side: the Murder lance variant, no more than two per 750 points, or part, of that side's fleet (p. 279). A bad config throws; it never produces an invalid state.
 - `scoring` is copied into `scenario.scoring`, and `forces` into `scenario.forces`. Either scoring goes with either forces (T37).
@@ -542,6 +564,15 @@ type GameConfig = {
 | T39 | Points battles keep Cruiser Clash's 8 rounds and set-up. Fleet Engagement's formations and its play-until-one-side-is-gone length come with that scenario. |
 | T35 | **Rarity limits** count the side's whole fleet: "two per 750 points or part" allows two in any Cruiser Clash fleet (4 × 185 = 740). |
 | T31 | **Launch bays** are weapons at a location (port, starboard): that side's armament critical disables them (p. 67), which lowers the fleet's limit too. |
+| T40 | **The nova cannon fires with its own transform**, at a point: `aim` is where the template is placed (p. 63). It belongs to the direct-fire step, in any order with the ship's batteries and lances. |
+| T41 | **Brace against a nova cannon** is offered before any of its dice, to every `active` ship the template could reach after the longest possible scatter, on both sides: the shell hits friends too. The enemy's ships are asked first. A ship that can't be reached is never asked (p. 63: "including ships it might hit due to scatter"). |
+| T42 | **The scatter die** is a D6: 1–2 are its two "hit" faces, 3–6 scatter. The direction comes from **2D6** in 10° steps (36 table bearings, first die the 60° sector, second the 10° within it), measured on the table, not from the firer. Every die is a D6, so replays and scripted tests need nothing new. |
+| T43 | **Placing the template:** its centre must be on the table and in the weapon's arc (like a target's stem), and its near edge 30–150 cm from the firer's stem. The same near-edge distance picks the scatter dice: "within 45 cm" is ≤ 45, "45–60 cm" is above 45 up to 60. |
+| T44 | **Hulks block the nova cannon's line of fire** as they block direct fire (p. 71), except a hulk the template touches at its aim point: that's firing *at* it. Scatter isn't blocked. |
+| T45 | **Ordnance under the template is removed whoever owns it**, CAP fighters included. T27 only stops CAP being targeted, and the nova cannon targets a point. |
+| T46 | A nova cannon that touches nothing and lands with its centre **off the table** leaves no Blast Marker. |
+| T47 | **Lock On and Reload Ordnance** do nothing for a nova cannon: there are no to-hit dice to re-roll, and it never needs reloading (p. 64). |
+| T48 | **Ship options are classes** (D13): `lunar_nova` (+20 pts), `tyrant_long` (45 cm batteries, +10), `tyrant_nova` (+20), `tyrant_long_nova` (+30), `dominator` (190) and `dominator_long`, its original 45 cm batteries (−5, the *Hammer of Justice*). `dominator_long`, at 185 points, fits Cruiser Clash; the others are for points battles. |
 
 ## 7. Decisions
 
@@ -558,10 +589,13 @@ type GameConfig = {
 | D9 | Combat Air Patrol in this slice? | Yes (George's call): escorting a carrier is core fighter play. |
 | D10 | Massed turrets? | Yes, now, for torpedoes as well as attack craft (George's call). |
 | D11 | Torpedo bombers, resilient craft, boarding torpedoes? | Not in this slice: neither carrier in the box takes them by default. Their rules (pp. 78, 84, 86) slot in as new roles and ordnance kinds later. |
-| D13 | Ship options and refits? | A variant whose profile differs is its own catalogue class (`murder_lances`), with its own points and any rarity limit. Options that would take a cruiser over Cruiser Clash's 185 points (the Tyrant's 45 cm batteries, nova cannons) wait for fleet battles by points. |
+| D13 | Ship options and refits? | A variant whose profile differs is its own catalogue class (`murder_lances`), with its own points and any rarity limit. Options that would take a cruiser over Cruiser Clash's 185 points (the Tyrant's 45 cm batteries, nova cannons) wait for fleet battles by points. They arrive with the nova cannon (T48). |
 | D15 | "Remove the 185-point cap" on its own (p. 129)? | Not offered: a points battle does the same job and also frees the numbers. |
 | D16 | Fleet commanders at 1,000 points (p. 129) and the fleet lists' ratios? | Later, with the fleet composition rules (battlecruisers and heavy cruisers), as George suggested. A points battle today is any ships of the fleet within the limit. |
 | D14 | Combined batteries: automatic, or the player's choice? | The player's: `combineWith` names the batteries joining the volley, so a ship can still send its long-range battery at one target and its short-range one at another. The app offers the combined volley first. |
+| D17 | Does the nova cannon hit friendly ships? | Yes. The book says "any target in base contact", and scatter is the risk you take. Their owner is offered a brace like anyone else (T41). |
+| D18 | How is the scatter die rolled? | With D6s only (T42): the scatter die, then 2D6 for one of 36 directions. A continuous random bearing would be smoother, but every roll would stop being a plain die in the log and in scripted tests. |
+| D19 | Which nova cannons now? | The cruisers' (T48): the Dominator, and the Lunar and Tyrant options. Battlecruisers and battleships that carry one (Mars, Mercury, Apocalypse, Victory) come with their own chunks. |
 | D12 | One wave entity, or one entity per marker? | One wave with a footprint (T17, state N8). Turrets fire once at a wave and a hit kills it all (p. 85), so the wave is the unit the rules care about. |
 
 No open questions.
