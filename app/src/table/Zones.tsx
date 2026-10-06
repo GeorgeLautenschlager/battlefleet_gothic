@@ -1,4 +1,4 @@
-import { engagement, geometry, type GameState, type PlayerId } from "@bfg/engine";
+import { engagement, geometry, reserves, type GameState, type PlayerId } from "@bfg/engine";
 import { playerName } from "../players";
 import { toSvg, type View } from "./view";
 
@@ -12,7 +12,8 @@ export type SetupPreview = ReturnType<typeof engagement.setupOptions>[number];
  */
 export function Zones({ state, preview = null }: { state: GameState; preview?: SetupPreview | null }) {
   const view: View = state.table;
-  if (state.setup.engagement === undefined) {
+  const bait = state.scenario.id === "the_bait";
+  if (state.setup.engagement === undefined && !bait) {
     return (
       <>
         {(["A", "B"] as const).map((zone) => {
@@ -32,10 +33,12 @@ export function Zones({ state, preview = null }: { state: GameState; preview?: S
       </>
     );
   }
-  const map = preview?.map ?? state.setup.engagement.map;
+  const map = preview?.map ?? state.setup.engagement?.map ?? null;
+  const pursued = reserves.pursuedPlayer(state);
+  const label = (p: PlayerId) => (bait ? `${p === pursued ? "The bait" : "Pursuers"} · ${playerName(state, p)}` : `Map ${map} · ${playerName(state, p)}`);
   const divisionsOf = (p: PlayerId): readonly Division[] =>
     preview !== null ? engagement.SETUP_MAPS[preview.map][preview.colours[p]] : engagement.deploymentDivisions(state, p);
-  if (map === null) return null;
+  if (map === null && !bait) return null;
   return (
     <g className={preview !== null ? "zones preview" : "zones"}>
       {(["p1", "p2"] as const).flatMap((p) =>
@@ -51,13 +54,34 @@ export function Zones({ state, preview = null }: { state: GameState; preview?: S
               <line className="facing" x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd="url(#zone-arrow)" />
               {i === 0 && (
                 <text x={top.x + 1.5} y={top.y + 4}>
-                  Map {map} · {playerName(state, p)}
+                  {label(p)}
                 </text>
               )}
             </g>
           );
         }),
       )}
+    </g>
+  );
+}
+
+/** Where `player`'s reserves may arrive this turn (state §11): the open stretches of table edge, with an arrow pointing in. */
+export function EntryEdges({ state, player }: { state: GameState; player: PlayerId }) {
+  const view: View = state.table;
+  return (
+    <g className={`entry-edges ${player}`}>
+      {reserves.entryEdges(state, player).map((e, i) => {
+        const [a, b] = [toSvg(view, e.from), toSvg(view, e.to)];
+        const mid = { x: (e.from.x + e.to.x) / 2, y: (e.from.y + e.to.y) / 2 };
+        const v = geometry.headingVector(e.inward);
+        const [from, to] = [toSvg(view, mid), toSvg(view, { x: mid.x + 6 * v.x, y: mid.y + 6 * v.y })];
+        return (
+          <g key={i}>
+            <line className="edge" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+            <line className="facing" x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd="url(#zone-arrow)" />
+          </g>
+        );
+      })}
     </g>
   );
 }

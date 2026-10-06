@@ -13,6 +13,7 @@ const UNREPAIRABLE = new Set(["bridge_smashed", "shields_collapse"]);
 export function checkDeployShip(state: GameState, t: DeployShip): ValidationResult {
   const ship = ownShip(state, t.shipId, t.player);
   if (isResult(ship)) return ship;
+  if (ship.status === "reserve") return reject("IN_RESERVE", `${ship.name} is a reinforcement: it arrives during the battle`);
   if (ship.status !== "undeployed") return reject("ALREADY_DEPLOYED", `${ship.name} is already deployed`);
 
   // 4: in one of the player's divisions (Cruiser Clash: its one zone)

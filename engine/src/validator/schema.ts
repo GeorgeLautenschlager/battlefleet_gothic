@@ -82,6 +82,7 @@ const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>
   declare_order: { required: { shipId: str, order: oneOf(ORDER_KINDS) }, optional: { ramTargetId: str, reroll: bool } },
   move: { required: { shipId: str, path: arrayOf(pathStep), disengage: bool }, optional: { boardTargetId: str, reroll: bool } },
   release_cap: { required: { ordnanceId: str } },
+  arrive: { required: { placements: arrayOf(shape({ shipId: str, position: point, heading: num })) } },
   fire: {
     required: { shipId: str, weaponId: str, target },
     optional: {

@@ -4,6 +4,7 @@
  */
 import { EPS } from "../geometry/constants";
 import { otherPlayer } from "../state/derived";
+import { BAIT_DIVISIONS, pursuedPlayer } from "./reserves";
 import type { Colour, Formation, GameState, PlayerId, Point, Rect, SetupMap } from "../state/types";
 
 /** A division: a rectangle (bottom-left corner) for stems, and the heading its ships face. */
@@ -81,8 +82,9 @@ export function setupBonus(state: GameState, player: PlayerId): number {
   );
 }
 
-/** Where a player deploys (state §11): Cruiser Clash's zone, or their colour's divisions on the Fleet Engagement map. */
+/** Where a player deploys (state §11): Cruiser Clash's zone, their colour's divisions on the Fleet Engagement map, or The Bait's (§4). */
 export function deploymentDivisions(state: GameState, player: PlayerId): readonly Division[] {
+  if (state.scenario.id === "the_bait") return player === pursuedPlayer(state) ? BAIT_DIVISIONS.pursued : BAIT_DIVISIONS.pursuers;
   const engagement = state.setup.engagement;
   if (engagement !== undefined) {
     if (engagement.map === null || engagement.colours === null) return [];

@@ -5,6 +5,7 @@ const words = (s: string) => s.replaceAll("_", " ");
 
 const STATUS: Record<Ship["status"], string> = {
   undeployed: "Undeployed",
+  reserve: "In reserve: arrives later",
   active: "",
   drifting_hulk: "Drifting hulk",
   blazing_hulk: "Blazing hulk",

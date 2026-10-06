@@ -154,6 +154,35 @@ describe("lobby and start", () => {
     await expect(Harness.create({ fleet: ann, scenario: "fleet_engagement" })).rejects.toThrow("INVALID_FLEET");
   });
 
+  test("The Bait: the host names the pursuers; reinforcements ride on the ship entries; each side is checked in its own role", async () => {
+    const ann: Fleet = {
+      faction: "imperial_navy",
+      ships: [
+        { name: "Agrippa", classId: "lunar" },
+        { name: "Relief", classId: "gothic", reserve: true },
+      ],
+    };
+    // The host is pursued: p2 pursues.
+    const h = await Harness.create({ fleet: ann, scenario: "the_bait", forces: { kind: "points", limit: 500 }, attacker: "p2" });
+    const [welcome] = await h.hello("a", "p1");
+    expect(welcome).toMatchObject({ lobby: { options: { scenario: "the_bait", attacker: "p2", scoring: "victory_points" } } });
+    await h.hello("b", "p2");
+    // The pursuers keep nothing back.
+    expect(rejection(await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder", reserve: true }] }))?.reason).toMatchObject({
+      code: "INVALID_FLEET",
+      message: expect.stringContaining("no reinforcements"),
+    });
+    await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }, { name: "Despair", classId: "carnage" }] });
+    const state = h.stateOf("b")!;
+    expect(state.scenario).toMatchObject({ id: "the_bait", attacker: "p2", maxRounds: null });
+    expect(state.ships.map((s) => s.status)).toEqual(["undeployed", "reserve", "undeployed", "undeployed"]);
+    // A bait over half the limit can't host (a Mars, 270 pts of 500)…
+    const heavy: Fleet = { faction: "imperial_navy", ships: [{ name: "Imperious", classId: "mars" }] };
+    await expect(Harness.create({ fleet: heavy, scenario: "the_bait", forces: { kind: "points", limit: 500 }, attacker: "p2" })).rejects.toThrow("INVALID_FLEET");
+    // …but the same Mars can host as the pursuers.
+    await expect(Harness.create({ fleet: heavy, scenario: "the_bait", forces: { kind: "points", limit: 500 }, attacker: "p1" })).resolves.toBeDefined();
+  });
+
   test("fleet lists: commanders ride on the ship entries and the engine checks the list", async () => {
     const ann: Fleet = {
       faction: "imperial_navy",

@@ -1,5 +1,5 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
-import { CATALOGUE, type CommanderConfig, type Mark } from "@bfg/engine";
+import { CATALOGUE, type CommanderConfig, type Mark, type PlayerId } from "@bfg/engine";
 import { classChoices, classIds, commandPoints, DEFAULT_ESCORT_SQUADRON, defaultCommand, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, mostExpensive, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, withOption, type Command, type Fleet, type NewGameOptions, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
@@ -42,13 +42,17 @@ export function CountSelect({ value, onChange }: { value: number; onChange: (n: 
 
 export type Rules = { ramming: boolean; boarding: boolean; carriers: boolean; fleetLists?: boolean };
 
-export type Battle = Pick<NewGameOptions, "scenario" | "forces" | "scoring">;
+export type Battle = Pick<NewGameOptions, "scenario" | "forces" | "scoring" | "attacker">;
+
+const PLAYER_LABELS: Record<PlayerId, string> = { p1: "Player 1", p2: "Player 2" };
 
 /**
  * The scenario (T49): Cruiser Clash, classic or by points (p. 129), with its
- * scoring (T37); or Fleet Engagement at a points limit, always victory points (pp. 142–143).
+ * scoring (T37); The Bait, with who is pursued (p. 130, T93); or Fleet Engagement
+ * at a points limit. The last two are always victory points.
+ * `players`: how to name the seats when choosing who is pursued ("You" online).
  */
-export function BattleFields({ value, onChange }: { value: Battle; onChange: (patch: Battle) => void }) {
+export function BattleFields({ value, onChange, players = PLAYER_LABELS }: { value: Battle; onChange: (patch: Battle) => void; players?: Record<PlayerId, string> }) {
   const limit = value.forces?.kind === "points" ? value.forces.limit : null;
   const engagement = value.scenario === "fleet_engagement";
   const scenario = (
@@ -60,15 +64,52 @@ export function BattleFields({ value, onChange }: { value: Battle; onChange: (pa
           onChange(
             e.target.value === "fleet_engagement"
               ? { scenario: "fleet_engagement", forces: { kind: "points", limit: limit ?? 750 }, scoring: "victory_points" }
+              : e.target.value === "the_bait"
+              ? { scenario: "the_bait", forces: { kind: "points", limit: 500 }, scoring: "victory_points", attacker: "p2" }
               : { scenario: "cruiser_clash", forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" },
           )
         }
       >
         <option value="cruiser_clash">Cruiser Clash (p. 128)</option>
+        <option value="the_bait">The Bait (p. 130)</option>
         <option value="fleet_engagement">Fleet Engagement (pp. 142–143)</option>
       </select>
     </label>
   );
+  if (value.scenario === "the_bait") {
+    const pursuers = value.attacker ?? "p2";
+    const pursued: PlayerId = pursuers === "p1" ? "p2" : "p1";
+    const l = limit ?? 500;
+    return (
+      <div className="battle-fields">
+        {scenario}
+        <label>
+          Pursued
+          <select value={pursued} onChange={(e) => onChange({ ...value, attacker: e.target.value === "p1" ? "p2" : "p1" })}>
+            {(["p1", "p2"] as const).map((p) => (
+              <option key={p} value={p}>
+                {players[p]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Pursuers' points
+          <select value={String(l)} onChange={(e) => onChange({ ...value, forces: { kind: "points", limit: Number(e.target.value) } })}>
+            {POINTS_LIMITS.map((p) => (
+              <option key={p} value={p}>
+                {p} points
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="muted small">
+          The pursuers field up to {l} points. The pursued field the bait, one ship or one squadron up to {Math.floor(l / 2)} points, and up to {l} points of
+          reinforcements, which arrive from the far edge during the battle. Victory points, until one fleet is destroyed or disengages.
+        </p>
+      </div>
+    );
+  }
   if (engagement) {
     return (
       <div className="battle-fields">
@@ -164,6 +205,8 @@ type FieldsProps = {
   taken?: string[];
   /** Fleet lists are on: the side buys its commanders (T60). */
   lists?: boolean;
+  /** The Bait's pursued side: each ship is the bait or a reinforcement (T93). */
+  reinforcements?: boolean;
 };
 
 /** Short names for options in summaries: "nova cannon", "targeting matrix"… */
@@ -184,8 +227,20 @@ function fleetSummary(side: Side, carriers: boolean, limit: number | null = null
   return `${[...ships, ...(command > 0 ? [`commanders (${command} pts)`] : [])].join(", ")} · ${total}${limit === null ? "" : ` of ${limit}`} pts`;
 }
 
+/** The Bait's pursued side (N48): "Bait 180 of 250 pts · reinforcements 285 of 500 pts". */
+function baitSummary(side: Side, carriers: boolean, limit: number): string {
+  let bait = 0;
+  let reinforcements = 0;
+  side.ships.forEach((_, i) => {
+    const p = shipProfileOf(side, i, carriers, true).points;
+    if (side.reserves?.[i] === true) reinforcements += p;
+    else bait += p;
+  });
+  return `Bait ${bait} of ${Math.floor(limit / 2)} pts · reinforcements ${reinforcements} of ${limit} pts`;
+}
+
 /** One side: commander, fleet, and a name and class per ship. */
-export function FleetFields({ legend, className, side, onChange, dupes, carriers = false, pointsLimit = null, taken = [], lists = false }: FieldsProps) {
+export function FleetFields({ legend, className, side, onChange, dupes, carriers = false, pointsLimit = null, taken = [], lists = false, reinforcements = false }: FieldsProps) {
   const count = side.ships.length;
   const choices = classChoices(side.fleet, carriers, pointsLimit !== null);
   const classes = classIds(side, carriers, pointsLimit !== null);
@@ -214,7 +269,7 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
           ))}
         </select>
       </label>
-      <p className="muted small">{fleetSummary(side, carriers, pointsLimit, lists)}</p>
+      <p className="muted small">{reinforcements && pointsLimit !== null ? baitSummary(side, carriers, pointsLimit) : fleetSummary(side, carriers, pointsLimit, lists)}</p>
       {lists && <CommandFields side={side} carriers={carriers} onChange={(command) => onChange({ command })} />}
       {side.ships.map((name, i) => (
         <div key={i} className="ship-row">
@@ -250,6 +305,16 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
                 onChange={(e) => onChange({ squadrons: side.ships.map((_, j) => (j === i ? e.target.value : (side.squadrons?.[j] ?? ""))) })}
                 maxLength={30}
               />
+            </label>
+          )}
+          {reinforcements && (
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={side.reserves?.[i] === true}
+                onChange={(e) => onChange({ reserves: side.ships.map((_, j) => (j === i ? e.target.checked : side.reserves?.[j] === true)) })}
+              />
+              {count === 1 ? "Reinforcement" : `Ship ${i + 1} is a reinforcement`} (arrives during the battle)
             </label>
           )}
           {(CATALOGUE[classes[i] ?? ""]?.options ?? []).length > 0 && (

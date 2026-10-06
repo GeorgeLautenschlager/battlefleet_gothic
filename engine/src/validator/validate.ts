@@ -14,6 +14,7 @@ import { checkFire, checkFireNovaCannon, checkLaunchTorpedoes } from "./shooting
 import { checkAnswerBrace, checkChooseSetup, checkDeployShip, checkRemoveBlastMarkers, checkRepair } from "./other";
 import { checkLaunchAttackCraft, checkMoveOrdnance, checkReleaseCap } from "./craft";
 import { checkBoard, checkEndStep, checkTeleport } from "./boarding";
+import { checkArrive, checkEndMovement } from "./reserves";
 
 /** Where each transform is allowed (transform spec §3). answer_brace is gated by G3/G4 instead. */
 const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" | "battle"; when: readonly string[] }> = {
@@ -30,11 +31,12 @@ const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" |
   declare_order: { stage: "battle", when: ["move_ships"] },
   move: { stage: "battle", when: ["move_ships"] },
   release_cap: { stage: "battle", when: ["move_ships"] },
+  arrive: { stage: "battle", when: ["move_ships"] },
   fire: { stage: "battle", when: ["direct_fire"] },
   fire_nova_cannon: { stage: "battle", when: ["direct_fire"] },
   launch_torpedoes: { stage: "battle", when: ["launch_ordnance"] },
   launch_attack_craft: { stage: "battle", when: ["launch_ordnance"] },
-  end_step: { stage: "battle", when: ["direct_fire", "launch_ordnance", "boarding"] },
+  end_step: { stage: "battle", when: ["move_ships", "direct_fire", "launch_ordnance", "boarding"] },
   move_ordnance: { stage: "battle", when: ["active_ordnance", "inactive_ordnance"] },
   repair: { stage: "battle", when: ["damage_control"] },
   remove_blast_markers: { stage: "battle", when: ["blast_marker_removal"] },
@@ -92,7 +94,9 @@ export function validate(state: GameState, input: unknown): ValidationResult {
     case "choose_setup":
       return checkChooseSetup(state, t);
     case "end_step":
-      return checkEndStep(state);
+      return state.clock.step === "move_ships" ? checkEndMovement(state, t) : checkEndStep(state);
+    case "arrive":
+      return checkArrive(state, t);
     case "deploy_ship":
       return checkDeployShip(state, t);
     case "drift_hulk":

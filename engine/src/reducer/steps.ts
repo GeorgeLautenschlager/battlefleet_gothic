@@ -12,6 +12,7 @@ import type { Ctx } from "./context";
 import { anyTeleport, boardingsToFight } from "../rules/boarding";
 import { grappledStayPut, grapplesFight } from "./boarding";
 import { canLaunchCraft } from "../rules/craft";
+import { canArrive, eliminated, hasReserves } from "../rules/reserves";
 
 const SETUP_ORDER: readonly SetupStep[] = [
   "roll_leadership",
@@ -21,6 +22,9 @@ const SETUP_ORDER: readonly SetupStep[] = [
   "roll_first_turn",
   "choose_first_turn",
 ];
+
+/** The Bait: the bait deploys first and the pursued player goes first, so nothing else is rolled (state N55). */
+const BAIT_SETUP_ORDER: readonly SetupStep[] = ["roll_leadership", "deploy"];
 
 /** Fleet Engagement replaces roll_zones with the formations and the set-up roll-off (transform §2.3). */
 const ENGAGEMENT_SETUP_ORDER: readonly SetupStep[] = [
@@ -97,7 +101,12 @@ export function stepComplete(state: GameState): boolean {
     case "hulks_drift":
       return mine.filter(isHulk).every((s) => shipTurn(s.id)?.drifted === true);
     case "move_ships":
-      return state.activation === null && mine.filter((s) => s.status === "active").every((s) => shipTurn(s.id)?.moved === true);
+      // While reserves could still arrive, the step waits for them or an end_step (transform T95).
+      return (
+        state.activation === null &&
+        mine.filter((s) => s.status === "active").every((s) => shipTurn(s.id)?.moved === true) &&
+        !canArrive(state, active)
+      );
     case "direct_fire":
       return !mine.some(
         (s) =>
@@ -145,7 +154,7 @@ export function advanceStep(ctx: Ctx): void {
     const { state } = ctx;
     const { clock } = state;
     if (clock.stage === "setup") {
-      const order = state.scenario.id === "fleet_engagement" ? ENGAGEMENT_SETUP_ORDER : SETUP_ORDER;
+      const order = state.scenario.id === "fleet_engagement" ? ENGAGEMENT_SETUP_ORDER : state.scenario.id === "the_bait" ? BAIT_SETUP_ORDER : SETUP_ORDER;
       const i = order.indexOf(clock.setupStep as SetupStep);
       const next = order[i + 1];
       if (next === undefined) {
@@ -172,6 +181,9 @@ function enterStep(ctx: Ctx, phase: Phase, step: Step): void {
     case "move_ships":
       grappledStayPut(ctx);
       break;
+    case "direct_fire":
+      reservesGivenUp(ctx);
+      break;
     case "boarding":
       grapplesFight(ctx);
       break;
@@ -192,7 +204,21 @@ function enterStep(ctx: Ctx, phase: Phase, step: Step): void {
   }
 }
 
-/** Leaving choose_first_turn: the battle begins (transform §2.5). */
+/** A player who ends their Movement with nothing on the table gives up their waiting reserves (state N52). */
+function reservesGivenUp(ctx: Ctx): void {
+  const { state } = ctx;
+  const player = activePlayer(state);
+  if (state.ships.some((s) => s.owner === player && s.status === "active") || !hasReserves(state, player)) return;
+  const shipIds: string[] = [];
+  for (const ship of state.ships) {
+    if (ship.owner !== player || ship.status !== "reserve") continue;
+    ship.status = "disengaged";
+    shipIds.push(ship.id);
+  }
+  ctx.log("reserves_disengaged", { player, shipIds });
+}
+
+/** Leaving the last setup step: the battle begins (transform §2.5). */
 function startBattle(ctx: Ctx): void {
   const { clock } = ctx.state;
   clock.stage = "battle";
@@ -234,11 +260,9 @@ function endPlayerTurn(ctx: Ctx): void {
   else startPlayerTurn(ctx, now + 1);
 }
 
-/** A side with no active ship left: the game ends at once (state D6). */
+/** A side with no active ship left, and none waiting in reserve: the game ends at once (state D6, N52). */
 export function eliminatedSide(state: GameState): PlayerId | null {
-  for (const player of ["p1", "p2"] as const) {
-    if (!state.ships.some((s) => s.owner === player && s.status === "active")) return player;
-  }
+  for (const player of ["p1", "p2"] as const) if (eliminated(state, player)) return player;
   return null;
 }
 

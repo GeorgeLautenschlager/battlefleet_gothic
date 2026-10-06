@@ -368,7 +368,7 @@ export function squadronLd(state: GameState, sq: ShipSquadron): number {
 /** An escort squadron that has lost at least half its ships, rounding up (p. 123, N43). */
 export function escortSquadronCrippled(state: GameState, sq: ShipSquadron): boolean {
   const members = sq.shipIds.map((id) => getShip(state, id));
-  const lost = members.filter((s) => s.status !== "active" && s.status !== "disengaged" && s.status !== "undeployed").length;
+  const lost = members.filter((s) => s.status !== "active" && s.status !== "disengaged" && s.status !== "undeployed" && s.status !== "reserve").length;
   return lost >= Math.ceil(members.length / 2);
 }
 
@@ -441,7 +441,7 @@ export function squadronVP(state: GameState, sq: ShipSquadron): SquadronVP | nul
   const members = sq.shipIds.map((id) => getShip(state, id));
   const full = members.reduce((n, s) => n + shipValue(s), 0);
   if (members.every((s) => s.status === "destroyed")) return { squadronId: sq.id, vp: full, why: "destroyed" };
-  if (members.some((s) => s.status === "active" || s.status === "undeployed")) return null;
+  if (members.some((s) => s.status === "active" || s.status === "undeployed" || s.status === "reserve")) return null;
   return { squadronId: sq.id, vp: percent(full, escortSquadronCrippled(state, sq) ? 25 : 10), why: "disengaged" };
 }
 
@@ -477,7 +477,7 @@ export function nextDeployer(state: GameState): PlayerId | null {
   let deployed = 0;
   for (const unit of deploymentUnits(state)) {
     const owner = unit[0]?.owner;
-    if (owner === undefined) continue;
+    if (owner === undefined || unit.some((s) => s.status === "reserve")) continue; // reserves arrive later (N51)
     total[owner] += 1;
     if (unit.every((s) => s.status !== "undeployed")) deployed += 1;
   }

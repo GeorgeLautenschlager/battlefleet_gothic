@@ -70,7 +70,9 @@ describe("G2–G6", () => {
   });
 
   test("G6: transforms only at their own moment", () => {
-    expectReject(battle(), { type: "end_step", player: "p2" }, "WRONG_MOMENT", { stage: "battle", step: "move_ships" });
+    // end_step reaches move_ships only to leave reserves waiting (transform T95): without any, it's refused there
+    expectReject(battle(), { type: "end_step", player: "p2" }, "NO_ENTRY_EDGE");
+    expectReject(battle("ordnance", "active_ordnance"), { type: "end_step", player: "p2" }, "WRONG_MOMENT", { stage: "battle", step: "active_ordnance" });
     expectOk(battle("shooting", "direct_fire"), { type: "end_step", player: "p2" });
     expectOk(battle("shooting", "launch_ordnance"), { type: "end_step", player: "p2" });
     expectReject(battle(), { type: "roll_leadership", player: "p2" }, "WRONG_MOMENT");

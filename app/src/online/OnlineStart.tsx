@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { carriersAllowed, defaultNames, listsOn, MAX_SHIPS, shipEntries, sideProblem, type Side } from "../game/config";
+import { carriersAllowed, defaultNames, listsOn, MAX_SHIPS, pursuedOf, shipEntries, sideProblem, type Side } from "../game/config";
 import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks, type Battle, type Rules } from "../panels/FleetForm";
 import { createGame } from "./api";
 import type { MyGame } from "./myGames";
@@ -15,7 +15,10 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
   const [error, setError] = useState<string | null>(null);
   const dupes = duplicates(side.ships);
   const lists = listsOn({ fleetLists: rules.fleetLists === true, ...battle });
-  const problem = dupes.length > 0 ? null : sideProblem(side, carriers, battle.forces, lists);
+  // The Bait: you're Player 1, pursued or pursuing (T93).
+  const pursued = pursuedOf(battle);
+  const role = pursued === null ? undefined : pursued === "p1" ? "pursued" : "pursuers";
+  const problem = dupes.length > 0 ? null : sideProblem(side, carriers, battle.forces, lists, role);
   return (
     <form
       className="new-game"
@@ -25,7 +28,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         setBusy(true);
         setError(null);
         const name = side.name.trim();
-        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists), ...rules, fleetLists: lists, ...battle })
+        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists, role === "pursued"), ...rules, fleetLists: lists, ...battle })
           .then((g) => onCreated({ gameId: g.gameId, token: g.token, seat: g.seat, name, joinedAt: new Date().toISOString(), inviteToken: g.inviteToken }))
           .catch((err: unknown) => setError((err as Error).message))
           .finally(() => setBusy(false));
@@ -34,6 +37,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
       <h2>Online</h2>
       <p className="muted">Play a friend on another device. You'll get a link to send them; they pick their own fleet.</p>
       <BattleFields
+        players={{ p1: "You", p2: "Your opponent" }}
         value={battle}
         onChange={(patch) => {
           setBattle(patch);
@@ -53,6 +57,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         carriers={carriers}
         pointsLimit={points}
         lists={lists}
+        reinforcements={role === "pursued"}
       />
       <RulesChecks value={rules} onChange={setRules} points={points !== null} />
       <DuplicateNames dupes={dupes} />

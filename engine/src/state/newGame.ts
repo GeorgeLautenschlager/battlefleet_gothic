@@ -14,8 +14,10 @@ export type GameConfig = {
   createdAt: string;
   /** `fleetLists`: points battles follow the Gothic War fleet lists, with commanders (T58). */
   options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean; fleetLists?: boolean };
-  /** Default: Cruiser Clash. Fleet Engagement needs points forces and victory points (transform §5). */
+  /** Default: Cruiser Clash. Fleet Engagement and The Bait need points forces and victory points (transform §5). */
   scenario?: ScenarioId;
+  /** The Bait: the pursuers (state N47). Required there, refused elsewhere. */
+  attacker?: PlayerId;
   /** Default: Cruiser Clash forces (state §4). */
   forces?: Forces;
   /** Default: Cruiser Clash scoring. */
@@ -24,8 +26,8 @@ export type GameConfig = {
     p1: { name: string; faction: FactionId };
     p2: { name: string; faction: FactionId };
   };
-  /** `options`: the class's option ids (transform §5, T57). `squadron`: its squadron's name (T76). */
-  ships: { owner: PlayerId; name: string; classId: string; options?: string[]; commander?: CommanderConfig; squadron?: string }[];
+  /** `options`: the class's option ids (transform §5, T57). `squadron`: its squadron's name (T76). `reserve`: The Bait's reinforcements (T93). */
+  ships: { owner: PlayerId; name: string; classId: string; options?: string[]; commander?: CommanderConfig; squadron?: string; reserve?: boolean }[];
 };
 
 /** A ship's profile as fielded: its class with its options applied, or an EngineError. */
@@ -83,6 +85,14 @@ function validateConfig(config: GameConfig): void {
     if (forces.kind !== "points") throw new EngineError("Fleet Engagement is fought at a points limit");
     if (config.scoring !== undefined && config.scoring !== "victory_points") throw new EngineError("Fleet Engagement is scored with victory points");
   }
+  if (config.scenario === "the_bait") {
+    if (forces.kind !== "points") throw new EngineError("The Bait is fought at a points limit");
+    if (config.scoring !== undefined && config.scoring !== "victory_points") throw new EngineError("The Bait is scored with victory points");
+    if (config.attacker !== "p1" && config.attacker !== "p2") throw new EngineError("The Bait needs the pursuers named as the attacker");
+  } else {
+    if (config.attacker !== undefined) throw new EngineError("only The Bait has an attacker");
+    if (config.ships.some((s) => s.reserve === true)) throw new EngineError("only The Bait has reinforcements in reserve");
+  }
   const counts = { p1: 0, p2: 0 };
   const points = { p1: 0, p2: 0 };
   const carriersOverCap = { p1: 0, p2: 0 };
@@ -139,6 +149,10 @@ function validateConfig(config: GameConfig): void {
   } else if (config.ships.some((s) => s.commander !== undefined)) {
     throw new EngineError("commanders come with the fleet lists");
   }
+  if (config.scenario === "the_bait" && forces.kind === "points") {
+    baitForces(config, forces.limit);
+    return;
+  }
   if (forces.kind === "points") {
     for (const player of ["p1", "p2"] as const) {
       if (counts[player] < 1) throw new EngineError(`${player} must field at least one ship`);
@@ -155,6 +169,40 @@ function validateConfig(config: GameConfig): void {
   if (counts.p1 !== counts.p2) {
     throw new EngineError(`both fleets need the same number of cruisers (p1 ${counts.p1}, p2 ${counts.p2})`);
   }
+}
+
+/** A ship's points as fielded: its class, options and any commander. */
+function fieldedPoints(ship: GameConfig["ships"][number], i: number): number {
+  return shipProfile(ship, i).points + (ship.commander !== undefined ? commanderPoints(ship.commander) : 0);
+}
+
+/**
+ * The Bait's forces (T93, state N48): the pursuers up to the limit, none in reserve; the
+ * pursued player's bait one ship or one whole squadron up to half of it; their reinforcements up to the limit.
+ */
+function baitForces(config: GameConfig, limit: number): void {
+  const pursuers = config.attacker as PlayerId;
+  const pursued: PlayerId = pursuers === "p1" ? "p2" : "p1";
+  const indexed = config.ships.map((ship, i) => ({ ship, i }));
+  const theirs = indexed.filter((x) => x.ship.owner === pursuers);
+  if (theirs.length < 1) throw new EngineError(`${pursuers} must field at least one ship`);
+  if (theirs.some((x) => x.ship.reserve === true)) throw new EngineError("the pursuers have no reinforcements");
+  const total = theirs.reduce((n, x) => n + fieldedPoints(x.ship, x.i), 0);
+  if (total > limit) throw new EngineError(`the pursuers' fleet is ${total} pts, over the ${limit} pt limit`);
+
+  const mine = indexed.filter((x) => x.ship.owner === pursued);
+  for (const sq of squadronGroups(config).filter((g) => g.owner === pursued)) {
+    const reserve = sq.members.filter((m) => m.reserve === true).length;
+    if (reserve !== 0 && reserve !== sq.members.length) throw new EngineError(`squadron "${sq.name}" is all in reserve or none of it`);
+  }
+  const bait = mine.filter((x) => x.ship.reserve !== true);
+  const names = new Set(bait.map((x) => x.ship.squadron));
+  const oneUnit = bait.length === 1 ? bait[0]?.ship.squadron === undefined || names.size === 1 : names.size === 1 && !names.has(undefined);
+  if (bait.length === 0 || !oneUnit) throw new EngineError("the bait is one ship or one squadron: every other ship of the pursued fleet is a reinforcement");
+  const baitPoints = bait.reduce((n, x) => n + fieldedPoints(x.ship, x.i), 0);
+  if (baitPoints > Math.floor(limit / 2)) throw new EngineError(`the bait is ${baitPoints} pts, over the ${Math.floor(limit / 2)} pt limit`);
+  const reinforcements = mine.filter((x) => x.ship.reserve === true).reduce((n, x) => n + fieldedPoints(x.ship, x.i), 0);
+  if (reinforcements > limit) throw new EngineError(`the reinforcements are ${reinforcements} pts, over the ${limit} pt limit`);
 }
 
 /** Squadrons (T76, state §7.5): escorts always in one, 1–6 (2–6 with fleet lists); capital squadrons of one type, 2+. */
@@ -194,9 +242,12 @@ function squadronGroups(config: GameConfig): { owner: PlayerId; name: string; me
   return groups;
 }
 
-/** The scenario block (state §4): Cruiser Clash's zones and 8 rounds, or Fleet Engagement's maps and no round limit. */
+/** The scenario block (state §4): Cruiser Clash's zones and 8 rounds, or The Bait's or Fleet Engagement's open-ended battle. */
 function scenarioOf(config: GameConfig): Scenario {
   const forces = config.forces ?? { kind: "cruiser_clash" as const };
+  if (config.scenario === "the_bait" && config.attacker !== undefined) {
+    return { id: "the_bait", maxRounds: null, forces, scoring: "victory_points", attacker: config.attacker };
+  }
   if (config.scenario === "fleet_engagement") {
     return { id: "fleet_engagement", maxRounds: null, forces, scoring: "victory_points" };
   }
@@ -214,6 +265,9 @@ function scenarioOf(config: GameConfig): Scenario {
   };
 }
 
+const baitPursued = (config: GameConfig): PlayerId | null =>
+  config.scenario === "the_bait" ? (config.attacker === "p1" ? "p2" : "p1") : null;
+
 /** Create a game at setup / roll_leadership (transform spec §5). */
 export function newGame(config: GameConfig): GameState {
   validateConfig(config);
@@ -230,7 +284,7 @@ export function newGame(config: GameConfig): GameState {
       name: spec.name,
       profile,
       leadership: null,
-      status: "undeployed",
+      status: spec.reserve === true ? "reserve" : "undeployed",
       position: null,
       heading: null,
       damage: 0,
@@ -277,10 +331,11 @@ export function newGame(config: GameConfig): GameState {
       zoneRoll: null,
       zones: null,
       deployOrderRolls: [],
-      firstDeployer: null,
+      // The Bait: the bait deploys first and the fleeing ship goes first (state N55).
+      firstDeployer: baitPursued(config),
       firstTurnRolls: [],
       firstTurnChooser: null,
-      firstPlayer: null,
+      firstPlayer: baitPursued(config),
       ...(config.scenario === "fleet_engagement"
         ? { engagement: { formations: { p1: null, p2: null }, setupRolls: [], setupChooser: null, map: null, colours: null } }
         : {}),
