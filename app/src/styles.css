@@ -222,6 +222,12 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .arc.lance { fill: rgba(90, 169, 255, 0.08); stroke: rgba(90, 169, 255, 0.6); }
 .arc.torpedoes { fill: rgba(255, 255, 255, 0.04); stroke: rgba(255, 255, 255, 0.3); stroke-dasharray: 0.6 0.6; }
 .torpedo-run { fill: none; stroke: var(--accent); stroke-width: 0.35; }
+.arc.nova_cannon { fill: rgba(255, 120, 80, 0.06); stroke: rgba(255, 120, 80, 0.5); stroke-dasharray: 1 0.6; }
+.nova-template { fill: rgba(255, 120, 80, 0.25); stroke: rgb(255, 120, 80); stroke-width: 0.25; }
+.nova-hole { fill: rgb(255, 120, 80); }
+.nova-scatter { fill: none; stroke: rgba(255, 120, 80, 0.6); stroke-width: 0.2; stroke-dasharray: 0.8 0.8; }
+.nova.bad .nova-template { fill: rgba(255, 80, 80, 0.12); stroke: rgba(255, 80, 80, 0.6); }
+.nova.bad .nova-hole { fill: rgba(255, 80, 80, 0.6); }
 .ship.targeted .base { stroke: var(--accent); stroke-width: 0.6; stroke-dasharray: 0.8 0.4; }
 .step-entry { display: grid; gap: 6px; }
 .step-entry > * { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

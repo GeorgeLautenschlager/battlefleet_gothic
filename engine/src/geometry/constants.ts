@@ -15,3 +15,5 @@ export const TELEPORT_RANGE = 10; // teleport attacks, pp. 91–92
 export const MAX_LEADERSHIP = 10; // p. 48
 export const CRAFT_RADIUS = 1; // one attack craft marker's footprint (state N8)
 export const MAX_MASSED_TURRETS = 3; // p. 80
+export const NOVA_RADIUS = 2.5; // the nova cannon template: 5 cm across (state N13)
+export const NOVA_HOLE_RADIUS = 0.6; // its centre hole: 1.2 cm across (state N13)

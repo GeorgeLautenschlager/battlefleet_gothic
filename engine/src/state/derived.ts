@@ -229,6 +229,15 @@ export function effectiveStrength(ship: Ship, weapon: Weapon): number {
 
 // --- Shooting and orders
 
+const BARS_NOVA_CANNON: readonly OrderKind[] = ["all_ahead_full", "come_to_new_heading", "burn_retros", "brace_for_impact"];
+
+/** Why a ship can't fire a nova cannon (p. 64, p. 65), or null. Lock On and Reload Ordnance don't matter. */
+export function novaCannonBarred(ship: Ship): "crippled" | "order" | null {
+  if (isCrippled(ship)) return "crippled";
+  const order = ship.specialOrder?.kind;
+  return order !== undefined && BARS_NOVA_CANNON.includes(order) ? "order" : null;
+}
+
 /**
  * Moved less than 5 cm in its last move, so it's shot at on the Defences column (p. 53).
  * A ship that hasn't moved yet is not (state N7).

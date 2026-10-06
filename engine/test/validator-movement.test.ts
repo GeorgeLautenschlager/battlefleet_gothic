@@ -83,6 +83,18 @@ describe("move: distance", () => {
     expectOk(s, move([a(3)]));
     expectReject(s, move([a(2.9)]), "PATH_TOO_SHORT", { limit: 3 });
   });
+
+  test("a ship the slowdown takes to 0 cm stays put, rather than having no legal move (V12)", () => {
+    const s = battle();
+    unclean(s).profile.speed = 5; // half speed 2.5; slowed by a BM it starts on → 0
+    addBm(s, 100, 107);
+    expectOk(s, move([]));
+    expectReject(s, move([a(1)]), "PATH_TOO_LONG", { limit: 0, slowed: true });
+    // Without the Blast Marker, staying put is still too short.
+    const clear = battle();
+    unclean(clear).profile.speed = 5;
+    expectReject(clear, move([]), "PATH_TOO_SHORT", { limit: 2.5 });
+  });
 });
 
 describe("move: path steps and turns", () => {

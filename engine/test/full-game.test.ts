@@ -97,6 +97,7 @@ describe("full games, points battles with victory points", () => {
   const matchups: [string, GameConfig][] = [
     ["750 pts: Dictator, Gothic, Lunar vs Devastation, Slaughter ×2, Murder", battle(["dictator", "gothic", "lunar"], ["devastation", "slaughter", "slaughter", "murder"], 750)],
     ["500 pts: two Tyrants vs three Slaughters", battle(["tyrant", "tyrant"], ["slaughter", "slaughter", "slaughter"], 500)],
+    ["1000 pts: nova cannons (Dominator ×2, Lunar, Tyrant) vs Murder ×4, Carnage", battle(["dominator", "dominator_long", "lunar_nova", "tyrant_long_nova"], ["murder", "murder", "murder", "murder", "carnage"], 1000)],
   ];
   for (const [name, config] of matchups) {
     test.each([1, 2, 3, 4])(`${name}, seed %i, plays to a result`, (seed) => {
@@ -105,6 +106,15 @@ describe("full games, points battles with victory points", () => {
       expect(s.log.at(-1)?.data["scoring"]).toBe("victory_points");
     });
   }
+});
+
+test("nova cannons fire, scatter, hit and miss across those games", () => {
+  const config = { ...mixed(["dominator", "dominator_long", "lunar_nova", "tyrant_long_nova"], ["murder", "murder", "murder", "murder", "carnage"]), forces: { kind: "points" as const, limit: 1000 } };
+  const shots = [1, 2, 3, 4].flatMap((seed) => playOut(seed, config).log.filter((e) => e.kind === "nova_cannon"));
+  expect(shots.length).toBeGreaterThan(4);
+  expect(shots.some((e) => e.data["scatter"] === "hit")).toBe(true);
+  expect(shots.some((e) => e.data["scatter"] !== "hit")).toBe(true);
+  expect(shots.some((e) => (e.data["ships"] as unknown[]).length > 0)).toBe(true);
 });
 
 test("in those games the new cruisers fire combined battery volleys", () => {

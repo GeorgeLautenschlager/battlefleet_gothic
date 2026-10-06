@@ -24,7 +24,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         setBusy(true);
         setError(null);
         const name = side.name.trim();
-        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers), ...rules, ...battle })
+        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points"), ...rules, ...battle })
           .then((g) => onCreated({ gameId: g.gameId, token: g.token, seat: g.seat, name, joinedAt: new Date().toISOString(), inviteToken: g.inviteToken }))
           .catch((err: unknown) => setError((err as Error).message))
           .finally(() => setBusy(false));

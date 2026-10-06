@@ -190,7 +190,7 @@ export type ShipTraits = {
   allAheadFullDice?: number;
 };
 
-export type WeaponKind = "battery" | "lance" | "torpedoes" | "launch_bay";
+export type WeaponKind = "battery" | "lance" | "torpedoes" | "launch_bay" | "nova_cannon";
 export type WeaponLocation = "prow" | "port" | "starboard" | "dorsal" | "keel" | "aft";
 
 export type Weapon = {
@@ -200,8 +200,10 @@ export type Weapon = {
   location: WeaponLocation;
   arcs: Quadrant[];
   range: number | null;
+  /** Nova cannon only: 30 cm. Its range is to the template's near edge (state N13). */
+  minRange?: number;
   speed: number | null;
-  /** Firepower (batteries), strength (lances, torpedoes), squadrons (launch bays). */
+  /** Firepower (batteries), strength (lances, torpedoes), squadrons (launch bays); 1 for a nova cannon. */
   strength: number;
   /** Launch bays only: the attack craft they carry (fleet rules). */
   craft?: CraftOption[];
@@ -340,7 +342,9 @@ export type WorkItem =
   | { kind: "teleport_attack"; shipId: string; targetId: string }
   | { kind: "craft_meets_ship"; ordnanceId: string; targetId: string; bmTested: boolean }
   | { kind: "craft_attack"; ordnanceId: string; targetId: string }
-  | { kind: "hit_and_run"; ordnanceId: string; targetId: string };
+  | { kind: "hit_and_run"; ordnanceId: string; targetId: string }
+  | { kind: "nova_cannon"; shooterId: string; weaponId: string; aim: Point; dice: number }
+  | { kind: "nova_hit"; shooterId: string; shipId: string; hits: number; origin: Point };
 
 // --- Blast markers, ordnance, RNG, log (§10)
 

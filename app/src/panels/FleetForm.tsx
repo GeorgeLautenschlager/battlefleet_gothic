@@ -123,7 +123,7 @@ type FieldsProps = {
 /** "2 × Lunar class cruiser, 1 × Dictator class cruiser · 580 pts" */
 function fleetSummary(side: Side, carriers: boolean, limit: number | null = null): string {
   const counts = new Map<string, { n: number; points: number }>();
-  for (const id of classIds(side, carriers)) {
+  for (const id of classIds(side, carriers, limit !== null)) {
     const p = profileOf(id);
     const c = counts.get(p.className) ?? { n: 0, points: p.points };
     counts.set(p.className, { ...c, n: c.n + 1 });
@@ -135,8 +135,8 @@ function fleetSummary(side: Side, carriers: boolean, limit: number | null = null
 /** One side: commander, fleet, and a name and class per ship. */
 export function FleetFields({ legend, className, side, onChange, dupes, carriers = false, pointsLimit = null, taken = [] }: FieldsProps) {
   const count = side.ships.length;
-  const choices = classChoices(side.fleet, carriers);
-  const classes = classIds(side, carriers);
+  const choices = classChoices(side.fleet, carriers, pointsLimit !== null);
+  const classes = classIds(side, carriers, pointsLimit !== null);
   const setClass = (i: number, classId: string) => onChange({ classes: classes.map((c, j) => (j === i ? classId : c)) });
   return (
     <fieldset className={className}>

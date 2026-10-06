@@ -24,6 +24,8 @@ const PATHS: PathStep[][] = [
   [a(10), turn(45), a(10), turn(45), a(2)], [a(10), turn(-45), a(10), turn(-45), a(2)],
   // Burn Retros: turn on the spot
   [turn(45), a(5)], [turn(-45), a(5)],
+  // Nowhere to go: a ship slowed to 0 cm (crippled, thrusters, Blast Markers) stays put
+  [],
 ];
 const ARCS = [undefined, "front", "left", "right", "rear"] as const;
 
@@ -98,6 +100,14 @@ export function candidates(s: GameState, n: number): Transform[] {
       break;
     case "direct_fire":
       for (const ship of mine.filter((x) => x.status === "active")) {
+        // A nova cannon at each enemy's stem, or just short of it (the validator sorts out range, arc and orders).
+        for (const w of ship.profile.weapons.filter((x) => x.kind === "nova_cannon" && !done(ship.id, x.id))) {
+          for (const e of enemies) {
+            for (const dy of [0, -3, 3]) {
+              out.push({ type: "fire_nova_cannon", player: p, shipId: ship.id, weaponId: w.id, aim: { x: e.position!.x, y: e.position!.y + dy } });
+            }
+          }
+        }
         for (const w of ship.profile.weapons.filter((x) => (x.kind === "battery" || x.kind === "lance") && !done(ship.id, x.id))) {
           if (weaponDisabled(s, ship, w)) continue;
           // Enemy attack craft first, now and then.

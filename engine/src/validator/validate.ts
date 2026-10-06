@@ -10,7 +10,7 @@ import type { Transform, TransformType } from "../transforms/types";
 import { malformedField } from "./schema";
 import { OK, reject, type ValidationResult } from "./reasons";
 import { checkDeclareOrder, checkDriftHulk, checkMove } from "./movement";
-import { checkFire, checkLaunchTorpedoes } from "./shooting";
+import { checkFire, checkFireNovaCannon, checkLaunchTorpedoes } from "./shooting";
 import { checkAnswerBrace, checkDeployShip, checkRemoveBlastMarkers, checkRepair } from "./other";
 import { checkLaunchAttackCraft, checkMoveOrdnance, checkReleaseCap } from "./craft";
 import { checkBoard, checkEndStep, checkTeleport } from "./boarding";
@@ -28,6 +28,7 @@ const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" |
   move: { stage: "battle", when: ["move_ships"] },
   release_cap: { stage: "battle", when: ["move_ships"] },
   fire: { stage: "battle", when: ["direct_fire"] },
+  fire_nova_cannon: { stage: "battle", when: ["direct_fire"] },
   launch_torpedoes: { stage: "battle", when: ["launch_ordnance"] },
   launch_attack_craft: { stage: "battle", when: ["launch_ordnance"] },
   end_step: { stage: "battle", when: ["direct_fire", "launch_ordnance", "boarding"] },
@@ -95,6 +96,8 @@ export function validate(state: GameState, input: unknown): ValidationResult {
       return checkMove(state, t);
     case "fire":
       return checkFire(state, t);
+    case "fire_nova_cannon":
+      return checkFireNovaCannon(state, t);
     case "launch_torpedoes":
       return checkLaunchTorpedoes(state, t);
     case "launch_attack_craft":
