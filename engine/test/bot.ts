@@ -4,14 +4,14 @@
  * Shared by the engine's full-game test and the server's fuzz test, and it
  * only ever *validates*, so it works on a redacted state too.
  */
-import { actor, isWave, launchCapacity, onTable, weaponDisabled } from "../src/state/derived";
+import { actor, isWave, launchCapacity, onTable, partlyDeployedSquadron, squadronOf, weaponDisabled } from "../src/state/derived";
 import { rolesCarried, waveSpeed } from "../src/rules/craft";
 import { removableBlastMarkers } from "../src/reducer/steps";
 import { baseRadius, distance, headingVector, quadrantsOfPoint } from "../src/geometry/basic";
 import { boardingsToFight } from "../src/rules/boarding";
 import { deploymentDivisions, emptyDivisions, setupOptions } from "../src/rules/engagement";
 import { exitDistance, walkShipPath } from "../src/geometry/path";
-import { allAheadFullEnd, moveParameters } from "../src/rules/move";
+import { allAheadFullEnd, moveParameters, movingOrder } from "../src/rules/move";
 import type { AttackCraftWave, CraftRole, GameState, PathStep, PlayerId, Point } from "../src/state/types";
 import type { Transform } from "../src/transforms/types";
 
@@ -53,8 +53,17 @@ function baseCandidates(s: GameState, n: number): Transform[] {
         return setupOptions(s).map((o) => ({ type: "choose_setup", player: p, map: o.map, colour: o.colours[p] }));
       case "deploy": {
         // Any undeployed ship, spread along the zone so a fleet's bases don't overlap.
-        const waiting = s.ships.filter((x) => x.owner === p && x.status === "undeployed");
+        // A part-deployed squadron goes first, next to its members (T80).
+        const partial = partlyDeployedSquadron(s, p);
+        const waiting = s.ships.filter((x) => x.owner === p && x.status === "undeployed" && (partial === undefined || partial.shipIds.includes(x.id)));
         const ship = waiting[n % 2 === 0 ? 0 : waiting.length - 1]!;
+        const mates = (squadronOf(s, ship)?.shipIds ?? []).flatMap((id) => s.ships.find((x) => x.id === id && x.position !== null) ?? []);
+        const near: Transform[] = mates.flatMap((m) =>
+          [[5, 0], [-5, 0], [10, 0], [-10, 0], [0, 5], [0, -5], [7, 7], [-7, 7], [7, -7], [-7, -7], [12, 0], [-12, 0]].map(([dx, dy]): Transform => ({
+            type: "deploy_ship", player: p, shipId: ship.id, position: { x: m.position!.x + dx!, y: m.position!.y + dy! },
+          })),
+        );
+        if (near.length > 0) return near;
         if (s.setup.engagement !== undefined) {
           // Fleet Engagement: empty divisions first, at spots across each one.
           const divisions = deploymentDivisions(s, p);
@@ -111,7 +120,7 @@ function baseCandidates(s: GameState, n: number): Transform[] {
           const broadside = foe?.position && quadrantsOfPoint(walk.end.position, walk.end.heading, foe.position).some((q) => q === "left" || q === "right") ? 0 : 10;
           return off + gap + broadside + ((n * 13 + path.length * 7 + walk.total) % 5);
         };
-        const params = moveParameters(ship, s.activation?.shipId === ship.id ? s.activation : null);
+        const params = moveParameters(ship, movingOrder(s, ship));
         const aaf = params.order === "all_ahead_full" ? [[a(allAheadFullEnd(s, ship, params.d0).end)]] : [];
         // With boarding on, try first to end the move touching an enemy and board it.
         if (s.meta.options.boarding) {
@@ -123,6 +132,8 @@ function baseCandidates(s: GameState, n: number): Transform[] {
         }
         const ranked = [...aaf, ...PATHS].sort((x, y) => score(x) - score(y));
         for (const path of ranked) out.push({ type: "move", player: p, shipId: ship.id, path, disengage: false });
+        // A disengaging escort squadron's members must try to (state N41); so must the rest once its first mover asked.
+        for (const path of ranked) out.push({ type: "move", player: p, shipId: ship.id, path, disengage: true });
       }
       break;
     case "direct_fire":

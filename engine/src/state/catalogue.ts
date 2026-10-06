@@ -2,8 +2,8 @@
  * Ship catalogue: profiles snapshotted into new games (state spec §7.1).
  *
  * Hand-entered from rules/fleets/imperial-navy/vessels.md (Mars p. 61, Overlord p. 66,
- * Dictator p. 67, Dauntless p. 77, Emperor p. 53, Retribution p. 54, Dominator p. 68, Tyrant p. 69, Gothic p. 70, Lunar p. 71), and the
- * Chaos battleships (battle barge p. 255, Despoiler p. 266, Desolator p. 267), Repulsive grand cruiser (p. 269) and heavy cruisers (Styx p. 272, Hecate p. 273, Hades p. 274, Acheron p. 275) and rules/fleets/chaos/vessels.md (Devastation p. 276,
+ * Dictator p. 67, Dauntless p. 77, Emperor p. 53, Retribution p. 54, the escorts (Firestorm p. 79, Sword p. 82, Cobra p. 84), Dominator p. 68, Tyrant p. 69, Gothic p. 70, Lunar p. 71), and the
+ * Chaos escorts (Idolator p. 281, Infidel p. 282, Iconoclast p. 283), battleships (battle barge p. 255, Despoiler p. 266, Desolator p. 267), Repulsive grand cruiser (p. 269) and heavy cruisers (Styx p. 272, Hecate p. 273, Hades p. 274, Acheron p. 275) and rules/fleets/chaos/vessels.md (Devastation p. 276,
  * Carnage p. 277, Inferno p. 278, Murder p. 279, Slaughter p. 280). Launch bays
  * carry their fleet's default attack craft (imperial-navy/rules.md, chaos/rules.md).
  * Later phases will generate this from rules/fleets/.
@@ -153,6 +153,33 @@ const prowBays = (squadrons: number, craft: CraftOption[]): Weapon => ({
 });
 const byId = (bays: Weapon[]): Record<string, Weapon> => Object.fromEntries(bays.map((w) => [w.id, w]));
 const TORPEDOES_FOR_PROW_LANCES: ShipOption = { id: "prow_torpedoes", name: "Prow torpedoes (Str 8) for the prow lances", points: 10, weapons: { prow_lances: prowTorpedoes(8) } };
+
+/** Escorts (state N34): Escort/1, 90° turns, shields 1, a small base. Their weapons sit in the prow. */
+function escort(
+  faction: FactionId,
+  classId: string,
+  className: string,
+  page: number,
+  points: number,
+  stats: { speed: number; armour: number; turrets: number; traits?: ShipTraits },
+  weapons: Weapon[],
+): CatalogueEntry {
+  const a = stats.armour;
+  return {
+    faction,
+    profile: {
+      classId, className, source: { book: "fleets", page }, points, type: "escort", category: "escort",
+      hits: 1, speed: stats.speed, turns: 90, shields: 1, armour: { front: a, left: a, rear: a, right: a }, turrets: stats.turrets, baseSize: "small",
+      weapons, ...(stats.traits !== undefined ? { traits: stats.traits } : {}),
+    },
+  };
+}
+const escortBattery = (range: number, strength: number): Weapon => ({
+  id: "battery", name: "Weapons battery", kind: "battery", location: "prow", arcs: ["left", "front", "right"], range, speed: null, strength,
+});
+const escortLance = (strength: number): Weapon => ({
+  id: "prow_lance", name: "Prow lance", kind: "lance", location: "prow", arcs: ["front"], range: 30, speed: null, strength,
+});
 
 /** Chaos heavy cruisers (pp. 272–275): Cruiser/8, 25 cm, 45°, shields 2, armour 5+. */
 function chaosHeavy(classId: string, name: string, page: number, points: number, turrets: number, weapons: Weapon[]): CatalogueEntry {
@@ -553,6 +580,12 @@ export const CATALOGUE: Readonly<Record<string, CatalogueEntry>> = {
     { speed: 25, turrets: 4 },
     [...broadside("lance", 60, 4), dorsalBattery(60, 6), prowTorpedoes(9)],
   ),
+  firestorm: escort("imperial_navy", "firestorm", "Firestorm class frigate", 79, 40, { speed: 25, armour: 5, turrets: 2 }, [escortLance(1), escortBattery(30, 2)]),
+  sword: escort("imperial_navy", "sword", "Sword class frigate", 82, 35, { speed: 25, armour: 5, turrets: 2 }, [escortBattery(30, 4)]),
+  cobra: escort("imperial_navy", "cobra", "Cobra class destroyer", 84, 30, { speed: 30, armour: 4, turrets: 1 }, [prowTorpedoes(2), escortBattery(30, 1)]),
+  idolator: escort("chaos", "idolator", "Idolator class raider", 281, 45, { speed: 30, armour: 5, turrets: 2, traits: { noLongRangeShift: true } }, [escortBattery(45, 2), escortLance(1)]),
+  infidel: escort("chaos", "infidel", "Infidel class raider", 282, 40, { speed: 30, armour: 5, turrets: 1 }, [escortBattery(30, 2), prowTorpedoes(2)]),
+  iconoclast: escort("chaos", "iconoclast", "Iconoclast class destroyer", 283, 30, { speed: 30, armour: 4, turrets: 1 }, [escortBattery(30, 3)]),
   styx: chaosHeavy("styx", "Styx", 272, 260, 3, [...launchBays(3, CHAOS_CRAFT), dorsalLances(60), prowBattery(60, 6)]),
   hecate: chaosHeavy("hecate", "Hecate", 273, 230, 3, [...launchBays(2, CHAOS_CRAFT), ...broadside("battery", 45, 4), dorsalLances(60), prowBattery(45, 6)]),
   hades: chaosHeavy("hades", "Hades", 274, 200, 2, [

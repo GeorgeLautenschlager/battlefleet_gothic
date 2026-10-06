@@ -609,7 +609,7 @@ type CommanderConfig =
   Options in the same group exclude each other (state N33); naming two throws.
  Chaos: `murder`, its lance variant `murder_lances` (p. 279), `carnage` (p. 277), `inferno` (p. 278), `slaughter` (p. 280, improved thrusters), and the carrier `devastation` (p. 276). A ship option that changes a profile is its own catalogue class (D13). Their launch bays carry their fleets' attack craft: Fury fighters and Starhawk bombers (Imperial Navy); Swiftdeath fighters, Doomfire bombers and Dreadclaw assault boats (Chaos).
 - **Escorts** (T75): Imperial Navy `firestorm` (p. 79, 40 pts), `sword` (p. 82, 35), `cobra` (p. 84, 30); Chaos `idolator` (p. 281, 45, no column shift for range over 30 cm), `infidel` (p. 282, 40), `iconoclast` (p. 283, 30). Escort/1, 90° turns, shields 1.
-- **Squadrons** (T76, state §7.5): ships with the same `squadron` name and owner form a squadron, `sq-1 …` in order of first appearance, named as given.
+- **Squadrons** (T76, state §7.5): ships with the same `squadron` name and owner form a squadron, in order of first appearance, named as given. Their ids come from the shared counter after the ships': with five ships, `sq-6`, `sq-7` …
   - Every escort has a `squadron`; an escort squadron holds escorts only, one to six (two to six under the fleet lists).
   - A capital squadron holds two or more capital ships of one `profile.type`.
   - Squadrons, and so escorts, come with points forces only (state N45).
@@ -623,7 +623,7 @@ type CommanderConfig =
 - **Commanders on the ship** (state §7.4): `leadership` as bought (Lords 8); `points` the commander, extra re-rolls and Marks; `rerolls` one for an Admiral or Warmaster plus extras, +1 with the Mark of Tzeentch (a Lord's only re-roll); `marks`. The Mark of Nurgle adds 1 to `profile.hits`.
 - `scoring` is copied into `scenario.scoring`, and `forces` into `scenario.forces`. Either scoring goes with either forces (T37).
 - **Fleet Engagement** (`scenario: "fleet_engagement"`, pp. 142–143): forces must be `points` ("equal points": the same limit a side), and scoring `victory_points` (the default for this scenario; anything else throws). `maxRounds` is null, `deploymentZones` and `deploymentFacing` are absent, and `setup.engagement` starts with no formations (state §5). The battlezone is the plain 180 × 120 table (T55).
-- The result is at `stage: "setup"`, `setupStep: "roll_leadership"`, `playerTurn: 0`. Ships are `undeployed`, with ids `ship-1 … ship-n` in config order. `rng.state = seed`.
+- The result is at `stage: "setup"`, `setupStep: "roll_leadership"`, `playerTurn: 0`. Ships are `undeployed`, with ids `ship-1 … ship-n` in config order, then the squadrons'. `rng.state = seed`.
 
 ---
 

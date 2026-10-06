@@ -31,7 +31,7 @@ export function columnShift(state: GameState, shooter: Ship, at: Point, target: 
   const d = distance(from, at);
   let shift = 0;
   if (approxLe(d, SHORT_RANGE)) shift -= 1;
-  else if (!approxLe(d, LONG_RANGE)) shift += 1;
+  else if (!approxLe(d, LONG_RANGE) && shooter.profile.traits?.noLongRangeShift !== true) shift += 1; // the Idolator ignores it (p. 281)
   const lineThroughBm = state.blastMarkers.some((bm) => segmentTouchesCircle(from, at, bm.position, BM_RADIUS));
   const contact = bmsInContact(state, shooter).length > 0 || (target !== null && bmsInContact(state, target).length > 0);
   if (lineThroughBm || contact) shift += 1;

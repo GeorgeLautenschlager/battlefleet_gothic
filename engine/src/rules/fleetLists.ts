@@ -27,7 +27,7 @@ export const FLEET_LISTS: Partial<Record<FactionId, FleetList>> = {
     id: "gothic_sector",
     name: "Gothic Sector",
     page: 35,
-    classes: ["lunar", "gothic", "tyrant", "dominator", "dictator", "dauntless", "mars", "overlord", "emperor", "retribution"],
+    classes: ["lunar", "gothic", "tyrant", "dominator", "dictator", "dauntless", "mars", "overlord", "emperor", "retribution", "firestorm", "sword", "cobra"],
     ratios: [
       { category: "battlecruiser", per: 2, of: ["cruiser", "light_cruiser"] },
       { category: "battleship", per: 3, of: ["cruiser", "light_cruiser", "battlecruiser"] },
@@ -38,7 +38,7 @@ export const FLEET_LISTS: Partial<Record<FactionId, FleetList>> = {
     id: "chaos_incursion",
     name: "Chaos Incursion",
     page: 232,
-    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "devastation", "styx", "hecate", "hades", "acheron", "repulsive", "chaos_battle_barge", "despoiler", "desolator"],
+    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "devastation", "styx", "hecate", "hades", "acheron", "repulsive", "chaos_battle_barge", "despoiler", "desolator", "idolator", "infidel", "iconoclast"],
     ratios: [
       { category: "heavy_cruiser", per: 2, of: ["cruiser", "light_cruiser"] },
       { category: "grand_cruiser", per: 3, of: ["cruiser", "light_cruiser", "heavy_cruiser"] },
@@ -56,6 +56,7 @@ const LABELS: Record<ShipCategory, string> = {
   battlecruiser: "battlecruiser",
   grand_cruiser: "grand cruiser",
   battleship: "battleship",
+  escort: "escort",
 };
 export const ADMIRAL_POINTS: Record<8 | 9 | 10, number> = { 8: 50, 9: 100, 10: 150 }; // Fleet-Admiral, Admiral, Solar Admiral
 export const EXTRA_REROLL_POINTS = [0, 25, 75, 150] as const;

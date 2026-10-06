@@ -27,6 +27,7 @@ export function describe(state: GameState, entry: LogEntry): string {
     const from = state.ships.find((x) => x.id === o.launchedBy)?.name;
     return `${from ? `${from}'s ` : ""}${o.squadrons.map((q) => q.name).join(", ")}`;
   };
+  const squadron = (key: string): string => (state.squadrons ?? []).find((sq) => sq.id === d[key])?.name ?? "the squadron";
   const player = (key: string): string => {
     const p = d[key];
     return p === "p1" || p === "p2" ? state.players[p].name : "nobody";
@@ -34,7 +35,9 @@ export function describe(state: GameState, entry: LogEntry): string {
 
   switch (entry.kind) {
     case "leadership_roll":
-      return `${ship("shipId")} rolls ${dice(d["rolls"])} for Leadership: Ld ${num(d["leadership"])}`;
+      return d["squadronId"] !== undefined
+        ? `${squadron("squadronId")} rolls ${dice(d["rolls"])} for Leadership: Ld ${num(d["leadership"])} for every escort`
+        : `${ship("shipId")} rolls ${dice(d["rolls"])} for Leadership: Ld ${num(d["leadership"])}`;
     case "zone_roll":
       return `Zones rolled ${dice(d["rolls"])}`;
     case "formation": {
@@ -73,11 +76,17 @@ export function describe(state: GameState, entry: LogEntry): string {
     case "order_expired":
       return `${ship("shipId")}'s ${words(String(d["order"]))} expires`;
     case "command_check":
-      return `${ship("shipId")} ${words(String(d["order"]))}: Command check ${dice(d["rolls"])} vs ${num(d["target"])}, ${pass(d["passed"])}`;
+      return `${d["squadronId"] !== undefined ? `${squadron("squadronId")} (led by ${ship("shipId")})` : ship("shipId")} ${words(String(d["order"]))}: Command check ${dice(d["rolls"])} vs ${num(d["target"])}, ${pass(d["passed"])}`;
+    case "order_set":
+      return `${ship("shipId")} follows on ${words(String(d["order"]))}`;
+    case "left_squadron":
+      return `${ship("shipId")} drops out of ${squadron("squadronId")} for good`;
+    case "escort_lost":
+      return `${ship("shipId")} is destroyed${d["cause"] === "critical" ? " by a critical hit" : d["cause"] === "hit_and_run" ? " by a hit-and-run attack" : d["cause"] === "boarding" ? " in the boarding action" : ""}`;
     case "ram_test":
     case "priority_test":
     case "disengage_test":
-      return `${ship("shipId")} ${words(entry.kind.replace("_test", ""))} test ${dice(d["rolls"])} vs ${num(d["target"])}, ${pass(d["passed"])}`;
+      return `${d["squadronId"] !== undefined ? squadron("squadronId") : ship("shipId")} ${words(entry.kind.replace("_test", ""))} test ${dice(d["rolls"])} vs ${num(d["target"])}, ${pass(d["passed"])}`;
     case "aaf_roll":
       return `${ship("shipId")} All Ahead Full: ${dice(d["rolls"])} +${num(d["extra"])} cm`;
     case "move":
@@ -175,7 +184,7 @@ export function describe(state: GameState, entry: LogEntry): string {
     }
     case "hit_and_run":
       return `Assault boats hit ${ship("targetId")} ${dice(d["rolls"])}: ${
-        d["result"] === "failed" ? "beaten off" : d["result"] === "saved" ? `braced, saved ${dice(d["saveRolls"])}` : "critical hit"
+        d["result"] === "failed" ? "beaten off" : d["result"] === "saved" ? `braced, saved ${dice(d["saveRolls"])}` : d["result"] === "destroyed" ? "the escort is destroyed" : "critical hit"
       }`;
     case "hulk_drift":
       return `${ship("shipId")} drifts ${dice(d["rolls"])} ${num(d["distance"])} cm`;
@@ -222,7 +231,7 @@ export function describe(state: GameState, entry: LogEntry): string {
       return `${ship("shipId")} is grappled and can't move`;
     case "teleport":
       return `${ship("shipId")} teleports onto ${ship("targetId")} ${dice(d["rolls"])}: ${
-        d["result"] === "failed" ? "the attack fails" : d["result"] === "saved" ? `braced, saved ${dice(d["saveRolls"])}` : "critical hit"
+        d["result"] === "failed" ? "the attack fails" : d["result"] === "saved" ? `braced, saved ${dice(d["saveRolls"])}` : d["result"] === "destroyed" ? "the escort is destroyed" : "critical hit"
       }`;
     case "skipped":
       return `(${words(String(d["item"]))} skipped)`;

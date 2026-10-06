@@ -178,6 +178,30 @@ describe("lobby and start", () => {
     expect(state.ships.map((s) => s.commander?.rerolls ?? null)).toEqual([2, null, null, 2]);
   });
 
+  test("squadrons ride on the ship entries: escorts in one, the engine checks them", async () => {
+    const ann: Fleet = {
+      faction: "imperial_navy",
+      ships: [
+        { name: "Blue 1", classId: "sword", squadron: "Blue" },
+        { name: "Blue 2", classId: "sword", squadron: "Blue" },
+        { name: "Agrippa", classId: "lunar" },
+      ],
+    };
+    const h = await Harness.create({ fleet: ann, forces: { kind: "points", limit: 500 } });
+    await h.hello("a", "p1");
+    await h.hello("b", "p2");
+    expect(rejection(await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Lost", classId: "iconoclast" }] }))?.reason).toMatchObject({
+      code: "INVALID_FLEET",
+      message: expect.stringContaining("squadron"),
+    });
+    await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Lost", classId: "iconoclast", squadron: "Lost" }, { name: "Unclean", classId: "murder" }] });
+    const state = h.stateOf("b")!;
+    expect(state.squadrons?.map((sq) => [sq.owner, sq.name, sq.shipIds.length])).toEqual([
+      ["p1", "Blue", 2],
+      ["p2", "Lost", 1],
+    ]);
+  });
+
   test("a host over its own points limit can't create the game", async () => {
     const big = { faction: "imperial_navy", ships: ["dictator", "dictator", "tyrant", "lunar"].map((classId, i) => ({ name: `I${i}`, classId })) } as const;
     await expect(Harness.create({ fleet: big, forces: { kind: "points", limit: 750 } })).rejects.toThrow("INVALID_FLEET");

@@ -1,5 +1,5 @@
 /** Setup transforms (transform spec §4.1). */
-import { otherPlayer } from "../../state/derived";
+import { otherPlayer, squadronOf } from "../../state/derived";
 import { deploymentDivisions, divisionAt, isSplit, setupBonus, setupOptions } from "../../rules/engagement";
 import type { ChooseFirstTurn, ChooseFormation, ChooseSetup, DeployShip } from "../../transforms/types";
 import type { Ctx } from "../context";
@@ -10,9 +10,16 @@ const LEADERSHIP = [0, 6, 7, 7, 8, 8, 9] as const;
 
 export function rollLeadership(ctx: Ctx): void {
   for (const ship of ctx.state.ships) {
+    // An escort squadron rolls once, at its first member (T78); the rest share it.
+    const sq = squadronOf(ctx.state, ship);
+    const rolled = sq?.type === "escort" ? sq.shipIds.map((id) => getShip(ctx.state, id)).find((s) => s.leadership !== null) : undefined;
+    if (rolled !== undefined) {
+      ship.leadership = rolled.leadership;
+      continue;
+    }
     const roll = ctx.d6();
     ship.leadership = LEADERSHIP[roll] ?? 6;
-    ctx.log("leadership_roll", { shipId: ship.id, rolls: [roll], leadership: ship.leadership });
+    ctx.log("leadership_roll", { shipId: ship.id, rolls: [roll], leadership: ship.leadership, ...(sq?.type === "escort" ? { squadronId: sq.id } : {}) });
   }
   ctx.state.setup.leadershipRolled = true;
 }

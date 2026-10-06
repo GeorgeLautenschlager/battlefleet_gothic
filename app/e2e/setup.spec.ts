@@ -236,3 +236,25 @@ test("battleships: an Emperor with Sharks against a refitted battle barge", asyn
   await expect(page.locator(".card").filter({ hasText: "Emperor class battleship" })).toBeVisible();
   await expect(page.locator(".card").filter({ hasText: "Chaos battle barge" })).toBeVisible();
 });
+
+test("escorts: a squadron of Swords, named in the fleet form, shows on the ship cards", async ({ page }) => {
+  await page.goto("/");
+  const form = page.locator("form", { hasText: "Hot-seat" });
+  await form.getByLabel("Battle").selectOption("750");
+  await form.getByLabel(/^Fleet lists/).uncheck();
+  const p1 = form.locator("fieldset.p1");
+  await p1.getByRole("button", { name: "Add a ship" }).click();
+  await p1.getByRole("button", { name: "Add a ship" }).click();
+  await p1.getByRole("combobox", { name: /^Ship 2 class/ }).selectOption("sword");
+  await p1.getByRole("combobox", { name: /^Ship 3 class/ }).selectOption("sword");
+  await p1.getByLabel("Ship 2 squadron").fill("Blue Squadron");
+  await p1.getByLabel("Ship 3 squadron").fill("Blue Squadron");
+  await expect(form.locator(".rejection")).toHaveCount(0);
+  // A Lunar can't share a squadron with escorts.
+  await p1.getByLabel("Ship 1 squadron").fill("Blue Squadron");
+  await expect(form.locator(".rejection")).toContainText("can't share a squadron");
+  await p1.getByLabel("Ship 1 squadron").fill("");
+  await form.getByRole("button", { name: "Start" }).click();
+  await expect(page.locator(".card").filter({ hasText: "Sword class frigate" })).toHaveCount(2);
+  await expect(page.locator(".card").filter({ hasText: "Sword class frigate" }).first()).toContainText("Blue Squadron");
+});

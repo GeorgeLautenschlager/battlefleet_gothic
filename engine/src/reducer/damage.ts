@@ -46,7 +46,7 @@ export function inflict(ctx: Ctx, target: Ship, hits: number, src: DamageSource)
     remaining -= saved;
   }
   for (let i = 0; i < remaining; i++) {
-    if (target.damage >= target.profile.hits) break; // overkill is discarded (R2)
+    if (target.damage >= target.profile.hits || target.status !== "active") break; // overkill is discarded (R2)
     damagePoint(ctx, target, true, src.cause);
   }
   if (target.damage >= target.profile.hits && target.status === "active") catastrophic(ctx, target);
@@ -56,7 +56,26 @@ export function inflict(ctx: Ctx, target: Ship, hits: number, src: DamageSource)
 export function damagePoint(ctx: Ctx, ship: Ship, critCheck: boolean, cause: string): void {
   ship.damage += 1;
   ctx.log("damage", { shipId: ship.id, cause, damageAfter: ship.damage });
+  if (ship.profile.type === "escort") {
+    // An escort is lost at 0 hits or on any critical (state N34): no Critical Hits table, no hulk.
+    if (ship.damage >= ship.profile.hits || (critCheck && ctx.d6() === 6)) escortLost(ctx, ship, cause === "boarding" ? "boarding" : ship.damage >= ship.profile.hits ? "damage" : "critical");
+    return;
+  }
   if (critCheck && ship.damage < ship.profile.hits && ctx.d6() === 6) critical(ctx, ship);
+}
+
+/** An escort reduced to 0 hits, or suffering a critical (state N34, reducer R33): destroyed, leaving a BM at its stem. */
+export function escortLost(ctx: Ctx, ship: Ship, cause: "damage" | "critical" | "hit_and_run" | "boarding"): void {
+  if (ship.status !== "active") return;
+  const blastMarkerId = placeAtStem(ctx, ship, "escort_lost");
+  releaseCap(ctx, ship);
+  leaveGrapple(ctx, ship);
+  ship.damage = ship.profile.hits;
+  ship.status = "destroyed";
+  ship.position = null;
+  ship.heading = null;
+  ship.specialOrder = null;
+  ctx.log("escort_lost", { shipId: ship.id, cause, blastMarkerId });
 }
 
 // --- Criticals (§6)
@@ -83,12 +102,20 @@ function hasWeaponAt(ship: Ship, location: string): boolean {
 }
 
 export function critical(ctx: Ctx, ship: Ship): void {
+  if (ship.profile.type === "escort") {
+    escortLost(ctx, ship, "critical"); // no table to roll on (state N34)
+    return;
+  }
   const rolls = ctx.nD6(2);
   applyCritical(ctx, ship, sum(rolls), rolls);
 }
 
 /** A result on the Critical Hits table: 2D6, or a Hit-and-Run's single D6 read as the total (§6, §10.5). */
 export function applyCritical(ctx: Ctx, ship: Ship, rolled: number, rolls: number[]): void {
+  if (ship.profile.type === "escort") {
+    escortLost(ctx, ship, "critical"); // any critical destroys an escort (p. 67)
+    return;
+  }
   let applied = rolled;
   while (!(CRITICALS[applied]?.applies(ship) ?? true)) applied += 1; // "next highest" (p. 67)
   const kind = CRITICALS[applied]?.kind ?? "bulkhead_collapse"; // 12 always applies

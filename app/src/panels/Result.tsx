@@ -27,6 +27,11 @@ export function Result({ state }: { state: GameState }) {
                       {state.ships.find((x) => x.id === s.shipId)?.name ?? s.shipId} {WHY[s.why]}: {s.vp}
                     </li>
                   ))}
+                  {v.squadrons.map((q) => (
+                    <li key={q.squadronId}>
+                      {(state.squadrons ?? []).find((x) => x.id === q.squadronId)?.name ?? q.squadronId} {WHY[q.why]}: {q.vp}
+                    </li>
+                  ))}
                   {v.field > 0 && <li>Holding the field: {v.field}</li>}
                 </ul>
               </li>

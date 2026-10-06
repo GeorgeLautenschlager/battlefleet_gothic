@@ -36,6 +36,8 @@ export type GameState = {
   setup: SetupState;
   clock: Clock;
   ships: Ship[];
+  /** Escort squadrons and capital squadrons (state §7.5). Absent when there are none, and in older saves. */
+  squadrons?: ShipSquadron[];
   blastMarkers: BlastMarker[];
   ordnance: Ordnance[];
   turnState: TurnState;
@@ -224,9 +226,39 @@ export type ShipTraits = {
   noComeToNewHeading?: boolean;
   /** Added to its Leadership, max 10 (the Emperor's +1, state N32). */
   leadershipBonus?: number;
+  /** Its batteries take no column shift for firing over 30 cm (the Idolator, p. 281). */
+  noLongRangeShift?: boolean;
 };
 
-export type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship";
+export type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship" | "escort";
+
+// --- Squadrons (§7.5)
+
+/** A squadron of ships (state §7.5's `Squadron`; attack craft already have `Squadron`). */
+export type ShipSquadron = {
+  id: string;
+  owner: PlayerId;
+  name: string;
+  /** Escorts, or capital ships squadroned before the game (p. 95). */
+  type: "escort" | "capital";
+  /** Its members, in config order. A capital ship that fails a disengage test leaves for good (p. 56). */
+  shipIds: string[];
+  /** Escort squadrons: an escort has left or disengaged, so every move must attempt it (state N41). */
+  disengaging: boolean;
+};
+
+/** A squadron part-way through its Movement Phase (state §8, N37). */
+export type SquadronMove = {
+  squadronId: string;
+  /** The order its members took together, or null. */
+  order: OrderKind | null;
+  /** The one All Ahead Full roll for the squadron. */
+  aafExtra: number | null;
+  /** The ships in formation when it began. */
+  members: string[];
+  /** Escort squadrons: the disengage flag its first mover chose (state N41). */
+  disengage: boolean | null;
+};
 
 // --- Fleet commanders (§7.4)
 
@@ -332,6 +364,8 @@ export type TurnState = {
   braceFailures: { shipId: string; source: AttackSource }[];
   hulkRolls: { hulkId: string; source: AttackSource }[];
   blastMarkersRemoved: boolean;
+  /** A squadron part-way through its move (state N37). Absent when none. */
+  squadronMove?: SquadronMove | null;
 };
 
 // --- Activation and pending decisions (§9)
@@ -361,6 +395,8 @@ export type Activation = {
   /** The move asked to re-roll a failed disengage test (transform §2.7). Absent in older saves. */
   reroll?: boolean;
   boardTargetId: string | null;
+  /** The ship moves as part of this squadron's move. Absent otherwise, and in older saves. */
+  squadronId?: string;
 };
 
 export type PendingDecision = {
@@ -408,7 +444,7 @@ export type BlastMarker = {
   id: string;
   position: Point;
   placed: number;
-  cause: "shield_hit" | "hulk" | "explosion" | "nova_miss";
+  cause: "shield_hit" | "hulk" | "explosion" | "nova_miss" | "escort_lost";
 };
 
 export type TorpedoSalvo = {

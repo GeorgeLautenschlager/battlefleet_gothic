@@ -1,9 +1,9 @@
 /** Setup, ordnance, brace and End Phase checks (validator spec §4.1, §4.4–4.6). */
-import { EPS } from "../geometry/constants";
-import { baseRadius, bmTouchesBase, distance } from "../geometry/basic";
-import { onTable } from "../state/derived";
+import { EPS, FORMATION_RANGE } from "../geometry/constants";
+import { approxLe, baseRadius, bmTouchesBase, distance } from "../geometry/basic";
+import { deploymentUnits, onTable, partlyDeployedSquadron, squadronOf } from "../state/derived";
 import { deploymentDivisions, divisionAt, emptyDivisions, setupOptions } from "../rules/engagement";
-import type { GameState } from "../state/types";
+import type { GameState, Point } from "../state/types";
 import type { AnswerBrace, ChooseSetup, DeployShip, RemoveBlastMarkers, Repair } from "../transforms/types";
 import { isResult, ownActiveShip, ownShip, rerollCheck } from "./movement";
 import { OK, reject, type ValidationResult } from "./reasons";
@@ -21,11 +21,16 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
   const division = divisionAt(divisions, t.position);
   if (division < 0) return reject("NOT_IN_ZONE", `That isn't in your deployment zone${zoneId === null ? "" : ` (${zoneId})`}`, { zone: zoneId });
 
-  // 5: every division gets a ship before any gets a second (state N18)
-  const empty = emptyDivisions(state, t.player);
-  const undeployed = state.ships.filter((s) => s.owner === t.player && s.status === "undeployed").length;
-  if (undeployed <= empty.length && !empty.includes(division)) {
-    return reject("FILL_DIVISIONS_FIRST", "Each division needs a ship before any gets a second", { empty });
+  // 5: every division gets a ship (or squadron) before any gets a second (state N18); a squadron counts once,
+  // and its later members follow it instead (check 8)
+  const placed = (squadronOf(state, ship)?.shipIds ?? []).flatMap((id) => state.ships.find((s) => s.id === id && s.position !== null) ?? []);
+  const lead = placed[0];
+  if (lead === undefined) {
+    const empty = emptyDivisions(state, t.player);
+    const undeployed = deploymentUnits(state).filter((u) => u[0]?.owner === t.player && u.every((s) => s.status === "undeployed")).length;
+    if (undeployed <= empty.length && !empty.includes(division)) {
+      return reject("FILL_DIVISIONS_FIRST", "Each division needs a ship before any gets a second", { empty });
+    }
   }
 
   const radius = baseRadius(ship.profile.baseSize);
@@ -34,6 +39,19 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
     const touching = radius + baseRadius(other.profile.baseSize);
     if (distance(t.position, other.position) <= touching - EPS) {
       return reject("BASES_OVERLAP", `${ship.name} would overlap ${other.name}`, { shipId: other.id });
+    }
+  }
+
+  // 7–9: a part-deployed squadron goes first, in its division, in formation (T80)
+  const partial = partlyDeployedSquadron(state, t.player);
+  if (partial !== undefined && !partial.shipIds.includes(ship.id)) {
+    return reject("SQUADRON_DEPLOYING", `Finish deploying ${partial.name} first`, { squadronId: partial.id });
+  }
+  if (lead !== undefined) {
+    const theirs = divisionAt(divisions, lead.position as Point);
+    if (theirs !== division) return reject("SQUADRON_DIVISION", `${ship.name} goes in its squadron's division`, { division: theirs });
+    if (!placed.some((s) => approxLe(distance(t.position, s.position as Point), FORMATION_RANGE))) {
+      return reject("NOT_IN_FORMATION", `${ship.name} must be within ${FORMATION_RANGE} cm of its squadron`);
     }
   }
   return OK;

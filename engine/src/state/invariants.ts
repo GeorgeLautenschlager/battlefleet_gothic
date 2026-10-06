@@ -6,10 +6,10 @@
 import { EPS } from "../geometry/constants";
 import { activePlayer, isHulk, onTable } from "./derived";
 import { nonJsonPaths } from "./json";
-import type { GameState, Phase, Step } from "./types";
+import type { GameState, Phase, Ship, Step } from "./types";
 
 export type Violation = {
-  /** "I1"…"I14" for the numbered invariants in §13; "J" plain JSON; "C" consistency. */
+  /** "I1"…"I16" for the numbered invariants in §13; "J" plain JSON; "C" consistency. */
   rule: string;
   message: string;
 };
@@ -33,6 +33,7 @@ export function checkInvariants(state: GameState): Violation[] {
   // I1: ids unique, <kind>-<n> with n < nextId
   const ids = [
     ...state.ships.map((s) => s.id),
+    ...(state.squadrons ?? []).map((sq) => sq.id),
     ...state.ships.flatMap((s) => s.criticals.map((c) => c.id)),
     ...state.blastMarkers.map((b) => b.id),
     ...state.ordnance.map((o) => o.id),
@@ -137,6 +138,42 @@ export function checkInvariants(state: GameState): Violation[] {
     } else if (ship.position === null || Math.abs(ship.position.x - wave.position.x) > EPS || Math.abs(ship.position.y - wave.position.y) > EPS) {
       fail("I13", `${wave.id} isn't at ${ship.id}'s stem`);
     }
+  }
+
+  // I15: squadrons are consistent (state §7.5)
+  const squadrons = state.squadrons ?? [];
+  for (const ship of state.ships) {
+    const n = squadrons.filter((sq) => sq.shipIds.includes(ship.id)).length;
+    if (ship.profile.type === "escort" && n !== 1) fail("I15", `escort ${ship.id} is in ${n} squadrons`);
+    if (n > 1) fail("I15", `${ship.id} is in ${n} squadrons`);
+  }
+  for (const sq of squadrons) {
+    const members = sq.shipIds.map((id) => state.ships.find((s) => s.id === id));
+    if (members.some((m) => m === undefined)) {
+      fail("I15", `${sq.id} names a ship that doesn't exist`);
+      continue;
+    }
+    const ships = members as Ship[];
+    if (ships.some((m) => m.owner !== sq.owner)) fail("I15", `${sq.id}: a member isn't ${sq.owner}'s`);
+    if (sq.type === "escort" ? ships.some((m) => m.profile.type !== "escort") : new Set(ships.map((m) => m.profile.type)).size > 1 || ships.some((m) => m.profile.type === "escort")) {
+      fail("I15", `${sq.id}: members don't match its type ${sq.type}`);
+    }
+    if (sq.type === "escort" && new Set(ships.map((m) => m.leadership)).size > 1) fail("I15", `${sq.id}: escorts with different Leadership`);
+  }
+
+  // I16: a squadron's move is in move_ships, for the active player's members, with one still to move
+  const sm = state.turnState.squadronMove ?? null;
+  if (sm !== null) {
+    const sq = squadrons.find((x) => x.id === sm.squadronId);
+    if (state.clock.step !== "move_ships") fail("I16", `squadronMove outside move_ships`);
+    if (sq === undefined) fail("I16", `squadronMove for unknown ${sm.squadronId}`);
+    else if (sm.members.some((id) => state.ships.find((s) => s.id === id)?.owner !== sq.owner)) {
+      fail("I16", `squadronMove names a ship that isn't ${sq.owner}'s`); // a capital ship that left mid-move stays listed
+    }
+    if (!sm.members.some((id) => state.turnState.ships[id]?.moved === false && state.ships.find((s) => s.id === id)?.status === "active")) {
+      fail("I16", `squadronMove with nobody left to move`);
+    }
+    if (state.activation !== null && !sm.members.includes(state.activation.shipId)) fail("I16", `activation for a ship outside the squadron's move`);
   }
 
   // I14: the scenario's blocks match its id

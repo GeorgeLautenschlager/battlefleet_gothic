@@ -234,3 +234,42 @@ describe("full games with boarding on", () => {
     for (const k of ["boarding_declared", "boarding", "boarding_critical", "teleport"]) expect(kinds).toContain(k);
   });
 });
+
+describe("full games with escorts and squadrons", () => {
+  const sq = (owner: "p1" | "p2", classId: string, squadron: string | undefined, i: number) => ({ owner, name: `${owner}-${i}`, classId, ...(squadron !== undefined ? { squadron } : {}) });
+  const points: GameConfig = {
+    ...cloneJson(LUNAR_VS_MURDER),
+    options: { boarding: true },
+    forces: { kind: "points", limit: 1000 },
+    scoring: "victory_points",
+    ships: [
+      sq("p1", "sword", "Blue", 0), sq("p1", "sword", "Blue", 1), sq("p1", "firestorm", "Blue", 2),
+      sq("p1", "cobra", "Widowmakers", 3), sq("p1", "cobra", "Widowmakers", 4),
+      sq("p1", "lunar", "Line", 5), sq("p1", "gothic", "Line", 6),
+      sq("p2", "idolator", "Ravagers", 0), sq("p2", "infidel", "Ravagers", 1), sq("p2", "iconoclast", "Ravagers", 2),
+      sq("p2", "murder", "Claw", 3), sq("p2", "carnage", "Claw", 4), sq("p2", "slaughter", undefined, 5),
+    ],
+  };
+  const engagement: GameConfig = { ...points, scenario: "fleet_engagement", options: { fleetLists: true } };
+  engagement.ships = [
+    ...points.ships.filter((s) => s.owner === "p1"),
+    ...points.ships.filter((s) => s.owner === "p2"),
+    { owner: "p1", name: "flag", classId: "dictator", commander: { kind: "admiral", leadership: 8, extraRerolls: 0 } },
+    { owner: "p2", name: "flag", classId: "styx", commander: { kind: "warmaster", leadership: 8, marks: [] } },
+  ];
+  engagement.forces = { kind: "points", limit: 1500 };
+
+  for (const [name, config] of [["points battle", points], ["Fleet Engagement with fleet lists", engagement]] as const) {
+    test.each([1, 2, 3, 4])(`${name}, seed %i, plays to a result`, (seed) => {
+      const s = playOut(seed, config);
+      expect(s.result).not.toBeNull();
+    }, 60_000);
+  }
+
+  test("across those games, squadrons move together and escorts are lost", () => {
+    const kinds = new Set<string>();
+    for (const seed of [1, 2, 3, 4]) for (const e of playOut(seed, points).log) kinds.add(e.kind);
+    expect(kinds).toContain("escort_lost");
+    expect(kinds).toContain("order_set");
+  }, 60_000);
+});

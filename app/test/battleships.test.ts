@@ -19,3 +19,17 @@ describe("battleships in the fleet forms", () => {
     expect(shipEntries(side, false, true)).toEqual([{ name: "C", classId: "chaos_battle_barge", options: ["batteries_30"] }]);
   });
 });
+
+describe("escorts and squadrons in the fleet forms (T76)", () => {
+  test("escorts in points battles only; an unnamed escort joins the default squadron", () => {
+    expect(classChoices("chaos", false)).not.toContain("iconoclast");
+    expect(classChoices("chaos", false, true)).toEqual(expect.arrayContaining(["idolator", "infidel", "iconoclast"]));
+    const side: Side = { name: "Bo", fleet: "chaos", ships: ["A", "B", "C"], classes: ["iconoclast", "iconoclast", "murder"], squadrons: ["", " Raiders ", ""] };
+    expect(shipEntries(side, false, true)).toEqual([
+      { name: "A", classId: "iconoclast", squadron: "Escorts" },
+      { name: "B", classId: "iconoclast", squadron: "Raiders" },
+      { name: "C", classId: "murder" },
+    ]);
+    expect(shipEntries(side, false, false).every((e) => e.squadron === undefined)).toBe(true); // Cruiser Clash: no squadrons
+  });
+});
