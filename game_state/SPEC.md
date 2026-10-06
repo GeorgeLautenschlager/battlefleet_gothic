@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.10, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12).
+**Status:** draft v0.11, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14.
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -299,12 +299,13 @@ type ShipTraits = {
 type Weapon = {
   id: string                         // unique within the profile: "port_lances"
   name: string                       // "Port lance battery"
-  kind: "battery" | "lance" | "torpedoes" | "launch_bay"   // later: "nova_cannon", …
+  kind: "battery" | "lance" | "torpedoes" | "launch_bay" | "nova_cannon"
   location: "prow" | "port" | "starboard" | "dorsal" | "keel" | "aft"
   arcs: Quadrant[]                   // ["left"]; dorsal mounts e.g. ["left","front","right"]
   range: number | null               // direct fire: max range in cm; ordnance: null
+  minRange?: number                  // nova cannon only: 30 cm. Its range is to the template's near edge (N13)
   speed: number | null               // ordnance: marker speed in cm; direct fire: null
-  strength: number                   // firepower (batteries), strength (lances, torpedoes), squadrons (launch bays)
+  strength: number                   // firepower (batteries), strength (lances, torpedoes), squadrons (launch bays); 1 for a nova cannon
   craft?: CraftOption[]              // launch bays only: the attack craft they carry (fleet rules)
 }
 
@@ -493,6 +494,7 @@ type BlastMarker = {
 ```
 
 - Blast Markers are circles of diameter **2.5 cm** (engine constant). The rulebook only says a BM is smaller than a small base (p. 71).
+- A nova cannon shell that touches no ship and no ordnance leaves a single BM where its template landed, `cause: "nova_miss"` (p. 64).
 - Placement (in the line of fire, fanned around the base without stacking, p. 68) is the reducer's job. The state only stores where they ended up. BMs never move once placed.
 
 ### 10.2 Ordnance: torpedo salvoes and attack craft
@@ -598,6 +600,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `isGrappled(s)` | `s.grapple ≠ null` |
 | `boardingValue(s)` | `remainingHits(s)` (p. 89). Later fleets modify it (Mark of Khorne doubles it, Tau halve it). |
 | `shieldsDown(s)` | `shieldCapacity(s) = 0`: the ship can be teleported onto (pp. 91–92) |
+| `novaCannonBarred(s)` | why `s` can't fire a nova cannon, or `null`: `"crippled"`, or `"order"` when its `specialOrder` is All Ahead Full, Come To New Heading, Burn Retros or Brace For Impact! (p. 64, p. 65). Lock On and Reload Ordnance don't matter to it. |
 | `effectiveStrength(s, w)` | `w.strength`, halved (round up) once for each that applies: crippled; braced; for direct fire only, on AAF / Come To New Heading / Burn Retros |
 | `targetedAsDefences(s)` | `lastMove.distance < 5` (p. 53) |
 | `commandCheckLd(s)` | `leadership(s) − (bmsInContact non-empty ? 1 : 0) + (any enemy ship has a live specialOrder ? 1 : 0)`, max 10; roll ≤ that, 11–12 always fail |
@@ -843,6 +846,8 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N11 | **Victory points** read the ship's state at the game's end: a hulk is destroyed (full value, like N5), a crippled ship still fighting gives 25%, a disengaged one 25% if it was crippled, else 10%. Holding the field adds half of every hulk still on the table, friend or foe, to the side that holds it. A ship destroyed outright (exploded, off the table) isn't a hulk on the table. | §11 |
 | N12 | Each percentage is taken per ship and rounded **up** (p. 122). | §11 |
 | N10 | Improved thrusters (Slaughter "+5D6 on All Ahead Full", p. 280; Dauntless and Siluria "+D6", pp. 77–78) all come to **5D6** in place of the usual 4D6. Traits are only added as classes that use them arrive. | §7.1 |
+| N13 | **The nova cannon template** is a circle of radius `NOVA_RADIUS` = 2.5 cm with a centre hole of radius `NOVA_HOLE_RADIUS` = 0.6 cm (5 cm and 1.2 cm diameters, p. 63). Its range is measured from the firer's stem to the template's **near edge**: `distance(stem, centre) − NOVA_RADIUS`, which must be 30–150 cm when it's placed and picks the scatter dice. | §7.1 |
+| N14 | A nova cannon shot is **not a target**: it's aimed at a point, so it has no target priority test and no Gunnery Table, and the shot's hits are automatic. Its template hits whatever it touches where it lands, friend or foe, hulks included. | §11 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
 
 ---
@@ -852,7 +857,6 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 The shapes above leave room for these without breaking changes. Each will add fields or union members, never repurpose existing ones.
 
 - **Squadrons:** a top-level `squadrons: { id, owner, shipIds, leadership }[]`; orders move to the squadron.
-- **Nova cannon:** weapon kind `nova_cannon`, a `WorkItem` for scatter.
 - **Terrain:** `table.features: Feature[]` (gas clouds, asteroid fields, planets with gravity wells), `table.sunwardEdge`.
 - **Fleet commanders and re-rolls:** `players[].commander: { shipId, rerollsLeft }`.
 - **Other scenarios:** new `scenario.id`s with their own set-up blocks (Fleet Engagement next). Victory points are in (§11).

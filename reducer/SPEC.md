@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** draft v0.7, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.10](../game_state/SPEC.md), [Transforms v0.8](../transforms/SPEC.md) and [Validator v0.6](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end).
+**Status:** draft v0.8, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.11](../game_state/SPEC.md), [Transforms v0.9](../transforms/SPEC.md) and [Validator v0.7](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end). v0.8 adds the nova cannon (§3, §4.4, §5.3, §11, §12, R26–R29).
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState
@@ -11,7 +11,7 @@ The reducer applies one **already validated** transform and returns the next sta
 - the work queue and the reduce pipeline (§1)
 - dice (§2)
 - the damage pipeline (§3)
-- direct fire (§4)
+- direct fire, and the nova cannon (§4)
 - Blast Marker placement (§5)
 - criticals (§6)
 - catastrophic damage (§7)
@@ -144,6 +144,7 @@ damagePoint(ship, critCheck):
 | Source | shieldable | braceable |
 |---|---|---|
 | Batteries, lances | yes | yes |
+| Nova cannon | yes | yes |
 | Explosions | yes | yes |
 | Torpedoes | no | yes |
 | Bombers | no | yes |
@@ -228,6 +229,44 @@ No column shifts (p. 61).
 
 Shield BMs take effect at once, so they count towards the shooter's next weapon's shift (p. 201).
 
+### 4.4 Nova cannon
+
+The `fire_nova_cannon` handler adds the weapon to `weaponsFired` and enqueues the brace offers and the shot (transform §4.3):
+
+```
+range = novaRange(shooter, aim)                                    // validator §2.4
+dice  = range ≤ 45 ? 1 : range ≤ 60 ? 2 : 3                        // approxLe; T43
+reach = NOVA_RADIUS + 6 × dice                                     // the longest scatter
+asked = active ships S with approxLe(distance(aim, S.position), reach + baseRadius(S)):
+        the enemy's in ships order, then the shooter's own (T41)
+queue: [ brace_offer { shipId: S, source: { kind: "ship", id: shooter } } for S in asked,
+         nova_cannon { shooterId, weaponId, aim, dice } ]
+```
+
+The `nova_cannon` item rolls the scatter and works out what the template touches. Its draws, in order:
+
+```
+scatter = d6()
+if scatter ≤ 2:                                                    // a hit: the template stays (T42)
+  centre = aim
+else:
+  direction = nD6(2); bearing = 60·(direction[0] − 1) + 10·(direction[1] − 1)
+  distance  = Σ nD6(dice)
+  centre    = aim + distance · headingVector(bearing)              // may be off the table
+ordnance  = salvoes whose segment touches the circle (centre, NOVA_RADIUS),
+            and waves whose footprint does (CAP included), in ordnance order
+struck    = ships with onTable, templateTouchesShip(centre, S, NOVA_RADIUS), in ships order
+for S in struck:
+  hits[S] = templateTouchesShip(centre, S, NOVA_HOLE_RADIUS) ? d6() : 1          // R27
+remove every ordnance one; log ordnance_removed { reason: "nova_cannon" }
+log nova_cannon
+if struck and ordnance are both empty and centre is on the table:
+  place a Blast Marker at centre, cause "nova_miss"                               // §5.3
+insert at the front: nova_hit { shooterId, shipId: S, hits: hits[S], origin: shooter.position } for S in struck
+```
+
+`nova_hit` is `inflict(S, hits, { source: { kind: "ship", id: shooterId }, origin, shieldable: true, braceable: true })` (§3). The hits are automatic: there's no to-hit roll, so no armour, column or Lock On (state N14). Shield Blast Markers fan from the line of fire from the firer (R26). A struck hulk re-rolls its catastrophic damage unless that ship's attacks already made it re-roll this turn (R3).
+
 ---
 
 ## 5. Blast Marker placement
@@ -261,6 +300,7 @@ placeCluster(centre, n):
 |---|---|
 | Ship becomes a hulk | 1 BM at its stem |
 | Hulk finishes a drift | 1 BM on the ring `ρ` at bearing `heading + 180` (trailing). If occupied, use the §5.1 slot order. |
+| Nova cannon touches nothing | 1 BM at the template's centre, if that's on the table (transform T46) |
 
 ---
 
@@ -829,6 +869,8 @@ type WorkItem =
   | { kind: "craft_meets_ship", ordnanceId: string, targetId: string, bmTested: boolean }
   | { kind: "craft_attack", ordnanceId: string, targetId: string }
   | { kind: "hit_and_run", ordnanceId: string, targetId: string }
+  | { kind: "nova_cannon", shooterId: string, weaponId: string, aim: Point, dice: number }
+  | { kind: "nova_hit", shooterId: string, shipId: string, hits: number, origin: Point }
 ```
 
 | Item | Does |
@@ -842,6 +884,7 @@ type WorkItem =
 | `ordnance_move` | §9.2 |
 | `craft_meets_ship` | §9.6 |
 | `craft_attack`, `hit_and_run` | §9.7 |
+| `nova_cannon`, `nova_hit` | §4.4 |
 | `explosion_hit` | §7.2 |
 | `hulk_drift` | §8.4 |
 | `fire_damage` | §10.2 |
@@ -882,6 +925,7 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `blast_marker_contact` | `shipId, distance, maxDistance` (the slowed maximum) |
 | `ram` | `rammerId, targetId, headOn, facing, rammerRolls, rammerHits, targetRolls, targetHits` |
 | `attack` | `source, targetId, weapon: "battery" \| "lance" \| "torpedo" \| "explosion", column?, shifts?, facing? (torpedoes), need, rolls, rerolls, hits`; a combined volley adds `weaponIds` and `firepower` |
+| `nova_cannon` | `shipId, weaponId, aim, range, dice, rolls, scatter: "hit" \| { bearing, distance }, centre, ships: { shipId, hole, hits }[], ordnanceIds, blastMarkerId: string \| null` (`rolls`: the scatter die, then the direction, distance and hole dice in draw order) |
 | `shields` | `shipId, absorbed, blastMarkerIds` |
 | `brace_offer` | `pendingId, shipId, source` |
 | `brace_check` | `shipId, rolls, target, passed`, or `shipId, declined: true` |
@@ -893,7 +937,7 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `bm_test` | `entityId, rolls, effect: "none" \| "removed" (salvo or wave) \| "damage" (zero-shield ship)` |
 | `ordnance_launch` | `ordnanceId, shipId, position, heading, strength` |
 | `ordnance_move` | `ordnanceId, to` (only if the salvo survives the move) |
-| `ordnance_removed` | `ordnanceId, reason: "left_table" \| "collision" \| "blast_marker" \| "turrets" \| "spent" \| "shot" \| "intercepted" \| "dogfight" \| "cap" \| "recalled"` |
+| `ordnance_removed` | `ordnanceId, reason: "left_table" \| "collision" \| "blast_marker" \| "turrets" \| "spent" \| "shot" \| "intercepted" \| "dogfight" \| "cap" \| "recalled" \| "nova_cannon"` |
 | `craft_launch` | `shipId, ordnanceIds, recalled` |
 | `craft_move` | `ordnanceId, to, stoppedBy: shipId \| null` |
 | `intercept` | `ordnanceId, salvoId, lost` |
@@ -979,6 +1023,10 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | R23 | Assault boats against a hulk do nothing: like a teleport attack, Hit-and-Run needs an `active` target. Bombers' hits on a hulk still trigger its catastrophic re-roll (R3). |
 | R25 | A combined volley is one roll: one brace offer, one column, one set of dice, one Lock On re-roll of its misses. Its shield Blast Markers can't shift its own column. |
 | R24 | Bombers' attack dice are drawn per bomber, in wave order, before any to-hit die. |
+| R26 | A nova cannon's shield Blast Markers fan around the ship from the **firer's** line of fire, as for direct fire, not from the template's centre. |
+| R27 | **The centre hole's D6 hits are drawn for every ship under it before any damage**, in `ships` order. An explosion that one ship's hits set off can't change another's roll; a ship it destroys first just skips its `nova_hit`. |
+| R28 | **A nova shell resolves ship by ship**, in `ships` order, each ship's catastrophic damage (and its explosion's brace offers) before the next ship's hits. |
+| R29 | The distance dice are drawn only when the template scatters. A hit on the scatter die draws nothing more for the scatter. |
 
 ## 15. Decisions
 
@@ -988,4 +1036,4 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | D2 | Brace over a firepower-halving order: halve once or twice? | Once (R8). It's more fun. |
 | D3 | Explosion range measured to the stem or to the base edge? | The stem (R9). |
 
-No open questions at v0.6.
+No open questions at v0.8.
