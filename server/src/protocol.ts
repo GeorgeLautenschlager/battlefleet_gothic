@@ -2,7 +2,7 @@
  * The network protocol (network/SPEC.md §4): every message between a client
  * and a game room. Plain JSON, one `type` per message.
  */
-import type { FactionId, Forces, GameConfig, GameState, PlayerId, Scoring, Transform } from "@bfg/engine";
+import type { FactionId, Forces, GameConfig, GameState, PlayerId, ScenarioId, Scoring, Transform } from "@bfg/engine";
 
 /** Bumped on any incompatible change to these messages. 2: fleets (several ships a side, any faction). */
 export const PROTOCOL = 2;
@@ -35,9 +35,9 @@ export type ClientMessage = Hello | Join | Propose | Undo | Ping;
 export type SeatInfo = { name: string | null; faction: FactionId | null; ships: ShipEntry[]; joined: boolean };
 /**
  * The game's rules. `carriers`: one carrier each over the 185-point cap (p. 129).
- * `forces`: Cruiser Clash or a points battle; `scoring`: Cruiser Clash or victory points (transform §5).
+ * `scenario`: Cruiser Clash or Fleet Engagement; `forces`: Cruiser Clash or a points battle; `scoring`: Cruiser Clash or victory points (transform §5).
  */
-export type RoomOptions = { ramming: boolean; boarding: boolean; carriers: boolean; forces: Forces; scoring: Scoring };
+export type RoomOptions = { ramming: boolean; boarding: boolean; carriers: boolean; scenario: ScenarioId; forces: Forces; scoring: Scoring };
 /** `count`: ships a side, set by the host (Cruiser Clash; a points battle leaves each side its own); `options`: the game's rules. */
 export type Lobby = { seats: Record<PlayerId, SeatInfo>; count: number; options: RoomOptions };
 export type Presence = Record<PlayerId, boolean>;

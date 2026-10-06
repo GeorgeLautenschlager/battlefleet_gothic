@@ -9,6 +9,7 @@ import { rolesCarried, waveSpeed } from "../src/rules/craft";
 import { removableBlastMarkers } from "../src/reducer/steps";
 import { baseRadius, distance, headingVector, quadrantsOfPoint } from "../src/geometry/basic";
 import { boardingsToFight } from "../src/rules/boarding";
+import { deploymentDivisions, emptyDivisions, setupOptions } from "../src/rules/engagement";
 import { exitDistance, walkShipPath } from "../src/geometry/path";
 import { allAheadFullEnd, moveParameters } from "../src/rules/move";
 import type { AttackCraftWave, CraftRole, GameState, PathStep, PlayerId, Point } from "../src/state/types";
@@ -38,10 +39,28 @@ export function candidates(s: GameState, n: number): Transform[] {
   if (clock.stage === "setup") {
     const p: PlayerId = who === "p2" ? "p2" : "p1";
     switch (clock.setupStep) {
+      case "choose_formation":
+        return [{ type: "choose_formation", player: p, formation: (["sphere", "wedge", "cross"] as const)[(n + (p === "p2" ? 1 : 0)) % 3]! }];
+      case "choose_setup":
+        return setupOptions(s).map((o) => ({ type: "choose_setup", player: p, map: o.map, colour: o.colours[p] }));
       case "deploy": {
         // Any undeployed ship, spread along the zone so a fleet's bases don't overlap.
         const waiting = s.ships.filter((x) => x.owner === p && x.status === "undeployed");
         const ship = waiting[n % 2 === 0 ? 0 : waiting.length - 1]!;
+        if (s.setup.engagement !== undefined) {
+          // Fleet Engagement: empty divisions first, at spots across each one.
+          const divisions = deploymentDivisions(s, p);
+          const empty = emptyDivisions(s, p);
+          const order = [...empty, ...divisions.map((_, i) => i).filter((i) => !empty.includes(i))];
+          return order.flatMap((i) => {
+            const { rect } = divisions[i]!;
+            return [0.5, 0.2, 0.8, 0.35, 0.65, 0.1, 0.9].flatMap((fx) =>
+              [0.5, 0.2, 0.8].map((fy): Transform => ({
+                type: "deploy_ship", player: p, shipId: ship.id, position: { x: rect.x + rect.width * fx, y: rect.y + rect.height * fy },
+              })),
+            );
+          });
+        }
         return [0, 1, 2, 3, 4, 5, 6].flatMap((k) =>
           [15, 30, 90, 105].map((y): Transform => ({ type: "deploy_ship", player: p, shipId: ship.id, position: { x: 50 + ((k * 13 + n) % 80), y } })),
         );

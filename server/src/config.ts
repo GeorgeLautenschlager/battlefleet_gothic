@@ -1,5 +1,5 @@
 /** Online Cruiser Clash (p. 128): each seat brings its own fleet; the room builds the config when both have. */
-import { newGame, type FactionId, type Forces, type GameConfig, type PlayerId } from "@bfg/engine";
+import { newGame, type FactionId, type Forces, type GameConfig, type PlayerId, type ScenarioId } from "@bfg/engine";
 import { MAX_NAME_LENGTH, MAX_POINTS_SHIPS, MAX_SHIPS, type RoomOptions, type ShipEntry } from "./protocol";
 
 export type SeatFleet = { name: string; faction: FactionId; ships: ShipEntry[] };
@@ -15,6 +15,7 @@ export function cruiserClash(
     seed,
     createdAt,
     options: { ramming: options.ramming, boarding: options.boarding, carriers: options.carriers },
+    scenario: options.scenario,
     forces: options.forces,
     scoring: options.scoring,
     players: {
@@ -43,6 +44,7 @@ export function fleetProblem(
   count: number,
   carriers = false,
   forces: Forces = { kind: "cruiser_clash" },
+  scenario: ScenarioId = "cruiser_clash",
 ): string | null {
   if (forces.kind === "points") {
     // A points battle: each side brings its own number of ships, within the limit (T36).
@@ -60,6 +62,7 @@ export function fleetProblem(
       seed: 1,
       createdAt: "1970-01-01T00:00:00Z",
       options: { carriers },
+      scenario,
       forces,
       players: { p1: { name: "a", faction: faction as FactionId }, p2: { name: "b", faction: faction as FactionId } },
       ships: [...side("p1"), ...side("p2")],

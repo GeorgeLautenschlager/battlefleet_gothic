@@ -1,8 +1,9 @@
 /** The battle: table, controls, ships and log, driven by any GameSource (hot-seat or online). */
 import { useMemo, useState, type ReactNode } from "react";
-import { actor, validate, type Point, type Transform } from "@bfg/engine";
+import { actor, engagement, validate, type Point, type Transform } from "@bfg/engine";
 import { controls, waitingOn, type GameSource } from "./game/source";
 import { Table, type Ghost } from "./table/Table";
+import type { SetupPreview } from "./table/Zones";
 import { mm } from "./table/view";
 import { ShipCards } from "./panels/ShipCards";
 import { Result } from "./panels/Result";
@@ -73,10 +74,17 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
     const who = actor(state);
     if ((who !== "p1" && who !== "p2") || !controls(seat, who)) return null;
     const ship = pick(undeployed(state, who), focus);
-    const zone = state.setup.zones?.[who];
-    if (ship === undefined || zone === undefined) return null;
-    return { player: who, ship, heading: state.scenario.deploymentFacing[zone] };
+    const divisions = engagement.deploymentDivisions(state, who);
+    if (ship === undefined || divisions.length === 0) return null;
+    return { player: who, ship, divisions };
   }, [state, seat, focus]);
+  // The ghost faces the arrow of the division under the pointer (Fleet Engagement), or the zone's facing.
+  const deployHeading = (p: Point): number => {
+    const ds = deploy?.divisions ?? [];
+    return (ds[engagement.divisionAt(ds, p)] ?? ds[0])?.heading ?? 0;
+  };
+  /** Fleet Engagement: the set-up the chooser is looking at, drawn on the table. */
+  const [setupPreview, setSetupPreview] = useState<SetupPreview | null>(null);
 
   /**
    * Pick a ship (its card, or its glyph on the table). If it's one this player
@@ -98,7 +106,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
   let ghost: Ghost | null = null;
   if (deploy !== null && pointer !== null) {
     const t: Transform = { type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(pointer) };
-    ghost = { shipId: deploy.ship.id, position: pointer, heading: deploy.heading, status: validate(state, t).ok ? "ok" : "bad" };
+    ghost = { shipId: deploy.ship.id, position: pointer, heading: deployHeading(pointer), status: validate(state, t).ok ? "ok" : "bad" };
   } else if (plot !== null && (plot.path.length > 0 || plot.preview.length > 0)) {
     const v = plot.preview.length > 0 ? plot.previewVerdict : plot.verdict;
     const end = plot.previewStats.end;
@@ -112,6 +120,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           state={state}
           ghost={ghost}
           selectedShipId={highlighted}
+          setupPreview={state.clock.setupStep === "choose_setup" ? setupPreview : null}
           highlight={
             aimed === null
               ? highlight
@@ -173,7 +182,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           ) : state.pending.length > 0 ? (
             <BracePrompt state={state} onApply={act} />
           ) : state.clock.stage === "setup" ? (
-            <SetupControls state={state} seat={seat} onApply={act} focus={focus} onFocus={setFocus} />
+            <SetupControls state={state} seat={seat} onApply={act} focus={focus} onFocus={setFocus} onPreview={setSetupPreview} />
           ) : shooting ? (
             <FireControls state={state} aimed={aimed} onAim={setAim} onApply={act} bearing={bearing} novaAim={novaAim} />
           ) : state.clock.stage === "battle" ? (

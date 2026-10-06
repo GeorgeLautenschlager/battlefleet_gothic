@@ -370,6 +370,10 @@ export function actor(state: GameState): Actor {
         return nextDeployer(state);
       case "choose_first_turn":
         return state.setup.firstTurnChooser;
+      case "choose_formation":
+        return state.setup.engagement?.formations.p1 === null ? "p1" : "p2"; // p1 first (state N16)
+      case "choose_setup":
+        return state.setup.engagement?.setupChooser ?? null;
       case null:
         return null;
       default:

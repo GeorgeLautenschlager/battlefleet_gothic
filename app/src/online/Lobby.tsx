@@ -13,9 +13,11 @@ const other = (p: PlayerId): PlayerId => (p === "p1" ? "p2" : "p1");
 
 /** "Cruiser Clash, 2 cruisers a side, ramming allowed, boarding allowed, one carrier each." or "750 points a side, victory points, …" */
 function rulesLine(lobby: LobbyInfo): string {
-  const { ramming, boarding = false, carriers = false, forces, scoring } = lobby.options as Partial<LobbyInfo["options"]>;
+  const { ramming, boarding = false, carriers = false, scenario, forces, scoring } = lobby.options as Partial<LobbyInfo["options"]>;
   const size =
-    forces?.kind === "points"
+    scenario === "fleet_engagement" && forces?.kind === "points"
+      ? `Fleet Engagement, ${forces.limit} points a side`
+      : forces?.kind === "points"
       ? `${forces.limit} points a side`
       : `Cruiser Clash, ${lobby.count} cruiser${lobby.count === 1 ? "" : "s"} a side${carriers ? ", one carrier each" : ""}`;
   const score = scoring === "victory_points" ? ", victory points" : forces?.kind === "points" ? ", Cruiser Clash scoring" : "";

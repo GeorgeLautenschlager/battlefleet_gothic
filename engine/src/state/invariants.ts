@@ -9,7 +9,7 @@ import { nonJsonPaths } from "./json";
 import type { GameState, Phase, Step } from "./types";
 
 export type Violation = {
-  /** "I1"…"I13" for the numbered invariants in §13; "J" plain JSON; "C" consistency. */
+  /** "I1"…"I14" for the numbered invariants in §13; "J" plain JSON; "C" consistency. */
   rule: string;
   message: string;
 };
@@ -139,6 +139,12 @@ export function checkInvariants(state: GameState): Violation[] {
     }
   }
 
+  // I14: the scenario's blocks match its id
+  const engagement = state.scenario.id === "fleet_engagement";
+  if (engagement !== (state.setup.engagement !== undefined)) fail("I14", `setup.engagement doesn't match scenario ${state.scenario.id}`);
+  if (engagement === (state.scenario.deploymentZones !== undefined)) fail("I14", `deploymentZones don't match scenario ${state.scenario.id}`);
+  if (state.scenario.maxRounds !== (engagement ? null : 8)) fail("I14", `maxRounds ${state.scenario.maxRounds} for ${state.scenario.id}`);
+
   // I10: turnState belongs to this player turn
   if (state.turnState.playerTurn !== clock.playerTurn) {
     fail("I10", `turnState is for player turn ${state.turnState.playerTurn}, clock says ${clock.playerTurn}`);
@@ -178,7 +184,7 @@ export function checkInvariants(state: GameState): Violation[] {
   } else {
     if (clock.setupStep !== null) fail("C", `setupStep set during ${clock.stage}`);
     if (state.setup.firstPlayer === null) fail("C", `${clock.stage} without a first player`);
-    const maxTurns = 2 * state.scenario.maxRounds;
+    const maxTurns = state.scenario.maxRounds === null ? Infinity : 2 * state.scenario.maxRounds;
     if (!Number.isInteger(clock.playerTurn) || clock.playerTurn < 1 || clock.playerTurn > maxTurns) {
       fail("C", `playerTurn ${clock.playerTurn} outside 1..${maxTurns}`);
     }

@@ -71,6 +71,11 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .zone.p1 rect { stroke: var(--p1); fill: rgba(90, 169, 255, 0.06); }
 .zone.p2 rect { stroke: var(--p2); fill: rgba(255, 107, 94, 0.06); }
 .zone text { fill: var(--muted); font-size: 2.6px; }
+.zone .facing { stroke: var(--muted); stroke-width: 0.4; }
+.zone.p1 .facing { stroke: var(--p1); }
+.zone.p2 .facing { stroke: var(--p2); }
+#zone-arrow path { fill: var(--muted); }
+.zones.preview rect { stroke-dasharray: 0.5 0.5; }
 .coords { fill: var(--muted); font-size: 2.4px; }
 
 .ship { cursor: pointer; }

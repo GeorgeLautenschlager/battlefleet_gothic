@@ -17,6 +17,9 @@ const ORDER_KINDS = [
 ] as const;
 const QUADRANTS = ["front", "left", "rear", "right"] as const;
 const CRAFT_ROLES = ["fighter", "bomber", "assault_boat"] as const;
+const FORMATIONS = ["sphere", "wedge", "cross"] as const;
+const SETUP_MAPS = ["A", "B", "C", "D"] as const;
+const COLOURS = ["white", "dark"] as const;
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -72,6 +75,9 @@ const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>
   deploy_ship: { required: { shipId: str, position: point } },
   roll_first_turn: { required: {} },
   choose_first_turn: { required: { goFirst: bool } },
+  choose_formation: { required: { formation: oneOf(FORMATIONS) } },
+  roll_setup: { required: {} },
+  choose_setup: { required: { map: oneOf(SETUP_MAPS), colour: oneOf(COLOURS) } },
   drift_hulk: { required: { shipId: str } },
   declare_order: { required: { shipId: str, order: oneOf(ORDER_KINDS) }, optional: { ramTargetId: str } },
   move: { required: { shipId: str, path: arrayOf(pathStep), disengage: bool }, optional: { boardTargetId: str } },

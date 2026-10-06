@@ -43,7 +43,7 @@ test("fleets: a two-a-side Chaos mirror match, deploying and moving ships in the
   const form = page.locator("form", { hasText: "Hot-seat" });
   await form.getByLabel("Cruisers a side").selectOption("2");
   const p1 = form.locator("fieldset.p1");
-  await p1.getByLabel("Fleet").selectOption("chaos");
+  await p1.getByRole("combobox", { name: /^Fleet/ }).selectOption("chaos");
   await expect(p1).toContainText("2 × Murder class cruiser");
   await expect(form.locator("fieldset.p2")).toContainText("2 × Murder class cruiser");
   // Duplicate names are refused.

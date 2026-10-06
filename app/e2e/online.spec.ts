@@ -87,7 +87,7 @@ test("fleets online: two a side, a Chaos mirror match, names checked against the
   await ann.goto("/");
   const online = ann.locator("form", { hasText: "Online" });
   await online.getByLabel("Cruisers a side").selectOption("2");
-  await online.getByLabel("Fleet").selectOption("chaos");
+  await online.getByRole("combobox", { name: /^Fleet/ }).selectOption("chaos");
   await online.getByLabel("Commander").fill("Ann");
   await online.getByLabel("Ramming").uncheck();
   await online.getByRole("button", { name: "Create game" }).click();
@@ -98,7 +98,7 @@ test("fleets online: two a side, a Chaos mirror match, names checked against the
   await bo.goto(link);
   await expect(bo.getByText("2 cruisers a side, no ramming")).toBeVisible();
   const form = bo.locator("form", { hasText: "You've been invited" });
-  await form.getByLabel("Fleet").selectOption("chaos");
+  await form.getByRole("combobox", { name: /^Fleet/ }).selectOption("chaos");
   await expect(form.locator("fieldset")).toContainText("2 × Murder class cruiser");
   // The default names steer clear of Ann's; a clash is caught before it's sent.
   const annShips = (await ann.locator(".seats li.p1 .small").innerText()).match(/\((.*)\)/)?.[1]?.split(", ") ?? [];

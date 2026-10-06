@@ -1,5 +1,5 @@
 /** The game server's HTTP side (spec §8.1). */
-import type { FactionId, Forces, PlayerId, Scoring } from "@bfg/engine";
+import type { FactionId, Forces, PlayerId, ScenarioId, Scoring } from "@bfg/engine";
 import type { ShipEntry } from "@bfg/server";
 import { SERVER_URL } from "./config";
 
@@ -19,6 +19,7 @@ export type CreateGame = {
   ramming: boolean;
   boarding: boolean;
   carriers: boolean;
+  scenario?: ScenarioId;
   forces?: Forces;
   scoring?: Scoring;
 };

@@ -11,7 +11,7 @@ import { malformedField } from "./schema";
 import { OK, reject, type ValidationResult } from "./reasons";
 import { checkDeclareOrder, checkDriftHulk, checkMove } from "./movement";
 import { checkFire, checkFireNovaCannon, checkLaunchTorpedoes } from "./shooting";
-import { checkAnswerBrace, checkDeployShip, checkRemoveBlastMarkers, checkRepair } from "./other";
+import { checkAnswerBrace, checkChooseSetup, checkDeployShip, checkRemoveBlastMarkers, checkRepair } from "./other";
 import { checkLaunchAttackCraft, checkMoveOrdnance, checkReleaseCap } from "./craft";
 import { checkBoard, checkEndStep, checkTeleport } from "./boarding";
 
@@ -23,6 +23,9 @@ const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" |
   deploy_ship: { stage: "setup", when: ["deploy"] },
   roll_first_turn: { stage: "setup", when: ["roll_first_turn"] },
   choose_first_turn: { stage: "setup", when: ["choose_first_turn"] },
+  choose_formation: { stage: "setup", when: ["choose_formation"] },
+  roll_setup: { stage: "setup", when: ["roll_setup"] },
+  choose_setup: { stage: "setup", when: ["choose_setup"] },
   drift_hulk: { stage: "battle", when: ["hulks_drift"] },
   declare_order: { stage: "battle", when: ["move_ships"] },
   move: { stage: "battle", when: ["move_ships"] },
@@ -83,7 +86,11 @@ export function validate(state: GameState, input: unknown): ValidationResult {
     case "roll_deploy_order":
     case "roll_first_turn":
     case "choose_first_turn":
+    case "choose_formation":
+    case "roll_setup":
       return OK;
+    case "choose_setup":
+      return checkChooseSetup(state, t);
     case "end_step":
       return checkEndStep(state);
     case "deploy_ship":

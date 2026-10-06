@@ -18,3 +18,4 @@ export { moveParameters, allAheadFullEnd, type MoveParameters } from "./rules/mo
 export { boardingsToFight, type BoardingGroup } from "./rules/boarding";
 export * as craft from "./rules/craft";
 export * from "./reducer";
+export * as engagement from "./rules/engagement";

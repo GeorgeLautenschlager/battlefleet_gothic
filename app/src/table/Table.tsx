@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { constants, craft, type AttackCraftWave, type GameState, type Point } from "@bfg/engine";
 import { capOffset, markerOffset, ROLE_LETTER } from "../craft/craft";
+import { Zones, type SetupPreview } from "./Zones";
 import { ShipGlyph } from "./ShipGlyph";
 import { pointerToTable, toSvg, type View } from "./view";
 
@@ -13,6 +14,8 @@ type Props = {
   selectedShipId?: string | null;
   /** Blast Markers or salvos to pick out (e.g. while ordering removals). */
   highlight?: string[];
+  /** Fleet Engagement: a set-up being considered, drawn in place of the chosen map. */
+  setupPreview?: SetupPreview | null;
   /** Return true if the click was used up, so it doesn't also count as a table click. */
   onSelectShip?: (id: string) => boolean;
   /** A salvo or wave clicked. Return true if the click was used up. */
@@ -25,7 +28,7 @@ type Props = {
 
 const GRID = 10; // cm
 
-export function Table({ state, ghost = null, selectedShipId = null, highlight = [], onSelectShip, onSelectSalvo, onPointer, onTableClick, children }: Props) {
+export function Table({ state, ghost = null, selectedShipId = null, highlight = [], setupPreview = null, onSelectShip, onSelectSalvo, onPointer, onTableClick, children }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<Point | null>(null);
   const view: View = state.table;
@@ -65,20 +68,12 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
       <rect className="space" x={0} y={0} width={width} height={height} />
       <g className="grid">{lines}</g>
 
-      {showZones &&
-        (["A", "B"] as const).map((zone) => {
-          const r = state.scenario.deploymentZones[zone];
-          const top = toSvg(view, { x: r.x, y: r.y + r.height });
-          const owner = state.setup.zones === null ? null : state.setup.zones.p1 === zone ? "p1" : "p2";
-          return (
-            <g key={zone} className={`zone ${owner ?? ""}`}>
-              <rect x={top.x} y={top.y} width={r.width} height={r.height} />
-              <text x={top.x + 1.5} y={top.y + 4}>
-                Zone {zone}
-              </text>
-            </g>
-          );
-        })}
+      <defs>
+        <marker id="zone-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" />
+        </marker>
+      </defs>
+      {showZones && <Zones state={state} preview={setupPreview} />}
 
       {state.blastMarkers.map((bm) => {
         const p = toSvg(view, bm.position);

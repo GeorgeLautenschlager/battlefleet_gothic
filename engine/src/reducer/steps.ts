@@ -22,6 +22,18 @@ const SETUP_ORDER: readonly SetupStep[] = [
   "choose_first_turn",
 ];
 
+/** Fleet Engagement replaces roll_zones with the formations and the set-up roll-off (transform §2.3). */
+const ENGAGEMENT_SETUP_ORDER: readonly SetupStep[] = [
+  "roll_leadership",
+  "choose_formation",
+  "roll_setup",
+  "choose_setup",
+  "roll_deploy_order",
+  "deploy",
+  "roll_first_turn",
+  "choose_first_turn",
+];
+
 const BATTLE_ORDER: readonly { phase: Phase; step: Step }[] = [
   { phase: "movement", step: "hulks_drift" },
   { phase: "movement", step: "move_ships" },
@@ -56,6 +68,12 @@ export function stepComplete(state: GameState): boolean {
         return setup.leadershipRolled;
       case "roll_zones":
         return setup.zones !== null;
+      case "choose_formation":
+        return setup.engagement !== undefined && setup.engagement.formations.p1 !== null && setup.engagement.formations.p2 !== null;
+      case "roll_setup":
+        return (setup.engagement?.setupChooser ?? null) !== null;
+      case "choose_setup":
+        return (setup.engagement?.map ?? null) !== null;
       case "roll_deploy_order":
         return setup.firstDeployer !== null;
       case "deploy":
@@ -127,8 +145,9 @@ export function advanceStep(ctx: Ctx): void {
     const { state } = ctx;
     const { clock } = state;
     if (clock.stage === "setup") {
-      const i = SETUP_ORDER.indexOf(clock.setupStep as SetupStep);
-      const next = SETUP_ORDER[i + 1];
+      const order = state.scenario.id === "fleet_engagement" ? ENGAGEMENT_SETUP_ORDER : SETUP_ORDER;
+      const i = order.indexOf(clock.setupStep as SetupStep);
+      const next = order[i + 1];
       if (next === undefined) {
         startBattle(ctx);
       } else {
@@ -210,7 +229,8 @@ function endPlayerTurn(ctx: Ctx): void {
       ctx.log("order_expired", { shipId: ship.id, order: order.kind });
     }
   }
-  if (now >= 2 * state.scenario.maxRounds) endGame(ctx, "rounds_complete");
+  const { maxRounds } = state.scenario;
+  if (maxRounds !== null && now >= 2 * maxRounds) endGame(ctx, "rounds_complete");
   else startPlayerTurn(ctx, now + 1);
 }
 

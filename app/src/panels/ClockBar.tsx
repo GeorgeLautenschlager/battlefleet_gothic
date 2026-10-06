@@ -11,7 +11,7 @@ export function ClockBar({ state }: { state: GameState }) {
   let where: string;
   if (clock.stage === "setup") where = `Setup · ${sentence(words(clock.setupStep ?? ""))}`;
   else if (clock.stage === "ended") where = "Game over";
-  else where = `Round ${roundOf(clock.playerTurn)} of ${state.scenario.maxRounds} · ${sentence(words(clock.phase ?? ""))} · ${words(clock.step ?? "")}`;
+  else where = `Round ${roundOf(clock.playerTurn)}${state.scenario.maxRounds === null ? "" : ` of ${state.scenario.maxRounds}`} · ${sentence(words(clock.phase ?? ""))} · ${words(clock.step ?? "")}`;
 
   return (
     <div className="clock">

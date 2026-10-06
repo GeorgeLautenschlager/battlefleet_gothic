@@ -65,14 +65,19 @@ export type Forces = { kind: "cruiser_clash" } | { kind: "points"; limit: number
 export type Scoring = "cruiser_clash" | "victory_points";
 
 export type Scenario = {
-  id: "cruiser_clash";
-  maxRounds: number;
+  id: ScenarioId;
+  /** Cruiser Clash 8; Fleet Engagement null: until a fleet is destroyed or gone (state N17). */
+  maxRounds: number | null;
   /** Absent in older saves: Cruiser Clash forces. */
   forces?: Forces;
   scoring: Scoring;
-  deploymentZones: { A: Rect; B: Rect };
-  deploymentFacing: { A: number; B: number };
+  /** Cruiser Clash only. */
+  deploymentZones?: { A: Rect; B: Rect };
+  /** Cruiser Clash only. */
+  deploymentFacing?: { A: number; B: number };
 };
+
+export type ScenarioId = "cruiser_clash" | "fleet_engagement";
 
 export type Table = { width: number; height: number };
 
@@ -96,6 +101,21 @@ export type SetupState = {
   firstTurnRolls: DiceRoll[];
   firstTurnChooser: PlayerId | null;
   firstPlayer: PlayerId | null;
+  /** Fleet Engagement only (pp. 142–143). */
+  engagement?: Engagement;
+};
+
+export type Formation = "sphere" | "wedge" | "cross";
+export type SetupMap = "A" | "B" | "C" | "D";
+export type Colour = "white" | "dark";
+
+/** Fleet Engagement's set-up (state §5): formations, the roll-off, and the map and colours it settles. */
+export type Engagement = {
+  formations: { p1: Formation | null; p2: Formation | null };
+  setupRolls: { rolls: DiceRoll; bonus: DiceRoll }[];
+  setupChooser: PlayerId | null;
+  map: SetupMap | null;
+  colours: { p1: Colour; p2: Colour } | null;
 };
 
 // --- Clock (§6)
@@ -106,6 +126,9 @@ export type SetupStep =
   | "roll_leadership"
   | "roll_zones"
   | "roll_deploy_order"
+  | "choose_formation"
+  | "roll_setup"
+  | "choose_setup"
   | "deploy"
   | "roll_first_turn"
   | "choose_first_turn";

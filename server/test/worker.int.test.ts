@@ -130,7 +130,7 @@ describe("a game over WebSockets", () => {
     // The first deployer deploys, then takes it back.
     const first = state.setup.firstDeployer!;
     const [mover, other] = first === "p1" ? [ann, bo] : [bo, ann];
-    const zone = state.scenario.deploymentZones[state.setup.zones![first]];
+    const zone = state.scenario.deploymentZones![state.setup.zones![first]];
     const ship = state.ships.find((s) => s.owner === first)!;
     mover.send({ type: "propose", id: "d1", base: seq, transform: { type: "deploy_ship", player: first, shipId: ship.id, position: { x: 90, y: zone.y + 5 } } });
     seq = (await mover.next("applied")).seq;
