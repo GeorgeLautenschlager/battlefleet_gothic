@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** draft v0.9, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.12](../game_state/SPEC.md), [Transforms v0.10](../transforms/SPEC.md) and [Validator v0.8](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end). v0.8 adds the nova cannon (§3, §4.4, §5.3, §11, §12, R26–R29). v0.9 logs Fleet Engagement's set-up (§12) and ends a game on rounds only when `maxRounds` is set.
+**Status:** draft v0.10, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.13](../game_state/SPEC.md), [Transforms v0.11](../transforms/SPEC.md) and [Validator v0.9](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end). v0.8 adds the nova cannon (§3, §4.4, §5.3, §11, §12, R26–R29). v0.9 logs Fleet Engagement's set-up (§12) and ends a game on rounds only when `maxRounds` is set. v0.10 adds fleet commander re-rolls (§2.2), the targeting matrix (§4.1), the Mark of Khorne in boarding, and losing re-rolls to Bridge Smashed (§6, §10.4, §12, R30–R32).
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState
@@ -107,6 +107,17 @@ The cap gives "11–12 always fails" on 2D6 (p. 48), and "modified Ld 13 still r
 
 Size order: escort < cruiser < battleship < defence. Phase 1 rams are always cruiser on cruiser, so 2D6.
 
+**Re-rolls** (transform §2.7). A test taken with `reroll` that fails, when `rerollFor(ship)` still has one:
+
+```
+c = rerollFor(ship); c.rerolls −= 1
+again = test(dice, target)                    // the same dice, drawn straight after
+log reroll { shipId, commanderShipId, test, rolls: again.rolls, passed: again.passed }
+the second result stands
+```
+
+The target is the same for the re-roll (nothing between the two can change it). Each test is re-rolled at most once.
+
 ### 2.3 Ids
 
 `newId(kind)` returns `` `${kind}-${nextId}` `` and increments `nextId`. Kinds: `ship`, `bm`, `ord`, `crit`, `pend`, `log`.
@@ -193,6 +204,7 @@ if shooter is on Lock On: rerolls = nD6(dice − hits); hits += count(rerolls, r
 |---|---|
 | distance ≤ `SHORT_RANGE` | −1 |
 | distance > `LONG_RANGE` | +1 |
+| shooter has the `targetingMatrix` trait (weapons batteries) | −1 |
 | stem-to-stem line touches a BM, or shooter or target has a BM in contact | +1 |
 
 **Gunnery table** (p. 62). For `fp > 20`: `gunnery(fp) = gunnery(20) + gunnery(fp − 20)`. `gunnery(0) = 0`.
@@ -817,7 +829,7 @@ x = ship(shipId)
 if x.status ≠ "active" or need = "none": return        // a ship at 0 makes no critical checks (R2)
 rolls = need = "auto" ? [] : [d6()]
 log boarding_critical
-if need = "auto" or rolls[0] ≥ need:
+if need = "auto" or rolls[0] + khorne(x) ≥ need:      // R31
   critical(x)                                           // §6; Brace doesn't apply (T12)
   if x.damage = x.profile.hits: catastrophic(x)         // reduced to 0 by a critical: roll as normal (p. 90)
 ```
@@ -957,7 +969,9 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `repair` | `shipId, rolls, repaired` |
 | `fire_damage` | `shipId, fires` |
 | `boarding` | `defenderId, attackerIds, values: { attackers, defender }, modifiers: { attackers, defender }, rolls: [attackers, defender], totals: { attackers, defender }, result: "draw" \| "stalemate" \| "heavy_fighting" \| "driven_back" \| "stormed" \| "overwhelmed", loser: "attackers" \| "defender" \| null, damage` |
-| `boarding_critical` | `shipId, need, rolls, critical` |
+| `boarding_critical` | `shipId, need, rolls, critical` (+ `bonus` when a Mark of Khorne adds to it) |
+| `reroll` | `shipId, commanderShipId, test: "command_check" \| "priority" \| "disengage" \| "ram", rolls, passed` |
+| `rerolls_lost` | `shipId, reason: "bridge_smashed"` |
 | `boarded_hulk` | `shipId, blastMarkerIds` |
 | `grapple` | `defenderId, attackerIds` (formed or joined) |
 | `grapple_ended` | `defenderId, shipId` (the ship whose loss ended it) |
@@ -1026,6 +1040,9 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | R23 | Assault boats against a hulk do nothing: like a teleport attack, Hit-and-Run needs an `active` target. Bombers' hits on a hulk still trigger its catastrophic re-roll (R3). |
 | R25 | A combined volley is one roll: one brace offer, one column, one set of dice, one Lock On re-roll of its misses. Its shield Blast Markers can't shift its own column. |
 | R24 | Bombers' attack dice are drawn per bomber, in wave order, before any to-hit die. |
+| R30 | **Bridge Smashed on a commander's ship** sets that commander's `rerolls` to 0 and logs `rerolls_lost` (fleets book, p. 11). The Leadership −3 applies to the commander's Leadership as to any ship's. |
+| R31 | **The Warmaster's Mark of Khorne** adds +1 to the boarding critical rolls his ship's fight inflicts on the enemy ships in it (p. 232): `khorne(x)` is 1 when the side fighting `x` includes the Warmaster's ship with the Mark, else 0. A Lord's Mark of Khorne only doubles his ship's boarding value. |
+| R32 | **A re-roll is spent only on a failure**, and only when the transform asked for it: a passed test, or a ship whose commander has none left, spends nothing. |
 | R26 | A nova cannon's shield Blast Markers fan around the ship from the **firer's** line of fire, as for direct fire, not from the template's centre. |
 | R27 | **The centre hole's D6 hits are drawn for every ship under it before any damage**, in `ships` order. An explosion that one ship's hits set off can't change another's roll; a ship it destroys first just skips its `nova_hit`. |
 | R28 | **A nova shell resolves ship by ship**, in `ships` order, each ship's catastrophic damage (and its explosion's brace offers) before the next ship's hits. |
