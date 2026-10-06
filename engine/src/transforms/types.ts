@@ -2,7 +2,7 @@
  * Transforms (transforms/SPEC.md): plain-data proposals, one player decision each.
  * Section references (§n) are to the transform spec.
  */
-import type { CraftRole, OrderKind, PathStep, PlayerId, Point, Quadrant } from "../state/types";
+import type { Colour, CraftRole, Formation, OrderKind, PathStep, PlayerId, Point, Quadrant, SetupMap } from "../state/types";
 
 type Base<T extends string> = { type: T; player: PlayerId };
 
@@ -13,6 +13,11 @@ export type RollDeployOrder = Base<"roll_deploy_order">;
 export type DeployShip = Base<"deploy_ship"> & { shipId: string; position: Point };
 export type RollFirstTurn = Base<"roll_first_turn">;
 export type ChooseFirstTurn = Base<"choose_first_turn"> & { goFirst: boolean };
+// Fleet Engagement's set-up (§4.1)
+export type ChooseFormation = Base<"choose_formation"> & { formation: Formation };
+export type RollSetup = Base<"roll_setup">;
+/** `colour`: the chooser's own; the opponent takes the other. */
+export type ChooseSetup = Base<"choose_setup"> & { map: SetupMap; colour: Colour };
 
 // Movement (§4.2)
 export type DriftHulk = Base<"drift_hulk"> & { shipId: string };
@@ -65,6 +70,9 @@ export type Transform =
   | DeployShip
   | RollFirstTurn
   | ChooseFirstTurn
+  | ChooseFormation
+  | RollSetup
+  | ChooseSetup
   | DriftHulk
   | DeclareOrder
   | Move

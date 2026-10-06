@@ -1,6 +1,6 @@
 /** A room plus fake connections, for tests: send raw messages, collect what each connection receives. */
 import { createHash } from "node:crypto";
-import type { FactionId, Forces, GameState, PlayerId, Scoring } from "@bfg/engine";
+import type { FactionId, Forces, GameState, PlayerId, ScenarioId, Scoring } from "@bfg/engine";
 import { GameRoom, createRoom, type Deps } from "../src/room";
 import { PROTOCOL, type ServerMessage, type ShipEntry } from "../src/protocol";
 
@@ -40,12 +40,12 @@ export class Harness {
   ) {}
 
   static async create(
-    opts: { side?: PlayerId; seed?: number; fleet?: Fleet; ramming?: boolean; boarding?: boolean; carriers?: boolean; forces?: Forces; scoring?: Scoring } = {},
+    opts: { side?: PlayerId; seed?: number; fleet?: Fleet; ramming?: boolean; boarding?: boolean; carriers?: boolean; scenario?: ScenarioId; forces?: Forces; scoring?: Scoring } = {},
   ): Promise<Harness> {
     const deps = testDeps(opts.seed);
     const fleet = opts.fleet ?? HOST_FLEET;
     const created = await createRoom(
-      { name: "Ann", side: opts.side ?? "p1", faction: fleet.faction, ships: [...fleet.ships], ramming: opts.ramming ?? true, boarding: opts.boarding ?? false, carriers: opts.carriers ?? false, ...(opts.forces ? { forces: opts.forces } : {}), ...(opts.scoring ? { scoring: opts.scoring } : {}) },
+      { name: "Ann", side: opts.side ?? "p1", faction: fleet.faction, ships: [...fleet.ships], ramming: opts.ramming ?? true, boarding: opts.boarding ?? false, carriers: opts.carriers ?? false, ...(opts.scenario ? { scenario: opts.scenario } : {}), ...(opts.forces ? { forces: opts.forces } : {}), ...(opts.scoring ? { scoring: opts.scoring } : {}) },
       deps,
     );
     if ("error" in created) throw new Error(created.error);

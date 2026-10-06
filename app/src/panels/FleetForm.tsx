@@ -41,17 +41,54 @@ export function CountSelect({ value, onChange }: { value: number; onChange: (n: 
 
 export type Rules = { ramming: boolean; boarding: boolean; carriers: boolean };
 
-/** The game's size: classic Cruiser Clash, or a points battle (p. 129); and how it's scored (T37). */
-export function BattleFields({
-  value,
-  onChange,
-}: {
-  value: Pick<NewGameOptions, "forces" | "scoring">;
-  onChange: (patch: Pick<NewGameOptions, "forces" | "scoring">) => void;
-}) {
+export type Battle = Pick<NewGameOptions, "scenario" | "forces" | "scoring">;
+
+/**
+ * The scenario (T49): Cruiser Clash, classic or by points (p. 129), with its
+ * scoring (T37); or Fleet Engagement at a points limit, always victory points (pp. 142–143).
+ */
+export function BattleFields({ value, onChange }: { value: Battle; onChange: (patch: Battle) => void }) {
   const limit = value.forces?.kind === "points" ? value.forces.limit : null;
+  const engagement = value.scenario === "fleet_engagement";
+  const scenario = (
+    <label>
+      Scenario
+      <select
+        value={value.scenario ?? "cruiser_clash"}
+        onChange={(e) =>
+          onChange(
+            e.target.value === "fleet_engagement"
+              ? { scenario: "fleet_engagement", forces: { kind: "points", limit: limit ?? 750 }, scoring: "victory_points" }
+              : { scenario: "cruiser_clash", forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" },
+          )
+        }
+      >
+        <option value="cruiser_clash">Cruiser Clash (p. 128)</option>
+        <option value="fleet_engagement">Fleet Engagement (pp. 142–143)</option>
+      </select>
+    </label>
+  );
+  if (engagement) {
+    return (
+      <div className="battle-fields">
+        {scenario}
+        <label>
+          Points a side
+          <select value={String(limit ?? 750)} onChange={(e) => onChange({ ...value, forces: { kind: "points", limit: Number(e.target.value) } })}>
+            {POINTS_LIMITS.map((p) => (
+              <option key={p} value={p}>
+                {p} points
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="muted small">Formations and set-up maps, victory points, and no round limit: it's fought until one fleet is destroyed or disengages.</p>
+      </div>
+    );
+  }
   return (
     <div className="battle-fields">
+      {scenario}
       <label>
         Battle
         <select
@@ -59,8 +96,8 @@ export function BattleFields({
           onChange={(e) => {
             const v = e.target.value;
             // Points battles default to victory points; Cruiser Clash to its own scoring.
-            if (v === "cruiser_clash") onChange({ forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
-            else onChange({ forces: { kind: "points", limit: Number(v) }, scoring: limit === null ? "victory_points" : (value.scoring ?? "victory_points") });
+            if (v === "cruiser_clash") onChange({ scenario: "cruiser_clash", forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
+            else onChange({ scenario: "cruiser_clash", forces: { kind: "points", limit: Number(v) }, scoring: limit === null ? "victory_points" : (value.scoring ?? "victory_points") });
           }}
         >
           <option value="cruiser_clash">Cruiser Clash (1–4 cruisers each, up to 185 pts)</option>
@@ -73,7 +110,7 @@ export function BattleFields({
       </label>
       <label>
         Scoring
-        <select value={value.scoring ?? "cruiser_clash"} onChange={(e) => onChange({ ...value, scoring: e.target.value as NonNullable<NewGameOptions["scoring"]> })}>
+        <select value={value.scoring ?? "cruiser_clash"} onChange={(e) => onChange({ ...value, scoring: e.target.value as NonNullable<Battle["scoring"]> })}>
           <option value="victory_points">Victory points (pp. 122–123)</option>
           <option value="cruiser_clash">Cruiser Clash: damage, crippled, destroyed (p. 128)</option>
         </select>

@@ -41,7 +41,7 @@ describe("newGame", () => {
   test("Cruiser Clash geometry and defaults", () => {
     const state = freshGame();
     expect(state.table).toEqual({ width: 180, height: 120 });
-    expect(state.scenario.deploymentZones.A).toEqual({ x: 45, y: 90, width: 90, height: 30 });
+    expect(state.scenario.deploymentZones?.A).toEqual({ x: 45, y: 90, width: 90, height: 30 });
     expect(state.scenario.deploymentFacing).toEqual({ A: 180, B: 0 });
     expect(state.meta.options).toEqual({ ramming: true, boarding: false, carriers: false });
     expect(state.players.p2.factionTraits.boardingModifier).toBe(1);

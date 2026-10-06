@@ -2,8 +2,9 @@
 import { EPS } from "../geometry/constants";
 import { baseRadius, bmTouchesBase, distance } from "../geometry/basic";
 import { onTable } from "../state/derived";
+import { deploymentDivisions, divisionAt, emptyDivisions, setupOptions } from "../rules/engagement";
 import type { GameState } from "../state/types";
-import type { AnswerBrace, DeployShip, RemoveBlastMarkers, Repair } from "../transforms/types";
+import type { AnswerBrace, ChooseSetup, DeployShip, RemoveBlastMarkers, Repair } from "../transforms/types";
 import { isResult, ownActiveShip, ownShip } from "./movement";
 import { OK, reject, type ValidationResult } from "./reasons";
 
@@ -14,16 +15,18 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
   if (isResult(ship)) return ship;
   if (ship.status !== "undeployed") return reject("ALREADY_DEPLOYED", `${ship.name} is already deployed`);
 
-  const zoneId = state.setup.zones?.[t.player];
-  const zone = zoneId === undefined ? undefined : state.scenario.deploymentZones[zoneId];
-  const { x, y } = t.position;
-  const inZone =
-    zone !== undefined &&
-    x >= zone.x - EPS &&
-    x <= zone.x + zone.width + EPS &&
-    y >= zone.y - EPS &&
-    y <= zone.y + zone.height + EPS;
-  if (!inZone) return reject("NOT_IN_ZONE", `That isn't in your deployment zone (${zoneId ?? "none"})`, { zone: zoneId ?? null });
+  // 4: in one of the player's divisions (Cruiser Clash: its one zone)
+  const zoneId = state.setup.zones?.[t.player] ?? null;
+  const divisions = deploymentDivisions(state, t.player);
+  const division = divisionAt(divisions, t.position);
+  if (division < 0) return reject("NOT_IN_ZONE", `That isn't in your deployment zone${zoneId === null ? "" : ` (${zoneId})`}`, { zone: zoneId });
+
+  // 5: every division gets a ship before any gets a second (state N18)
+  const empty = emptyDivisions(state, t.player);
+  const undeployed = state.ships.filter((s) => s.owner === t.player && s.status === "undeployed").length;
+  if (undeployed <= empty.length && !empty.includes(division)) {
+    return reject("FILL_DIVISIONS_FIRST", "Each division needs a ship before any gets a second", { empty });
+  }
 
   const radius = baseRadius(ship.profile.baseSize);
   for (const other of state.ships) {
@@ -32,6 +35,15 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
     if (distance(t.position, other.position) <= touching - EPS) {
       return reject("BASES_OVERLAP", `${ship.name} would overlap ${other.name}`, { shipId: other.id });
     }
+  }
+  return OK;
+}
+
+/** choose_setup: one of the two set-ups the formations offer, seen from the chooser's side (validator §4.1). */
+export function checkChooseSetup(state: GameState, t: ChooseSetup): ValidationResult {
+  const options = setupOptions(state).map((o) => ({ map: o.map, colour: o.colours[t.player] }));
+  if (!options.some((o) => o.map === t.map && o.colour === t.colour)) {
+    return reject("INVALID_SETUP", `Map ${t.map} with ${t.colour} isn't one of the set-ups on offer`, { options });
   }
   return OK;
 }

@@ -108,6 +108,22 @@ describe("full games, points battles with victory points", () => {
   }
 });
 
+describe("full games, Fleet Engagement", () => {
+  const fleetEngagement = (p1: string[], p2: string[], limit: number): GameConfig => ({ ...mixed(p1, p2), scenario: "fleet_engagement", forces: { kind: "points", limit } });
+  const matchups: [string, GameConfig][] = [
+    ["750 pts: Lunar, Gothic, Dominator, Tyrant vs Murder ×2, Carnage, Slaughter", fleetEngagement(["lunar", "gothic", "dominator", "tyrant"], ["murder", "murder", "carnage", "slaughter"], 750)],
+    ["500 pts: Dictator, Lunar vs Devastation, Murder", fleetEngagement(["dictator", "lunar"], ["devastation", "murder"], 500)],
+  ];
+  for (const [name, config] of matchups) {
+    test.each([1, 2, 3, 4])(`${name}, seed %i, plays until a side is gone`, (seed) => {
+      const s = playOut(seed, config);
+      expect(s.result?.reason).toBe("fleet_eliminated");
+      expect(s.log.at(-1)?.data["scoring"]).toBe("victory_points");
+      expect(s.log.some((e) => e.kind === "setup_choice")).toBe(true);
+    }, 60_000); // no round limit: these run longer than Cruiser Clash
+  }
+});
+
 test("nova cannons fire, scatter, hit and miss across those games", () => {
   const config = { ...mixed(["dominator", "dominator_long", "lunar_nova", "tyrant_long_nova"], ["murder", "murder", "murder", "murder", "carnage"]), forces: { kind: "points" as const, limit: 1000 } };
   const shots = [1, 2, 3, 4].flatMap((seed) => playOut(seed, config).log.filter((e) => e.kind === "nova_cannon"));

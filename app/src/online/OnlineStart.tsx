@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { carriersAllowed, defaultNames, MAX_SHIPS, shipEntries, sideProblem, type NewGameOptions, type Side } from "../game/config";
-import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks, type Rules } from "../panels/FleetForm";
+import { carriersAllowed, defaultNames, MAX_SHIPS, shipEntries, sideProblem, type Side } from "../game/config";
+import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks, type Battle, type Rules } from "../panels/FleetForm";
 import { createGame } from "./api";
 import type { MyGame } from "./myGames";
 
@@ -8,7 +8,7 @@ import type { MyGame } from "./myGames";
 export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }) {
   const [side, setSide] = useState<Side>({ name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1) });
   const [rules, setRules] = useState<Rules>({ ramming: true, boarding: true, carriers: false });
-  const [battle, setBattle] = useState<Pick<NewGameOptions, "forces" | "scoring">>({});
+  const [battle, setBattle] = useState<Battle>({});
   const points = battle.forces?.kind === "points" ? battle.forces.limit : null;
   const carriers = carriersAllowed({ carriers: rules.carriers, ...battle });
   const [busy, setBusy] = useState(false);

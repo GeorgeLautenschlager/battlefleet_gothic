@@ -50,9 +50,9 @@ describe("creating a game", () => {
     expect(upgradeRoomData(v2)).toEqual(v2);
     // A protocol 2 room from before boarding or carriers existed: they stay off.
     const before = { ...v2, options: { ramming: false } } as unknown as RoomData;
-    expect(upgradeRoomData(before).options).toEqual({ ramming: false, boarding: false, carriers: false, forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
+    expect(upgradeRoomData(before).options).toEqual({ ramming: false, boarding: false, carriers: false, scenario: "cruiser_clash", forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
     const boardingOnly = { ...v2, options: { ramming: true, boarding: true } } as unknown as RoomData;
-    expect(upgradeRoomData(boardingOnly).options).toEqual({ ramming: true, boarding: true, carriers: false, forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
+    expect(upgradeRoomData(boardingOnly).options).toEqual({ ramming: true, boarding: true, carriers: false, scenario: "cruiser_clash", forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" });
   });
 });
 
@@ -141,6 +141,19 @@ describe("lobby and start", () => {
     expect(state.scenario).toMatchObject({ forces: { kind: "points", limit: 750 }, scoring: "victory_points" });
   });
 
+  test("Fleet Engagement: a points room, always victory points; it can't be made without a points limit", async () => {
+    const ann = { faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }, { name: "Invincible", classId: "gothic" }] } as const;
+    const h = await Harness.create({ fleet: ann, scenario: "fleet_engagement", forces: { kind: "points", limit: 500 }, scoring: "cruiser_clash" });
+    const [welcome] = await h.hello("a", "p1");
+    expect(welcome).toMatchObject({ lobby: { options: { scenario: "fleet_engagement", forces: { kind: "points", limit: 500 }, scoring: "victory_points" } } });
+    await h.hello("b", "p2");
+    await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }] });
+    const state = h.stateOf("b")!;
+    expect(state.scenario).toMatchObject({ id: "fleet_engagement", maxRounds: null, scoring: "victory_points" });
+    expect(state.setup.engagement?.formations).toEqual({ p1: null, p2: null });
+    await expect(Harness.create({ fleet: ann, scenario: "fleet_engagement" })).rejects.toThrow("INVALID_FLEET");
+  });
+
   test("a host over its own points limit can't create the game", async () => {
     const big = { faction: "imperial_navy", ships: ["dictator", "dictator", "tyrant", "lunar"].map((classId, i) => ({ name: `I${i}`, classId })) } as const;
     await expect(Harness.create({ fleet: big, forces: { kind: "points", limit: 750 } })).rejects.toThrow("INVALID_FLEET");
@@ -195,7 +208,7 @@ describe("undo (spec §6)", () => {
     const first = s.setup.firstDeployer!;
     const [conn, other] = first === "p1" ? ["a", "b"] : ["b", "a"];
     const zone = s.setup.zones![first];
-    const y = s.scenario.deploymentZones[zone].y + 5;
+    const y = s.scenario.deploymentZones![zone].y + 5;
     const ship = s.ships.find((x) => x.owner === first)!;
     // An undo of a roll is refused.
     expect(rejection(await h.send(conn, { type: "undo", id: "u0", seq: h.room.seq }))?.reason.code).toBe("ROLLED_DICE");

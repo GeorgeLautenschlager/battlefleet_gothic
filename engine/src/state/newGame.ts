@@ -6,12 +6,14 @@ import { boardingModifier, CATALOGUE } from "./catalogue";
 import { EngineError } from "./derived";
 import { cloneJson } from "./json";
 import { createRng } from "./rng";
-import type { FactionId, Forces, GameState, PlayerId, Scoring, Ship, ShipTurnState, TurnState } from "./types";
+import type { FactionId, Forces, GameState, PlayerId, Scenario, ScenarioId, Scoring, Ship, ShipTurnState, TurnState } from "./types";
 
 export type GameConfig = {
   seed: number;
   createdAt: string;
   options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean };
+  /** Default: Cruiser Clash. Fleet Engagement needs points forces and victory points (transform §5). */
+  scenario?: ScenarioId;
   /** Default: Cruiser Clash forces (state §4). */
   forces?: Forces;
   /** Default: Cruiser Clash scoring. */
@@ -63,6 +65,11 @@ function validateConfig(config: GameConfig): void {
   const forces = config.forces ?? { kind: "cruiser_clash" };
   if (forces.kind === "points" && (!Number.isInteger(forces.limit) || forces.limit <= 0)) {
     throw new EngineError(`a points limit must be a positive whole number, got ${forces.limit}`);
+  }
+  if (config.scenario === "fleet_engagement") {
+    // "Equal points" and standard victory points (p. 142).
+    if (forces.kind !== "points") throw new EngineError("Fleet Engagement is fought at a points limit");
+    if (config.scoring !== undefined && config.scoring !== "victory_points") throw new EngineError("Fleet Engagement is scored with victory points");
   }
   const counts = { p1: 0, p2: 0 };
   const points = { p1: 0, p2: 0 };
@@ -122,7 +129,27 @@ function validateConfig(config: GameConfig): void {
   }
 }
 
-/** Create a Cruiser Clash game at setup / roll_leadership (transform spec §5). */
+/** The scenario block (state §4): Cruiser Clash's zones and 8 rounds, or Fleet Engagement's maps and no round limit. */
+function scenarioOf(config: GameConfig): Scenario {
+  const forces = config.forces ?? { kind: "cruiser_clash" as const };
+  if (config.scenario === "fleet_engagement") {
+    return { id: "fleet_engagement", maxRounds: null, forces, scoring: "victory_points" };
+  }
+  return {
+    id: "cruiser_clash",
+    maxRounds: 8,
+    forces,
+    scoring: config.scoring ?? "cruiser_clash",
+    // Interpretation #6: 180 × 120 table, 90 × 30 zones centred on the long edges.
+    deploymentZones: {
+      A: { x: 45, y: 90, width: 90, height: 30 },
+      B: { x: 45, y: 0, width: 90, height: 30 },
+    },
+    deploymentFacing: { A: 180, B: 0 },
+  };
+}
+
+/** Create a game at setup / roll_leadership (transform spec §5). */
 export function newGame(config: GameConfig): GameState {
   validateConfig(config);
 
@@ -166,18 +193,7 @@ export function newGame(config: GameConfig): GameState {
         carriers: config.options?.carriers ?? false,
       },
     },
-    scenario: {
-      id: "cruiser_clash",
-      maxRounds: 8,
-      forces: config.forces ?? { kind: "cruiser_clash" },
-      scoring: config.scoring ?? "cruiser_clash",
-      // Interpretation #6: 180 × 120 table, 90 × 30 zones centred on the long edges.
-      deploymentZones: {
-        A: { x: 45, y: 90, width: 90, height: 30 },
-        B: { x: 45, y: 0, width: 90, height: 30 },
-      },
-      deploymentFacing: { A: 180, B: 0 },
-    },
+    scenario: scenarioOf(config),
     table: { width: 180, height: 120 },
     players: { p1: player("p1"), p2: player("p2") },
     setup: {
@@ -189,6 +205,9 @@ export function newGame(config: GameConfig): GameState {
       firstTurnRolls: [],
       firstTurnChooser: null,
       firstPlayer: null,
+      ...(config.scenario === "fleet_engagement"
+        ? { engagement: { formations: { p1: null, p2: null }, setupRolls: [], setupChooser: null, map: null, colours: null } }
+        : {}),
     },
     clock: { stage: "setup", setupStep: "roll_leadership", playerTurn: 0, phase: null, step: null },
     ships,

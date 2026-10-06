@@ -4,7 +4,7 @@
  * classes. Mirror matches are fine. With the carriers option (p. 129), a
  * side may also field its fleet's carrier.
  */
-import { CATALOGUE, newGame, type FactionId, type Forces, type GameConfig, type PlayerId, type Scoring } from "@bfg/engine";
+import { CATALOGUE, newGame, type FactionId, type Forces, type GameConfig, type PlayerId, type ScenarioId, type Scoring } from "@bfg/engine";
 
 export type Fleet = "imperial_navy" | "chaos";
 
@@ -33,8 +33,8 @@ export const POINTS_LIMITS = [500, 750, 1000, 1500] as const;
 
 /** `classes[i]`: ship i's class; missing means the fleet's standard cruiser. */
 export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[] };
-/** `forces`/`scoring`: absent means classic Cruiser Clash (transform §5). */
-export type NewGameOptions = { p1: Side; p2: Side; ramming: boolean; boarding: boolean; carriers?: boolean; forces?: Forces; scoring?: Scoring; seed?: number };
+/** `scenario`/`forces`/`scoring`: absent means classic Cruiser Clash (transform §5). Fleet Engagement is points and victory points. */
+export type NewGameOptions = { p1: Side; p2: Side; ramming: boolean; boarding: boolean; carriers?: boolean; scenario?: ScenarioId; forces?: Forces; scoring?: Scoring; seed?: number };
 
 /** A points battle has no per-ship cap, so carriers are always allowed there (T36). */
 export const carriersAllowed = (o: Pick<NewGameOptions, "carriers" | "forces">): boolean => o.forces?.kind === "points" || o.carriers === true;
@@ -105,6 +105,7 @@ export function cruiserClash(options: NewGameOptions, now = new Date()): GameCon
     seed: options.seed ?? randomSeed(),
     createdAt: now.toISOString(),
     options: { ramming: options.ramming, boarding: options.boarding, carriers },
+    ...(options.scenario !== undefined ? { scenario: options.scenario } : {}),
     ...(options.forces !== undefined ? { forces: options.forces } : {}),
     ...(options.scoring !== undefined ? { scoring: options.scoring } : {}),
     players: {

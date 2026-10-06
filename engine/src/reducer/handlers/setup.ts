@@ -1,6 +1,7 @@
 /** Setup transforms (transform spec §4.1). */
 import { otherPlayer } from "../../state/derived";
-import type { ChooseFirstTurn, DeployShip } from "../../transforms/types";
+import { deploymentDivisions, divisionAt, isSplit, setupBonus, setupOptions } from "../../rules/engagement";
+import type { ChooseFirstTurn, ChooseFormation, ChooseSetup, DeployShip } from "../../transforms/types";
 import type { Ctx } from "../context";
 import { getShip } from "../work";
 
@@ -43,11 +44,57 @@ export function rollDeployOrder(ctx: Ctx): void {
 export function deployShip(ctx: Ctx, t: DeployShip): void {
   const { state } = ctx;
   const ship = getShip(state, t.shipId);
-  const zone = state.setup.zones?.[t.player] ?? "A";
+  const divisions = deploymentDivisions(state, t.player);
   ship.status = "active";
   ship.position = { ...t.position };
-  ship.heading = state.scenario.deploymentFacing[zone];
+  // The division's heading: Cruiser Clash's zone facing, or the map's arrow (p. 142).
+  ship.heading = divisions[divisionAt(divisions, t.position)]?.heading ?? 0;
   ctx.log("deploy", { shipId: ship.id, position: { ...t.position }, heading: ship.heading });
+}
+
+// --- Fleet Engagement (pp. 142–143)
+
+/** A formation, on the honour system (state N16). The first pick's log entry doesn't name it (T50). */
+export function chooseFormation(ctx: Ctx, t: ChooseFormation): void {
+  const engagement = ctx.state.setup.engagement;
+  if (engagement === undefined) return; // unreachable after validation
+  engagement.formations[t.player] = t.formation;
+  const { p1, p2 } = engagement.formations;
+  if (p1 === null || p2 === null) {
+    ctx.log("formation", { player: t.player });
+    return;
+  }
+  const options = setupOptions(ctx.state).map((o) => ({ map: o.map, colours: { ...o.colours } }));
+  ctx.log("formation", { player: t.player, formations: { p1, p2 }, options });
+}
+
+/** Both roll D6, plus the bonuses on a split; the higher total picks the set-up, ties re-roll (T51). */
+export function rollSetup(ctx: Ctx): void {
+  const engagement = ctx.state.setup.engagement;
+  if (engagement === undefined) return;
+  const rolls = { p1: ctx.d6(), p2: ctx.d6() };
+  const bonus = { p1: setupBonus(ctx.state, "p1"), p2: setupBonus(ctx.state, "p2") };
+  const totals = { p1: rolls.p1 + bonus.p1, p2: rolls.p2 + bonus.p2 };
+  const winner = totals.p1 === totals.p2 ? null : totals.p1 > totals.p2 ? "p1" : "p2";
+  engagement.setupRolls.push({ rolls, bonus });
+  if (winner !== null) engagement.setupChooser = winner;
+  ctx.log("setup_roll", {
+    rolls: [rolls.p1, rolls.p2],
+    bonus: [bonus.p1, bonus.p2],
+    totals: [totals.p1, totals.p2],
+    split: isSplit(ctx.state),
+    winner,
+  });
+}
+
+/** The roll-off's winner picks the map and their colour; the other player takes the other colour (T52). */
+export function chooseSetup(ctx: Ctx, t: ChooseSetup): void {
+  const engagement = ctx.state.setup.engagement;
+  if (engagement === undefined) return;
+  const theirs = t.colour === "white" ? "dark" : "white";
+  engagement.map = t.map;
+  engagement.colours = t.player === "p1" ? { p1: t.colour, p2: theirs } : { p1: theirs, p2: t.colour };
+  ctx.log("setup_choice", { player: t.player, map: t.map, colours: { ...engagement.colours } });
 }
 
 export function rollFirstTurn(ctx: Ctx): void {

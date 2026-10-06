@@ -37,6 +37,23 @@ export function describe(state: GameState, entry: LogEntry): string {
       return `${ship("shipId")} rolls ${dice(d["rolls"])} for Leadership: Ld ${num(d["leadership"])}`;
     case "zone_roll":
       return `Zones rolled ${dice(d["rolls"])}`;
+    case "formation": {
+      const f = d["formations"] as { p1?: string; p2?: string } | undefined;
+      return f === undefined
+        ? `${player("player")} picks a formation`
+        : `Formations revealed: ${state.players.p1.name} ${String(f.p1)}, ${state.players.p2.name} ${String(f.p2)}`;
+    }
+    case "setup_roll": {
+      const r = d["rolls"] as number[] | undefined;
+      const b = d["bonus"] as number[] | undefined;
+      const side = (i: 0 | 1) => `${num(r?.[i])}${(b?.[i] ?? 0) > 0 ? `+${num(b?.[i])}` : ""}`;
+      return `Set-up roll-off [${side(0)} ${side(1)}]: ${d["winner"] === null ? "a tie, roll again" : `${player("winner")} picks the set-up`}`;
+    }
+    case "setup_choice": {
+      const c = d["colours"] as { p1?: string; p2?: string } | undefined;
+      const colour = (v: string | undefined) => (v === "dark" ? "dark grey" : String(v));
+      return `${player("player")} picks map ${String(d["map"])}: ${state.players.p1.name} ${colour(c?.p1)}, ${state.players.p2.name} ${colour(c?.p2)}`;
+    }
     case "deploy_order_roll":
       return `Deployment roll-off ${dice(d["rolls"])}: ${d["winner"] === null ? "a tie, roll again" : `${player("winner")} deploys first`}`;
     case "first_turn_roll":
