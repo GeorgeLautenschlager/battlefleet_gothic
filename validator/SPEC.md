@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.7, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.11](../game_state/SPEC.md) and [Transforms v0.9](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12).
+**Status:** draft v0.8, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.12](../game_state/SPEC.md) and [Transforms v0.10](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -242,7 +242,15 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 
 ### 4.1 Setup
 
-`roll_leadership`, `roll_zones`, `roll_deploy_order` and `roll_first_turn` have no checks beyond the gates.
+`roll_leadership`, `roll_zones`, `roll_setup`, `roll_deploy_order` and `roll_first_turn` have no checks beyond the gates. `choose_formation` has none either: G5 and G6 already make it Fleet Engagement and the right player's pick.
+
+**`choose_setup`**
+
+| # | Check | Code |
+|---|---|---|
+| 1 | `{ map, colour }` is one of `setupOptions()` seen from `player`'s side (the map, with `player` taking `colour`) | `INVALID_SETUP` |
+
+`INVALID_SETUP.details` is `{ options: { map, colour }[] }`.
 
 **`deploy_ship`**
 
@@ -251,8 +259,9 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 | 1 | Ship exists | `UNKNOWN_SHIP` |
 | 2 | `ship.owner = player` | `NOT_YOUR_SHIP` |
 | 3 | `ship.status = "undeployed"` | `ALREADY_DEPLOYED` |
-| 4 | `position` lies in the player's zone rectangle (inclusive, `EPS`) | `NOT_IN_ZONE` |
-| 5 | The new base doesn't overlap any deployed ship's base: `distance > r1 + r2 − EPS`. Touching is allowed. | `BASES_OVERLAP` |
+| 4 | `position` lies in one of `deploymentDivisions(player)` (inclusive, `EPS`); the first in list order that holds it is the ship's division | `NOT_IN_ZONE` |
+| 5 | If the player's undeployed ships (this one included) are no more than their empty divisions, this ship's division is empty (state N18) | `FILL_DIVISIONS_FIRST` |
+| 6 | The new base doesn't overlap any deployed ship's base: `distance > r1 + r2 − EPS`. Touching is allowed. | `BASES_OVERLAP` |
 
 **`choose_first_turn`**: gates only.
 
@@ -543,6 +552,8 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 | `NOT_YOUR_SHIP` / `NOT_YOUR_ORDNANCE` | Belongs to the other player |
 | `SHIP_NOT_ACTIVE` | Ship is a hulk, undeployed, destroyed or disengaged |
 | `ALREADY_DEPLOYED` | Ship is already on the table |
+| `FILL_DIVISIONS_FIRST` | Fleet Engagement: a division still needs a ship before this one gets another (p. 142) |
+| `INVALID_SETUP` | `choose_setup` with a set-up the formations don't offer |
 | `NOT_IN_ZONE` | Deployment position outside the player's zone |
 | `BASES_OVERLAP` | Deployment position overlaps another ship's base |
 | `NOT_A_HULK` / `ALREADY_DRIFTED` | `drift_hulk` on a non-hulk, or a second time |
@@ -637,6 +648,7 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V10 | **A nova cannon's aim is in arc** if `quadrantsOfPoint` meets the weapon's arcs, boundaries included; there's nothing for an `arc` choice to decide. |
 | V11 | **The nova cannon's range is checked to the template's near edge** with the usual tolerance, both ends: 30 cm and 150 cm both count. |
 | V12 | **A ship starting on a Blast Marker** has its minimum capped by the slowed limit even for a path that doesn't move: any move it makes is slowed (p. 69), so a ship whose speed the slowdown takes to 0 stays put legally instead of having no legal move. |
+| V13 | **A division is empty** when none of the player's deployed ships has its stem in it (by the same first-in-list rule as check 4). `FILL_DIVISIONS_FIRST.details` is `{ empty: divisionIndexes }`. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |
 
 ## 8. Decisions

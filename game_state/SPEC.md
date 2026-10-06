@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.11, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14.
+**Status:** draft v0.12, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19).
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -128,13 +128,14 @@ type Meta = {
 }
 
 type Scenario = {
-  id: "cruiser_clash"
-  maxRounds: 8
+  id: "cruiser_clash"          // p. 128
+     | "fleet_engagement"      // pp. 142–143
+  maxRounds: number | null     // Cruiser Clash 8; Fleet Engagement null: until a fleet is destroyed or gone (N17)
   forces: Forces               // absent in older saves: { kind: "cruiser_clash" }
   scoring: "cruiser_clash"     // 1/damage, +1 crippled or +3 destroyed (p. 128)
          | "victory_points"    // standard victory points (pp. 122–123, §11)
-  deploymentZones: { A: Rect, B: Rect }
-  deploymentFacing: { A: 180, B: 0 }    // "towards the opposite long table edge"
+  deploymentZones?: { A: Rect, B: Rect }  // Cruiser Clash only
+  deploymentFacing?: { A: 180, B: 0 }     // Cruiser Clash only: "towards the opposite long table edge"
 }
 
 // How the fleets were chosen (transform §5). Kept for the record: the rules never read it after newGame.
@@ -158,6 +159,21 @@ type Player = {
 
 **Cruiser Clash geometry (interpretation #6):** 180 × 120 cm table. Zone **A** is `{x: 45, y: 90, width: 90, height: 30}` along the top edge; zone **B** is `{x: 45, y: 0, width: 90, height: 30}` along the bottom edge. That's 90 cm wide, centred, 30 cm deep, with the required 60 cm gap. A deployed ship's **stem** must be inside its zone.
 
+**Fleet Engagement set-up maps (p. 143, N15).** Four maps, each with a **white** and a **dark grey** zone, white along the top edge. A zone is one or more **divisions**: a rectangle (`Rect`, bottom-left corner) and the heading its ships face (the map's arrows). They're engine constants, not stored: the state records which map and which colour each player has (§5).
+
+| Map | Colour | Divisions: `x, y, width, height` → heading |
+|---|---|---|
+| A | white | `60, 90, 60, 30` → 180 |
+| A | dark | `0, 0, 30, 120` → 45; `30, 0, 120, 30` → 0; `150, 0, 30, 120` → 315 |
+| B | white | `0, 90, 67.5, 30` → 90; `67.5, 90, 45, 30` → 90; `112.5, 90, 67.5, 30` → 90 |
+| B | dark | `0, 0, 67.5, 30` → 270; `67.5, 0, 45, 30` → 270; `112.5, 0, 67.5, 30` → 270 |
+| C | white | `60, 75, 60, 45` → 180 |
+| C | dark | `0, 0, 30, 120` → 0; `150, 0, 30, 120` → 0 |
+| D | white | `45, 90, 90, 30` → 180 |
+| D | dark | `0, 0, 60, 30` → 0; `60, 0, 60, 30` → 0; `120, 0, 60, 30` → 0 |
+
+A deployed ship's stem must be inside one of its zone's divisions, and it faces that division's heading. Every division gets a ship before any gets a second (p. 142, N18).
+
 ---
 
 ## 5. Setup
@@ -177,7 +193,32 @@ type SetupState = {
 }
 
 type DiceRoll = { p1: number, p2: number }   // one entry per attempt, ties included
+
+// Fleet Engagement only (pp. 142–143); absent in Cruiser Clash
+type Engagement = {
+  formations: { p1: Formation | null, p2: Formation | null }   // p1 picks first, then p2 (N16)
+  setupRolls: { rolls: DiceRoll, bonus: DiceRoll }[]           // the set-up roll-off: D6 + bonus each; ties re-roll
+  setupChooser: PlayerId | null                                 // the roll-off's winner, who picks the set-up
+  map: SetupMap | null
+  colours: { p1: Colour, p2: Colour } | null
+}
+
+type Formation = "sphere" | "wedge" | "cross"
+type SetupMap = "A" | "B" | "C" | "D"
+type Colour = "white" | "dark"
 ```
+
+`SetupState` gains `engagement?: Engagement`, present exactly when `scenario.id = "fleet_engagement"`.
+
+**The formation table** (p. 142). Your formation's row, the opponent's column: the set-ups on offer, each a map and **your** colour.
+
+| You ↓ / them → | Sphere | Wedge | Cross |
+|---|---|---|---|
+| **Sphere** | B | A dark / C dark | A dark / D dark |
+| **Wedge** | A white / C white | D dark / D white | B |
+| **Cross** | A white / D white | B | B |
+
+A result naming two set-ups is a **split**. A plain **B** leaves the colours open, so it's offered as two set-ups too, B with each colour (N19). Either way the roll-off's winner picks one of the two.
 
 Who deploys next during `deploy` is derived: start with `firstDeployer`, then alternate, skipping a player who has no undeployed ships left.
 
@@ -189,13 +230,14 @@ Who deploys next during `deploy` is derived: start with `firstDeployer`, then al
 type Clock = {
   stage: "setup" | "battle" | "ended"
   setupStep: SetupStep | null        // only when stage = "setup"
-  playerTurn: number                 // 0 during setup, 1..2×maxRounds in battle
+  playerTurn: number                 // 0 during setup, then 1, 2, …: at most 2 × maxRounds when it's set
   phase: Phase | null                // null during setup / ended
   step: Step | null
 }
 
 type SetupStep =
   | "roll_leadership" | "roll_zones" | "roll_deploy_order"
+  | "choose_formation" | "roll_setup" | "choose_setup"          // Fleet Engagement, in place of roll_zones
   | "deploy" | "roll_first_turn" | "choose_first_turn"
 
 type Phase = "movement" | "shooting" | "ordnance" | "end"
@@ -225,7 +267,7 @@ Steps advance automatically once they're complete; steps with optional actions e
 | Entering `boarding` | Every grapple fights again (transform §4.6). |
 | Entering `blast_marker_removal` | Each of the **active player's** ships takes 1 damage per `fire` critical still burning. Fires burn once per round, in their owner's End Phase, after both players have had their repair rolls. |
 | End of a player turn | Remove orders whose `expires.at = "turn_end"` for this player turn (Brace For Impact!). |
-| End of round `maxRounds`, or a fleet has no `active` ships left (D6) | `stage = "ended"`, `result` filled in. |
+| End of round `maxRounds` (when it's set), or a fleet has no `active` ships left (D6) | `stage = "ended"`, `result` filled in. |
 
 ---
 
@@ -610,6 +652,10 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `shipVP(s)` | `destroyedForScoring(s)` → `points`; `disengaged` → ⌈25%⌉ if `crippled`, else ⌈10%⌉; `active` and `crippled` → ⌈25%⌉; otherwise 0. `points` is `profile.points` |
 | `holdingTheField(player)` | if no enemy ship is `active` and at least one of the player's is: Σ ⌈50% × points⌉ over every **hulk** on the table, friend or foe (N11); otherwise 0 |
 | `destroyedForScoring(s)` | `status ∈ {destroyed, drifting_hulk, blazing_hulk}` (D7) |
+| `deploymentDivisions(player)` | Cruiser Clash: one division, the player's zone rectangle facing `deploymentFacing[zone]`. Fleet Engagement: the divisions of the player's colour on `engagement.map` (§4) |
+| `setupOptions()` | Fleet Engagement, both formations chosen: the two set-ups `{ map, colours }` from p1's row of the formation table (§5), split or B with each colour |
+| `isSplit()` | the formation table gave two different maps, or Wedge against Wedge (D with each colour): a split result, which takes the roll-off bonuses |
+| `setupBonus(player)` | on a split only: +1 if the player's fastest ship (profile `speed`) is faster than any enemy ship; +1 if their fleet commander has the higher Leadership (none until fleet commanders arrive); +1 if they have more escorts (p. 142) |
 | `actor(state)` | who must submit the next transform (§12) |
 
 ---
@@ -619,7 +665,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 `actor(state)` is derived, never stored:
 
 1. If `pending` is non-empty → top entry's `player`.
-2. If `stage = "setup"` → by `setupStep`: `roll_*` steps accept the transform from either player (it's one machine; the reducer rolls for both). `deploy` → the next deployer (§5). `choose_first_turn` → `setup.firstTurnChooser`.
+2. If `stage = "setup"` → by `setupStep`: `roll_*` steps accept the transform from either player (it's one machine; the reducer rolls for both). `choose_formation` → p1 until p1 has picked, then p2 (N16). `choose_setup` → `engagement.setupChooser`. `deploy` → the next deployer (§5). `choose_first_turn` → `setup.firstTurnChooser`.
 3. If `stage = "battle"`:
    - `step = "inactive_ordnance"` → the player who is **not** active.
    - `step = "damage_control"` → either player, for their own ships. Each ship needing repair repairs once (`turnState.ships[id].repaired`); the step closes by itself when all have.
@@ -647,6 +693,7 @@ Properties every valid state satisfies. These are good property-test fodder.
 11. `clock.stage = "ended"` ⇔ `result ≠ null`.
 12. Grapples are consistent. A ship with `grapple ≠ null` is `active`. Every ship its grapple names is `active` and carries an identical `grapple`. `defenderId ∉ attackerIds`, `attackerIds` is non-empty, and the attackers are all the defender's enemies. No ship is in two grapples.
 13. Attack craft are consistent: every wave has ≥ 1 squadron. A wave with `cap ≠ null` is a single fighter, its ship is the owner's and `active`, and its `position` is that ship's stem.
+14. `setup.engagement` is present ⇔ `scenario.id = "fleet_engagement"`, and `scenario.deploymentZones` is present ⇔ `scenario.id = "cruiser_clash"`. `maxRounds` is 8 in Cruiser Clash and null in Fleet Engagement; when it's set, `playerTurn ≤ 2 × maxRounds`.
 
 ```ts
 type GameResult = {
@@ -848,6 +895,11 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N10 | Improved thrusters (Slaughter "+5D6 on All Ahead Full", p. 280; Dauntless and Siluria "+D6", pp. 77–78) all come to **5D6** in place of the usual 4D6. Traits are only added as classes that use them arrive. | §7.1 |
 | N13 | **The nova cannon template** is a circle of radius `NOVA_RADIUS` = 2.5 cm with a centre hole of radius `NOVA_HOLE_RADIUS` = 0.6 cm (5 cm and 1.2 cm diameters, p. 63). Its range is measured from the firer's stem to the template's **near edge**: `distance(stem, centre) − NOVA_RADIUS`, which must be 30–150 cm when it's placed and picks the scatter dice. | §7.1 |
 | N14 | A nova cannon shot is **not a target**: it's aimed at a point, so it has no target priority test and no Gunnery Table, and the shot's hits are automatic. Its template hits whatever it touches where it lands, friend or foe, hulks included. | §11 |
+| N15 | **Fleet Engagement's set-up maps** are transcribed from the p. 143 diagrams' stated distances (30 cm zones and strips, 45 and 60 cm centre divisions, 60 cm gaps), on the 180 × 120 table with white along the top edge. Where a diagram's arrow is diagonal it's taken as 45° off the long edge. | §4 |
+| N16 | **Formations are picked on the honour system**, p1 first: p2's pick is made with p1's in the state, and the app simply doesn't show it (George's call). | §5 |
+| N17 | **Fleet Engagement has no round limit** (p. 143: "until one fleet disengages or is destroyed"): `maxRounds` is null, and the game ends only when a side has no `active` ship (D6). | §4, §6 |
+| N18 | **Divisions** (p. 142, "at least one ship or squadron in each"): while a player has no more undeployed ships than empty divisions, each ship must go into an empty one. With fewer ships than divisions, each goes to a different division. A stem on the shared edge of two divisions belongs to the first in the map's list. | §4 |
+| N19 | **A plain B result** leaves the colours open: it's settled by the same roll-off, without the split bonuses, and the winner picks a colour. | §5 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
 
 ---
@@ -859,7 +911,7 @@ The shapes above leave room for these without breaking changes. Each will add fi
 - **Squadrons:** a top-level `squadrons: { id, owner, shipIds, leadership }[]`; orders move to the squadron.
 - **Terrain:** `table.features: Feature[]` (gas clouds, asteroid fields, planets with gravity wells), `table.sunwardEdge`.
 - **Fleet commanders and re-rolls:** `players[].commander: { shipId, rerollsLeft }`.
-- **Other scenarios:** new `scenario.id`s with their own set-up blocks (Fleet Engagement next). Victory points are in (§11).
+- **Other scenarios:** new `scenario.id`s with their own set-up blocks. Fleet Engagement and victory points are in (§4, §5, §11); attack ratings and the random scenario tables (p. 120) come with the next scenarios.
 - **Fleet commanders:** Admirals and Chaos Lords (Leadership, re-rolls), with the fleet composition rules.
 
 ---
