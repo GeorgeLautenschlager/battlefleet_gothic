@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.9, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.11](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16). v0.9 adds the nova cannon (pp. 63–64): `fire_nova_cannon` and the ship options that carry one (§2.3, §2.6, §4.3, §5, T40–T48, D17–D19).
+**Status:** draft v0.10, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.12](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16). v0.9 adds the nova cannon (pp. 63–64): `fire_nova_cannon` and the ship options that carry one (§2.3, §2.6, §4.3, §5, T40–T48, D17–D19). v0.10 adds the Fleet Engagement scenario (pp. 142–143): `choose_formation`, `roll_setup`, `choose_setup`, divisions at deployment, and no round limit (§2.3, §2.5, §3, §4.1, §5, T49–T55, D20–D23).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -58,6 +58,9 @@ check for game end
 |---|---|---|---|---|---|
 | setup / `roll_leadership` | either | `roll_leadership` | no | rolled | — |
 | setup / `roll_zones` | either | `roll_zones` | no | zones assigned | — |
+| setup / `choose_formation` | p1, then p2 | `choose_formation` | no | both formations chosen | — |
+| setup / `roll_setup` | either | `roll_setup` | no | `setupChooser` set | — |
+| setup / `choose_setup` | set-up chooser | `choose_setup` | no | `map` set | — |
 | setup / `roll_deploy_order` | either | `roll_deploy_order` | no | `firstDeployer` set | — |
 | setup / `deploy` | next deployer | `deploy_ship` | no | no `undeployed` ships | — |
 | setup / `roll_first_turn` | either | `roll_first_turn` | no | `firstTurnChooser` set | — |
@@ -73,6 +76,8 @@ check for game end
 | end / `blast_marker_removal` | active | `remove_blast_markers` | no | `blastMarkersRemoved`, or nothing is removable | **fires burn** (§4.6) |
 | leaving `blast_marker_removal` | | | | | end the player turn (§2.5) |
 
+Cruiser Clash goes `roll_leadership` → `roll_zones` → `roll_deploy_order`. Fleet Engagement replaces `roll_zones` with `choose_formation` → `roll_setup` → `choose_setup`; the rest is the same (p. 142: lowest roll deploys first, alternating; first turn by roll-off).
+
 Movement and Ordnance steps have no `end_step`: every ship must move (p. 53), torpedoes must move their full speed (p. 201), and an attack craft wave that stays put still sends a `move_ordnance` with an empty path. CAP fighters don't count: they stay with their ship unless their owner moves them off CAP (§4.4).
 
 ### 2.4 Owner-ordered automatic actions
@@ -85,7 +90,7 @@ Movement and Ordnance steps have no `end_step`: every ship must move (p. 53), to
 
 **Start a player turn**: reset `turnState` for the new `playerTurn` (state §8), remove the active player's orders whose `expires = { playerTurn ≤ now, at: "movement_start" }`, enter `movement / hulks_drift`.
 
-**End a player turn** (leaving `blast_marker_removal`): remove every order whose `expires = { playerTurn: now, at: "turn_end" }`. If `playerTurn = 2 × maxRounds`, the game ends. Otherwise `playerTurn += 1` and *start a player turn*.
+**End a player turn** (leaving `blast_marker_removal`): remove every order whose `expires = { playerTurn: now, at: "turn_end" }`. If `maxRounds` is set and `playerTurn = 2 × maxRounds`, the game ends. Fleet Engagement has no round limit (state N17). Otherwise `playerTurn += 1` and *start a player turn*.
 
 **Game end** is also checked after every reduce, once `pending` is empty: if either side has no ship with `status = "active"`, the game ends at once (state D6). Ending sets `stage = "ended"`, clears `activation`, and fills in `result` from `score()` (higher score wins, equal is a draw). `score()` is Cruiser Clash points or victory points, per `scenario.scoring` (state §11).
 
@@ -105,6 +110,9 @@ Brace is offered **before** every roll that can damage a ship: direct-fire to-hi
 |---|---|---|
 | `roll_leadership` | — | setup / `roll_leadership` |
 | `roll_zones` | — | setup / `roll_zones` |
+| `choose_formation` | `formation` | setup / `choose_formation` |
+| `roll_setup` | — | setup / `roll_setup` |
+| `choose_setup` | `map`, `colour` | setup / `choose_setup` |
 | `roll_deploy_order` | — | setup / `roll_deploy_order` |
 | `deploy_ship` | `shipId`, `position` | setup / `deploy` |
 | `roll_first_turn` | — | setup / `roll_first_turn` |
@@ -140,6 +148,23 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 #### `roll_zones`
 - **Reducer:** draw 1D6 for p1 → `zoneRoll`. 1–3: p1 in A, p2 in B; 4–6: the reverse.
 
+#### `choose_formation`
+```ts
+{ type: "choose_formation", player, formation: "sphere" | "wedge" | "cross" }
+```
+- **Legal when:** Fleet Engagement, and `player` hasn't picked yet: p1 first, then p2 (state §12). Formations are picked on the honour system (state N16).
+- **Reducer:** set `engagement.formations[player]`. No dice. The log entry doesn't name the formation until both are in (T50).
+
+#### `roll_setup`
+- **Reducer:** draw 1D6 for p1, then 1D6 for p2. On a split (`isSplit`, state §11) each adds `setupBonus`; on a plain B neither does (state N19). Append `{ rolls, bonus }` to `setupRolls`. The higher total is `setupChooser`; a tie leaves the step open for another `roll_setup`.
+
+#### `choose_setup`
+```ts
+{ type: "choose_setup", player, map: "A" | "B" | "C" | "D", colour: "white" | "dark" }   // colour: the chooser's own
+```
+- **Legal when:** `player` is `setupChooser`, and `{ map, colour }` is one of the two `setupOptions` from the chooser's side.
+- **Reducer:** set `engagement.map` and `engagement.colours` (the other player takes the other colour). No dice.
+
 #### `roll_deploy_order`
 - **Reducer:** draw 1D6 for p1, then 1D6 for p2; append to `deployOrderRolls`. If they differ, the **lower** roller is `firstDeployer`. A tie leaves the step open for another `roll_deploy_order`.
 
@@ -147,8 +172,8 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 ```ts
 { type: "deploy_ship", player, shipId: string, position: Point }
 ```
-- **Legal when:** the ship belongs to `player` and is `undeployed`; `player` is the next deployer (state §5); `position` (the stem) lies inside the player's zone; and its base doesn't overlap any already-deployed base (validator V5).
-- **Reducer:** `status = "active"`, `position` as given, `heading = scenario.deploymentFacing[zone]`. There's no heading in the payload: Cruiser Clash ships must face the opposite long edge.
+- **Legal when:** the ship belongs to `player` and is `undeployed`; `player` is the next deployer (state §5); `position` (the stem) lies inside one of `deploymentDivisions(player)` (state §11); while the player has no more undeployed ships than empty divisions, that division is an empty one (state N18); and its base doesn't overlap any already-deployed base (validator V5).
+- **Reducer:** `status = "active"`, `position` as given, `heading` = the division's heading. There's no heading in the payload: Cruiser Clash ships face the opposite long edge, and Fleet Engagement ships their division's arrow (p. 142).
 
 #### `roll_first_turn`
 - **Reducer:** draw 1D6 for p1, then p2; append to `firstTurnRolls`. The higher roller is `firstTurnChooser`. A tie leaves the step open.
@@ -503,6 +528,7 @@ type GameConfig = {
   createdAt: string
   options?: { ramming?: boolean, boarding?: boolean, carriers?: boolean }   // defaults: true, false, false
                                                                            // (false keeps older saves replaying unchanged)
+  scenario?: "cruiser_clash" | "fleet_engagement"   // default "cruiser_clash"
   forces?: Forces                            // default { kind: "cruiser_clash" } (state §4)
   scoring?: "cruiser_clash" | "victory_points"   // default "cruiser_clash"
   players: {
@@ -517,6 +543,7 @@ type GameConfig = {
 - **Cruiser Clash forces** (`forces.kind = "cruiser_clash"`): 1–4 ships per side, the same number each, all `cruiser`, each ≤ 185 points (p. 128). With `carriers` on, each side may also field **at most one** ship with launch bays above that cap ("allow one carrier each", p. 129).
 - **Points forces** (`forces.kind = "points"`, p. 129): each side's ships total ≤ `limit` points (a positive integer), at least one ship a side, any number, any classes of its fleet. There's no per-ship cap, so carriers need no option (T36). Ship types are still limited to what the catalogue has (cruisers today); the fleet lists' ratios come later (D16). A class with a rarity limit is held to it per side: the Murder lance variant, no more than two per 750 points, or part, of that side's fleet (p. 279). A bad config throws; it never produces an invalid state.
 - `scoring` is copied into `scenario.scoring`, and `forces` into `scenario.forces`. Either scoring goes with either forces (T37).
+- **Fleet Engagement** (`scenario: "fleet_engagement"`, pp. 142–143): forces must be `points` ("equal points": the same limit a side), and scoring `victory_points` (the default for this scenario; anything else throws). `maxRounds` is null, `deploymentZones` and `deploymentFacing` are absent, and `setup.engagement` starts with no formations (state §5). The battlezone is the plain 180 × 120 table (T55).
 - The result is at `stage: "setup"`, `setupStep: "roll_leadership"`, `playerTurn: 0`. Ships are `undeployed`, with ids `ship-1 … ship-n` in config order. `rng.state = seed`.
 
 ---
@@ -562,6 +589,13 @@ type GameConfig = {
 | T37 | **Scoring is its own choice** (p. 129, "use standard victory points"): Cruiser Clash points or victory points, with either kind of forces. The app suggests victory points for points battles. |
 | T38 | **Holding the field** is judged when the game ends: no enemy ship `active` (all destroyed, hulked or disengaged) and at least one of yours `active`. With the game ending as soon as a side has no `active` ship (state D6), the side left fighting holds it. |
 | T39 | Points battles keep Cruiser Clash's 8 rounds and set-up. Fleet Engagement's formations and its play-until-one-side-is-gone length come with that scenario. |
+| T49 | **The scenario is chosen when the game is made** (p. 120, "arbitrary": the players pick). Attack ratings and the random scenario tables wait until there are more than two scenarios to choose from. |
+| T50 | **Formations are picked p1 first, then p2**, on the honour system (state N16). The `formation` log entry for the first pick doesn't name it; the second pick's entry names both. |
+| T51 | **The set-up roll-off** is both players' D6, plus `setupBonus` on a split (p. 142): the faster fleet, the better fleet commander, the more escorts. The higher total picks; ties re-roll, without the bonuses changing. |
+| T52 | **The winner picks a whole set-up**, map and colours, from the two on offer. On a plain B it's a choice of colour (state N19). |
+| T53 | **Deploying into divisions** (state N18): the stem must lie in one of the player's divisions, and the ship faces that division's arrow. While the player has no more undeployed ships than empty divisions, each ship goes into an empty one. |
+| T54 | **Fleet Engagement plays until a side has no `active` ship** (p. 143; state N17, D6): there's no round limit, and scoring is standard victory points, holding the field included. |
+| T55 | **Battlezone**: no celestial phenomena yet, so Fleet Engagement is fought on the plain table, the same 180 × 120 as Cruiser Clash. |
 | T35 | **Rarity limits** count the side's whole fleet: "two per 750 points or part" allows two in any Cruiser Clash fleet (4 × 185 = 740). |
 | T31 | **Launch bays** are weapons at a location (port, starboard): that side's armament critical disables them (p. 67), which lowers the fleet's limit too. |
 | T40 | **The nova cannon fires with its own transform**, at a point: `aim` is where the template is placed (p. 63). It belongs to the direct-fire step, in any order with the ship's batteries and lances. |
@@ -596,6 +630,10 @@ type GameConfig = {
 | D17 | Does the nova cannon hit friendly ships? | Yes. The book says "any target in base contact", and scatter is the risk you take. Their owner is offered a brace like anyone else (T41). |
 | D18 | How is the scatter die rolled? | With D6s only (T42): the scatter die, then 2D6 for one of 36 directions. A continuous random bearing would be smoother, but every roll would stop being a plain die in the log and in scripted tests. |
 | D19 | Which nova cannons now? | The cruisers' (T48): the Dominator, and the Lunar and Tyrant options. Battlecruisers and battleships that carry one (Mars, Mercury, Apocalypse, Victory) come with their own chunks. |
+| D20 | Which scenarios, and how chosen? | Cruiser Clash and Fleet Engagement, picked in the new-game form (T49). |
+| D21 | Secret formations? | The honour system (state N16, George's call): no hidden state in the engine or the server. |
+| D22 | The set-up maps' exact dimensions? | Derived from the p. 143 diagrams' stated distances (state N15), for George to check against the book. |
+| D23 | Fleet Engagement's length? | Until a side has no `active` ship, as the book says (T54). Players who want an end can disengage. |
 | D12 | One wave entity, or one entity per marker? | One wave with a footprint (T17, state N8). Turrets fire once at a wave and a hit kills it all (p. 85), so the wave is the unit the rules care about. |
 
 No open questions.

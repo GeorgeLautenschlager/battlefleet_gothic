@@ -73,6 +73,9 @@ export const REASON_CODES = [
   "TARGET_TOO_LARGE",
   // Combined battery fire (validator spec v0.6)
   "INVALID_VOLLEY",
+  // Fleet Engagement set-up (validator spec v0.8)
+  "FILL_DIVISIONS_FIRST",
+  "INVALID_SETUP",
   // Nova cannon (validator spec v0.7)
   "NOVA_CANNON_BARRED",
   "AIM_OFF_TABLE",

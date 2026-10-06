@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** draft v0.8, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.11](../game_state/SPEC.md), [Transforms v0.9](../transforms/SPEC.md) and [Validator v0.7](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end). v0.8 adds the nova cannon (§3, §4.4, §5.3, §11, §12, R26–R29).
+**Status:** draft v0.9, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.12](../game_state/SPEC.md), [Transforms v0.10](../transforms/SPEC.md) and [Validator v0.8](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end). v0.8 adds the nova cannon (§3, §4.4, §5.3, §11, §12, R26–R29). v0.9 logs Fleet Engagement's set-up (§12) and ends a game on rounds only when `maxRounds` is set.
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState
@@ -907,6 +907,9 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 |---|---|
 | `leadership_roll` | `shipId, rolls, leadership` |
 | `zone_roll` | `rolls, zones` |
+| `formation` | `player`, and once both are in, `formations: { p1, p2 }` and `options: { map, colours }[]` |
+| `setup_roll` | `rolls: [p1, p2], bonus: [p1, p2], totals: [p1, p2], split, winner: PlayerId \| null` |
+| `setup_choice` | `player, map, colours` |
 | `deploy_order_roll`, `first_turn_roll` | `rolls: [p1, p2], winner: PlayerId \| null` |
 | `deploy` | `shipId, position, heading` |
 | `first_turn_choice` | `firstPlayer` |

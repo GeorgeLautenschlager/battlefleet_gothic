@@ -51,6 +51,6 @@ Recorded in [`docs/adr/`](docs/adr/). Current:
      1. The remaining Cruiser Clash cruisers: Gothic and Tyrant; Carnage, Inferno, Slaughter and the Murder lance variant. A class per ship in the fleet forms, combined battery volleys (`fire.combineWith`, T32), class traits (improved thrusters, state N10) and rarity limits (T35). Done.
      2. Fleet battles by points (Cruiser Clash's p. 129 alternatives: a points limit a side, standard victory points). Specs (state v0.10, transforms v0.8, reducer v0.7), engine and UI done, hot-seat and online.
      3. Nova cannon, with the ship options that carry one (Dominator; Lunar and Tyrant options) and the Tyrant's 45 cm batteries. Specs (state v0.11, transforms v0.9, validator v0.7, reducer v0.8), engine and UI done, hot-seat and online.
-     4. Scenario selection and Fleet Engagement (pp. 142–143).
+     4. Scenario selection and Fleet Engagement (pp. 142–143): formations, the four set-up maps and their divisions, no round limit. Specs (state v0.12, transforms v0.10, validator v0.8, reducer v0.9) written.
      5. Battlecruisers and heavy cruisers, with the fleet composition rules (fleet lists' ratios, fleet commanders); then grand and light cruisers; then battleships.
   6. Squadrons and escorts.
