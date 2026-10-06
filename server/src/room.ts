@@ -11,6 +11,7 @@ import {
   MAX_SOCKETS_PER_SEAT,
   PROTOCOL,
   parseClientMessage,
+  shipEntry,
   type ErrorCode,
   type Lobby,
   type Presence,
@@ -90,7 +91,7 @@ export function toBase64Url(bytes: Uint8Array): string {
 
 const CRUISER_CLASH: Forces = { kind: "cruiser_clash" };
 
-const trimShips = (ships: ShipEntry[]): ShipEntry[] => ships.map((s) => ({ name: s.name.trim(), classId: s.classId }));
+const trimShips = (ships: ShipEntry[]): ShipEntry[] => ships.map((s) => ({ ...shipEntry(s), name: s.name.trim() }));
 
 /** The host's fleet sets the number of ships a side. */
 /** `boarding`, `carriers`, `scenario`, `forces` and `scoring` are optional: pages from before they existed create Cruiser Clash games without them. */

@@ -4,7 +4,7 @@
  * classes. Mirror matches are fine. With the carriers option (p. 129), a
  * side may also field its fleet's carrier.
  */
-import { CATALOGUE, newGame, type FactionId, type Forces, type GameConfig, type PlayerId, type ScenarioId, type Scoring } from "@bfg/engine";
+import { CATALOGUE, newGame, profileWithOptions, type FactionId, type Forces, type GameConfig, type PlayerId, type ScenarioId, type Scoring } from "@bfg/engine";
 
 export type Fleet = "imperial_navy" | "chaos";
 
@@ -13,14 +13,14 @@ export const FLEETS: Record<Fleet, { name: string; classId: string; classes: str
   imperial_navy: {
     name: "Imperial Navy",
     classId: "lunar",
-    classes: ["lunar", "gothic", "tyrant", "dominator_long", "dominator", "lunar_nova", "tyrant_long", "tyrant_nova", "tyrant_long_nova"],
+    classes: ["lunar", "gothic", "tyrant", "dominator", "mars", "overlord"],
     carrierClassId: "dictator",
     names: ["Agrippa", "Hammer of Terra", "Sanctus Vigil", "Lord Valdane", "Righteous Fury", "Saint Kasimir", "Iron Litany", "Gothic Dawn"],
   },
   chaos: {
     name: "Chaos",
     classId: "murder",
-    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter"],
+    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "styx", "hecate", "hades", "acheron"],
     carrierClassId: "devastation",
     names: ["Unclean", "Carrion Hymn", "Woe Eternal", "Flayed Saint", "Hungering Dark", "Ninth Wound", "Red Lament", "Sorrowmaw"],
   },
@@ -31,8 +31,8 @@ export const MAX_SHIPS = 4;
 export const MAX_POINTS_SHIPS = 8;
 export const POINTS_LIMITS = [500, 750, 1000, 1500] as const;
 
-/** `classes[i]`: ship i's class; missing means the fleet's standard cruiser. */
-export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[] };
+/** `classes[i]`: ship i's class; missing means the fleet's standard cruiser. `options[i]`: its option ids (T57). */
+export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[]; options?: string[][] };
 /** `scenario`/`forces`/`scoring`: absent means classic Cruiser Clash (transform §5). Fleet Engagement is points and victory points. */
 export type NewGameOptions = { p1: Side; p2: Side; ramming: boolean; boarding: boolean; carriers?: boolean; scenario?: ScenarioId; forces?: Forces; scoring?: Scoring; seed?: number };
 
@@ -62,7 +62,7 @@ export const CRUISER_CLASH_CAP = 185;
  * those within the 185-point cap), and its carrier when the game allows one.
  */
 export const classChoices = (fleet: Fleet, carriers: boolean, points = false): string[] => {
-  const cruisers = FLEETS[fleet].classes.filter((id) => points || profileOf(id).points <= CRUISER_CLASH_CAP);
+  const cruisers = FLEETS[fleet].classes.filter((id) => points || cheapest(id) <= CRUISER_CLASH_CAP);
   return carriers ? [...cruisers, FLEETS[fleet].carrierClassId] : cruisers;
 };
 
@@ -75,10 +75,34 @@ export const classIds = (side: Side, carriers: boolean, points = false): string[
   });
 };
 
-/** A side's ships as `{ name, classId }`: the online protocol's shape. */
-export const shipEntries = (side: Side, carriers = false, points = false): { name: string; classId: string }[] => {
+/** A class at its cheapest: with any options that cost less (the Dominator's original batteries). */
+function cheapest(classId: string): number {
+  const entry = CATALOGUE[classId];
+  return (entry?.profile.points ?? 0) + (entry?.options ?? []).reduce((n, o) => n + Math.min(0, o.points), 0);
+}
+
+/** Each ship's options, keeping only those its (current) class has. */
+export const optionIds = (side: Side, carriers: boolean, points = false): string[][] => {
   const classes = classIds(side, carriers, points);
-  return side.ships.map((name, i) => ({ name: name.trim(), classId: classes[i] ?? FLEETS[side.fleet].classId }));
+  return side.ships.map((_, i) => {
+    const offered = CATALOGUE[classes[i] ?? ""]?.options ?? [];
+    return (side.options?.[i] ?? []).filter((id) => offered.some((o) => o.id === id));
+  });
+};
+
+/** Ship i's profile as it would be fielded: its class with its options. */
+export const shipProfileOf = (side: Side, i: number, carriers: boolean, points = false) =>
+  profileWithOptions(classIds(side, carriers, points)[i] ?? FLEETS[side.fleet].classId, optionIds(side, carriers, points)[i] ?? []);
+
+/** A side's ships as `{ name, classId, options? }`: the online protocol's shape. */
+export const shipEntries = (side: Side, carriers = false, points = false): { name: string; classId: string; options?: string[] }[] => {
+  const classes = classIds(side, carriers, points);
+  const options = optionIds(side, carriers, points);
+  return side.ships.map((name, i) => ({
+    name: name.trim(),
+    classId: classes[i] ?? FLEETS[side.fleet].classId,
+    ...((options[i] ?? []).length > 0 ? { options: options[i] } : {}),
+  }));
 };
 
 /** Why the engine won't start this game (e.g. two carriers a side, too many lance Murders), or null. */

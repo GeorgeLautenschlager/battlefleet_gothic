@@ -98,6 +98,7 @@ describe("full games, points battles with victory points", () => {
     ["750 pts: Dictator, Gothic, Lunar vs Devastation, Slaughter ×2, Murder", battle(["dictator", "gothic", "lunar"], ["devastation", "slaughter", "slaughter", "murder"], 750)],
     ["500 pts: two Tyrants vs three Slaughters", battle(["tyrant", "tyrant"], ["slaughter", "slaughter", "slaughter"], 500)],
     ["1000 pts: nova cannons (Dominator ×2, Lunar, Tyrant) vs Murder ×4, Carnage", battle(["dominator", "dominator_long", "lunar_nova", "tyrant_long_nova"], ["murder", "murder", "murder", "murder", "carnage"], 1000)],
+    ["1500 pts: Mars, Overlord and cruisers vs Styx, Hecate, Hades, Acheron and cruisers", battle(["mars", "overlord", "lunar", "gothic", "dominator", "tyrant"], ["styx", "hecate", "hades", "acheron", "murder", "carnage"], 1500)],
   ];
   for (const [name, config] of matchups) {
     test.each([1, 2, 3, 4])(`${name}, seed %i, plays to a result`, (seed) => {

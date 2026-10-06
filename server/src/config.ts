@@ -10,7 +10,7 @@ export function cruiserClash(
   createdAt: string,
   options: RoomOptions,
 ): GameConfig {
-  const ships = (owner: PlayerId) => seats[owner].ships.map((s) => ({ owner, name: s.name, classId: s.classId }));
+  const ships = (owner: PlayerId) => seats[owner].ships.map((s) => ({ owner, name: s.name, classId: s.classId, ...(s.options ? { options: s.options } : {}) }));
   return {
     seed,
     createdAt,
@@ -56,7 +56,7 @@ export function fleetProblem(
   if (ships.some((s) => cleanName(s.name) === null)) return `Ship names need 1–${MAX_NAME_LENGTH} characters`;
   const names = ships.map((s) => s.name.trim());
   if (new Set(names).size !== names.length) return "Every ship needs its own name";
-  const side = (owner: PlayerId) => ships.map((s) => ({ owner, name: s.name, classId: s.classId }));
+  const side = (owner: PlayerId) => ships.map((s) => ({ owner, name: s.name, classId: s.classId, ...(s.options ? { options: s.options } : {}) }));
   try {
     newGame({
       seed: 1,

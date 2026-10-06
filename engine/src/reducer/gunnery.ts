@@ -25,7 +25,7 @@ export function gunnery(firepower: number, column: GunneryColumn): number {
   return GUNNERY[firepower]?.[c] ?? 0;
 }
 
-/** Net column shift (+ = right, fewer dice): range bands and Blast Markers (p. 62, p. 69). */
+/** Net column shift (+ = right, fewer dice): range bands, Blast Markers (p. 62, p. 69) and a targeting matrix (T64). */
 export function columnShift(state: GameState, shooter: Ship, at: Point, target: Ship | null): number {
   const from = shooter.position as Point;
   const d = distance(from, at);
@@ -35,6 +35,7 @@ export function columnShift(state: GameState, shooter: Ship, at: Point, target: 
   const lineThroughBm = state.blastMarkers.some((bm) => segmentTouchesCircle(from, at, bm.position, BM_RADIUS));
   const contact = bmsInContact(state, shooter).length > 0 || (target !== null && bmsInContact(state, target).length > 0);
   if (lineThroughBm || contact) shift += 1;
+  if (shooter.profile.traits?.targetingMatrix === true) shift -= 1;
   return shift;
 }
 

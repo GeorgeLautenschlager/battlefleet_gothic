@@ -143,3 +143,21 @@ test("points battle: each side spends its points, any number of ships, scored in
   await expect(page.locator(".card")).toHaveCount(5);
   await expect(page.locator(".card").filter({ hasText: "Dictator class cruiser" })).toHaveCount(1);
 });
+
+test("ship options: a Mars with a targeting matrix and a third turret in a points battle", async ({ page }) => {
+  await page.goto("/");
+  const form = page.locator("form", { hasText: "Hot-seat" });
+  await form.getByLabel("Battle").selectOption("750");
+  const p1 = form.locator("fieldset.p1");
+  await p1.getByRole("combobox", { name: /^Class/ }).selectOption("mars");
+  await p1.getByLabel(/Targeting matrix/).check();
+  await p1.getByLabel(/Third turret/).check();
+  await expect(p1).toContainText("1 × Mars class battlecruiser + targeting matrix + third turret (295 pts) · 295 of 750 pts");
+  // A different class drops the options.
+  await p1.getByRole("combobox", { name: /^Class/ }).selectOption("lunar");
+  await expect(p1.getByLabel(/Nova cannon/)).not.toBeChecked();
+  await p1.getByLabel(/Nova cannon/).check();
+  await expect(p1).toContainText("1 × Lunar class cruiser + nova cannon (200 pts)");
+  await form.getByRole("button", { name: "Start" }).click();
+  await expect(page.locator(".card").filter({ hasText: "Agrippa" })).toBeVisible();
+});

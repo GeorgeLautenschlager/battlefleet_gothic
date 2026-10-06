@@ -18,7 +18,8 @@ export const MAX_SHIPS = 4;
 export const MAX_POINTS_SHIPS = 8;
 
 /** One ship a player brings: its name and its class in the engine catalogue. */
-export type ShipEntry = { name: string; classId: string };
+/** `options`: the class's option ids (transform §5, T57). */
+export type ShipEntry = { name: string; classId: string; options?: string[] };
 
 // --- Client → server (§4.1)
 
@@ -109,8 +110,21 @@ const isString = (v: unknown, max = 200): v is string => typeof v === "string" &
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
 
 /** A list of ships, shape only: names and classes are checked by the room. */
+/** Just the fields a ship entry has. */
+export const shipEntry = (s: ShipEntry): ShipEntry => ({ name: s.name, classId: s.classId, ...(s.options !== undefined ? { options: [...s.options] } : {}) });
+
 export function isShipList(v: unknown): v is ShipEntry[] {
-  return Array.isArray(v) && v.length <= MAX_POINTS_SHIPS && v.every((s) => isObject(s) && isString(s["name"]) && isString(s["classId"], 40));
+  return (
+    Array.isArray(v) &&
+    v.length <= MAX_POINTS_SHIPS &&
+    v.every(
+      (s) =>
+        isObject(s) &&
+        isString(s["name"]) &&
+        isString(s["classId"], 40) &&
+        (s["options"] === undefined || (Array.isArray(s["options"]) && s["options"].length <= 8 && s["options"].every((o) => isString(o, 40)))),
+    )
+  );
 }
 
 /** Parse one raw client message, or say why not. */
@@ -135,7 +149,7 @@ export function parseClientMessage(raw: string): ClientMessage | { error: ErrorC
             token: v["token"],
             name: v["name"],
             faction: v["faction"] as FactionId,
-            ships: v["ships"].map((s) => ({ name: s.name, classId: s.classId })),
+            ships: v["ships"].map(shipEntry),
           }
         : { error: "MALFORMED_MESSAGE" };
     case "propose":

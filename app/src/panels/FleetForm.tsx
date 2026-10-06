@@ -1,5 +1,6 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
-import { classChoices, classIds, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, POINTS_LIMITS, profileOf, type Fleet, type NewGameOptions, type Side } from "../game/config";
+import { CATALOGUE } from "@bfg/engine";
+import { classChoices, classIds, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, type Fleet, type NewGameOptions, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
 export function duplicates(names: string[]): string[] {
@@ -157,14 +158,18 @@ type FieldsProps = {
   taken?: string[];
 };
 
-/** "2 × Lunar class cruiser, 1 × Dictator class cruiser · 580 pts" */
+/** Short names for options in summaries: "nova cannon", "targeting matrix"… */
+const optionLabel = (id: string): string => id.replaceAll("_", " ");
+
+/** "2 × Lunar class cruiser, 1 × Lunar class cruiser + nova cannon · 580 pts" */
 function fleetSummary(side: Side, carriers: boolean, limit: number | null = null): string {
   const counts = new Map<string, { n: number; points: number }>();
-  for (const id of classIds(side, carriers, limit !== null)) {
-    const p = profileOf(id);
-    const c = counts.get(p.className) ?? { n: 0, points: p.points };
-    counts.set(p.className, { ...c, n: c.n + 1 });
-  }
+  side.ships.forEach((_, i) => {
+    const p = shipProfileOf(side, i, carriers, limit !== null);
+    const name = [p.className, ...(p.options ?? []).map(optionLabel)].join(" + ");
+    const c = counts.get(name) ?? { n: 0, points: p.points };
+    counts.set(name, { ...c, n: c.n + 1 });
+  });
   const total = [...counts.values()].reduce((t, c) => t + c.n * c.points, 0);
   return `${[...counts].map(([name, c]) => `${c.n} × ${name} (${c.points} pts)`).join(", ")} · ${total}${limit === null ? "" : ` of ${limit}`} pts`;
 }
@@ -174,7 +179,12 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
   const count = side.ships.length;
   const choices = classChoices(side.fleet, carriers, pointsLimit !== null);
   const classes = classIds(side, carriers, pointsLimit !== null);
-  const setClass = (i: number, classId: string) => onChange({ classes: classes.map((c, j) => (j === i ? classId : c)) });
+  const options = optionIds(side, carriers, pointsLimit !== null);
+  // A new class drops the old one's options.
+  const setClass = (i: number, classId: string) =>
+    onChange({ classes: classes.map((c, j) => (j === i ? classId : c)), options: options.map((o, j) => (j === i ? [] : o)) });
+  const toggle = (i: number, id: string, on: boolean) =>
+    onChange({ options: options.map((o, j) => (j !== i ? o : on ? [...o.filter((x) => x !== id), id] : o.filter((x) => x !== id))) });
   return (
     <fieldset className={className}>
       <legend>
@@ -220,6 +230,18 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
               })}
             </select>
           </label>
+          {(CATALOGUE[classes[i] ?? ""]?.options ?? []).length > 0 && (
+            <fieldset className="ship-options">
+              <legend className="muted small">{count === 1 ? "Options" : `Ship ${i + 1} options`}</legend>
+              {(CATALOGUE[classes[i] ?? ""]?.options ?? []).map((o) => (
+                <label key={o.id} className="check">
+                  <input type="checkbox" checked={options[i]?.includes(o.id) ?? false} onChange={(e) => toggle(i, o.id, e.target.checked)} />
+                  {o.name} ({o.points >= 0 ? "+" : "−"}
+                  {Math.abs(o.points)} pts)
+                </label>
+              ))}
+            </fieldset>
+          )}
         </div>
       ))}
       {pointsLimit !== null && (

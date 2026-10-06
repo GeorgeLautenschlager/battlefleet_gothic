@@ -196,6 +196,10 @@ export type ShipProfile = {
   source: { book: "fleets"; page: number };
   points: number;
   type: ShipType;
+  /** The fleet lists' kind of hull, for their ratios (state N20). Absent in older saves: "cruiser". */
+  category?: ShipCategory;
+  /** The option ids taken for this ship, already applied (state N21). Absent in older saves: none. */
+  options?: string[];
   hits: number;
   speed: number;
   turns: 45 | 90;
@@ -211,7 +215,11 @@ export type ShipProfile = {
 export type ShipTraits = {
   /** D6 rolled for All Ahead Full; default 4. Improved thrusters: 5 (state N10). */
   allAheadFullDice?: number;
+  /** Its weapons batteries take one column shift left (Mars and Overlord option, transform T64). */
+  targetingMatrix?: boolean;
 };
+
+export type ShipCategory = "cruiser" | "heavy_cruiser" | "battlecruiser";
 
 export type WeaponKind = "battery" | "lance" | "torpedoes" | "launch_bay" | "nova_cannon";
 export type WeaponLocation = "prow" | "port" | "starboard" | "dorsal" | "keel" | "aft";

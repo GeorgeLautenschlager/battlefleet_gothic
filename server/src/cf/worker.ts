@@ -5,7 +5,7 @@
  */
 import type { Forces } from "@bfg/engine";
 import { createRoom, type CreateRequest } from "../room";
-import { isShipList, PROTOCOL } from "../protocol";
+import { isShipList, PROTOCOL, shipEntry } from "../protocol";
 import { isWebSocketUpgrade, workerDeps } from "./deps";
 import type { Env } from "./env";
 
@@ -70,7 +70,7 @@ export default {
           name: String(body?.name ?? ""),
           side: body?.side as CreateRequest["side"],
           faction: String(body?.faction ?? "") as CreateRequest["faction"],
-          ships: ships.map((s) => ({ name: s.name, classId: s.classId })),
+          ships: ships.map(shipEntry),
           ramming: body?.ramming !== false,
           boarding: body?.boarding === true,
           carriers: body?.carriers === true,
