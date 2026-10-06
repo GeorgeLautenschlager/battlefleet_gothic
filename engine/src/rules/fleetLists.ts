@@ -27,18 +27,22 @@ export const FLEET_LISTS: Partial<Record<FactionId, FleetList>> = {
     id: "gothic_sector",
     name: "Gothic Sector",
     page: 35,
-    classes: ["lunar", "gothic", "tyrant", "dominator", "dictator", "dauntless", "mars", "overlord"],
-    ratios: [{ category: "battlecruiser", per: 2, of: ["cruiser", "light_cruiser"] }],
+    classes: ["lunar", "gothic", "tyrant", "dominator", "dictator", "dauntless", "mars", "overlord", "emperor", "retribution"],
+    ratios: [
+      { category: "battlecruiser", per: 2, of: ["cruiser", "light_cruiser"] },
+      { category: "battleship", per: 3, of: ["cruiser", "light_cruiser", "battlecruiser"] },
+    ],
     commander: "admiral",
   },
   chaos: {
     id: "chaos_incursion",
     name: "Chaos Incursion",
     page: 232,
-    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "devastation", "styx", "hecate", "hades", "acheron", "repulsive"],
+    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "devastation", "styx", "hecate", "hades", "acheron", "repulsive", "chaos_battle_barge", "despoiler", "desolator"],
     ratios: [
       { category: "heavy_cruiser", per: 2, of: ["cruiser", "light_cruiser"] },
       { category: "grand_cruiser", per: 3, of: ["cruiser", "light_cruiser", "heavy_cruiser"] },
+      { category: "battleship", per: 3, of: ["cruiser", "light_cruiser", "heavy_cruiser"] },
     ],
     commander: "warmaster",
   },
@@ -51,6 +55,7 @@ const LABELS: Record<ShipCategory, string> = {
   heavy_cruiser: "heavy cruiser",
   battlecruiser: "battlecruiser",
   grand_cruiser: "grand cruiser",
+  battleship: "battleship",
 };
 export const ADMIRAL_POINTS: Record<8 | 9 | 10, number> = { 8: 50, 9: 100, 10: 150 }; // Fleet-Admiral, Admiral, Solar Admiral
 export const EXTRA_REROLL_POINTS = [0, 25, 75, 150] as const;
@@ -92,7 +97,7 @@ export function fleetListProblem(faction: FactionId, ships: readonly { classId: 
   for (const r of list.ratios) {
     const allowed = Math.floor(count(r.of) / r.per);
     if (count([r.category]) > allowed) {
-      const of = r.of.includes("heavy_cruiser") ? "cruisers or heavy cruisers" : "cruisers";
+      const of = r.of.includes("heavy_cruiser") ? "cruisers or heavy cruisers" : r.of.includes("battlecruiser") ? "cruisers or battlecruisers" : "cruisers";
       return `one ${LABELS[r.category]} per ${r.per === 2 ? "two" : "three"} ${of}: ${count(r.of)} ${of} allow ${allowed}`;
     }
   }

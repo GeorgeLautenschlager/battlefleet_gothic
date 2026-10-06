@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.14, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29).
+**Status:** draft v0.15, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29). v0.15 adds battleships: the `battleship` category, the traits that bar Come to New Heading and raise Leadership, and options that exclude each other (§7.1, §11, N30–N33).
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -342,9 +342,11 @@ type ShipProfile = {
 type ShipTraits = {
   allAheadFullDice?: number          // D6 rolled for All Ahead Full; default 4. Improved thrusters: 5 (N10)
   targetingMatrix?: boolean          // its weapons batteries take one column shift left (Mars, Overlord options)
+  noComeToNewHeading?: boolean       // may not use Come to New Heading (the battleships, N31)
+  leadershipBonus?: number           // added to its Leadership, max 10 (the Emperor's +1, N32)
 }
 
-type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser"   // later: battleships
+type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship"
 
 type Weapon = {
   id: string                         // unique within the profile: "port_lances"
@@ -653,7 +655,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `isHulk(s)` | `status ∈ {drifting_hulk, blazing_hulk}` |
 | `onTable(s)` | `status ∈ {active, drifting_hulk, blazing_hulk}` |
 | `has(s, k)` | `s.criticals` contains an entry of kind `k` |
-| `leadership(s)` | `min(10, base − (has(bridge_smashed) ? 3 : 0) − (slaaneshNear(s) ? 2 : 0))`, where `base` is `s.commander.leadership` if it has a commander, else the rolled `s.leadership` (N22) |
+| `leadership(s)` | `min(10, base + (profile.traits.leadershipBonus ?? 0)) − (has(bridge_smashed) ? 3 : 0) − (slaaneshNear(s) ? 2 : 0)`, where `base` is `s.commander.leadership` if it has a commander, else the rolled `s.leadership` (N22, N32) |
 | `slaaneshNear(s)` | an enemy ship with the Mark of Slaanesh, `active`, has its stem within 15 cm of `s`'s stem (§7.4) |
 | `shipValue(s)` | `profile.points + (commander?.points ?? 0)`: the ship, its options and anyone aboard (N25) |
 | `rerollFor(s)` | the commander whose re-roll `s` would use, or none: its own commander if they have re-rolls left, else its side's fleet commander if theirs is `active` with re-rolls left (N23–N24) |
@@ -939,6 +941,10 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N26 | **The Mark of Slaanesh** reaches 15 cm stem to stem, like other ranges; several such ships don't stack: −2 either way. | §11 |
 | N27 | **Cruiser Clash has no fleet lists** and no commanders: each side takes any `cruiser` of its faction's catalogue, with options, at 185 points or less (p. 128). That now includes the Dauntless light cruiser, which the Gothic Sector list sells as a cruiser. Fleet lists come with points forces. | §4 |
 | N28 | **The Repulsive's third shield** (+15 pts, p. 269) comes "when modelled on a large 60 mm base": the option sets `shields` 3 **and** `baseSize: "large"`, so the ship is bigger for every contact test (Blast Markers, rams, ordnance, the nova cannon). | §7.1 |
+| N30 | **Battleships** (`type: "battleship"`, category `battleship`) use the rules the engine already has for them: 15 cm before turning (p. 54), the ram test's sizes (p. 55), and a large base (p. 44: "3+ shields or more than 10 hits"). Their launch bays may sit in the prow (the Chaos battle barge), lost to Prow Armament Damaged like any prow weapon. | §7.1 |
+| N31 | **No Come to New Heading**: every battleship on the Gothic War lists says it may not use the order (pp. 53–54, 255, 266–267). It's a trait, `noComeToNewHeading`, so a battleship without it can arrive later. | §7.1 |
+| N32 | **The Emperor's +1 Leadership** (p. 53) is added after a commander replaces the ship's value (N22), then capped at 10: an Admiral (Ld 9) aboard gives 10. Bridge Smashed and Slaanesh come off after the cap, as before. | §11 |
+| N33 | **Options can exclude each other**: options sharing a `group` replace the same weapons (the Chaos battle barge's two battery refits), so a ship takes at most one per group. | §7.1 |
 | N29 | **Grand cruisers' immunity to prow criticals** (Vengeance, Exorcist, Avenger, Retaliator, Executor) isn't needed yet: the only grand cruiser on the Gothic War lists, the Repulsive, doesn't have it. It arrives as a trait with the first class that does. | §7.1 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
 

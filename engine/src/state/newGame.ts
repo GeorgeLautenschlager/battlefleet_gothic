@@ -94,7 +94,8 @@ function validateConfig(config: GameConfig): void {
     if (entry.faction !== faction) {
       throw new EngineError(`ships[${i}]: a ${ship.classId} can't serve in a ${faction} fleet`);
     }
-    if (entry.profile.type !== "cruiser") {
+    // Battleships come with points battles (T71).
+    if (entry.profile.type !== "cruiser" && !(forces.kind === "points" && entry.profile.type === "battleship")) {
       throw new EngineError(`ships[${i}]: Cruiser Clash allows cruisers only`);
     }
     if (entry.legacy === true && (ship.options ?? []).length > 0) throw new EngineError(`ships[${i}]: ${ship.classId} takes no options`);

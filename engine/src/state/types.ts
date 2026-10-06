@@ -220,9 +220,13 @@ export type ShipTraits = {
   allAheadFullDice?: number;
   /** Its weapons batteries take one column shift left (Mars and Overlord option, transform T64). */
   targetingMatrix?: boolean;
+  /** May not use Come to New Heading (the battleships, state N31). */
+  noComeToNewHeading?: boolean;
+  /** Added to its Leadership, max 10 (the Emperor's +1, state N32). */
+  leadershipBonus?: number;
 };
 
-export type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser";
+export type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship";
 
 // --- Fleet commanders (§7.4)
 

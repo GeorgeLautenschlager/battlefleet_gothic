@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.9, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.13](../game_state/SPEC.md) and [Transforms v0.11](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14).
+**Status:** draft v0.10, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.15](../game_state/SPEC.md) and [Transforms v0.13](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -287,7 +287,7 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 | 5 | `activation = null` | `ACTIVATION_OPEN` |
 | 6 | `turnState.commandCheckFailed = false` | `ORDERS_LOCKED` |
 | 7 | `ship.specialOrder = null` | `ALREADY_ON_ORDERS` |
-| 8 | `order ≠ "brace_for_impact"` (Brace only comes through `answer_brace`) | `INVALID_ORDER` |
+| 8 | `order ≠ "brace_for_impact"` (Brace only comes through `answer_brace`), and `order ≠ "come_to_new_heading"` when `profile.traits.noComeToNewHeading` (transform T73) | `INVALID_ORDER` |
 | 9 | If `ramTargetId` is given: `order = "all_ahead_full"` and `meta.options.ramming` | `RAM_NOT_ALLOWED` |
 | 10 | If `ramTargetId` is given: it names an enemy ship that's `onTable` (hulks allowed, transform D2) | `INVALID_RAM_TARGET` |
 | 11 | If `reroll`: `rerollFor(ship)` exists (state §11) | `NO_REROLL` |
@@ -565,7 +565,7 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 | `ACTIVATION_OPEN` | Another ship has declared an order and hasn't moved yet |
 | `ORDERS_LOCKED` | Fleet failed a Command check this turn |
 | `ALREADY_ON_ORDERS` | Ship has a live order (usually last turn's Brace) |
-| `INVALID_ORDER` | Brace declared directly |
+| `INVALID_ORDER` | Brace declared directly, or Come to New Heading on a ship that can't use it |
 | `RAM_NOT_ALLOWED` / `INVALID_RAM_TARGET` | Ram without AAF / with ramming off / at an invalid ship |
 | `INVALID_PATH_STEP` | Zero or negative advance, zero turn |
 | `TURN_TOO_SHARP` / `TOO_MANY_TURNS` / `TURN_TOO_EARLY` | Turning rules (p. 54) |

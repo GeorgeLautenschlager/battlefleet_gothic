@@ -13,14 +13,14 @@ export const FLEETS: Record<Fleet, { name: string; classId: string; classes: str
   imperial_navy: {
     name: "Imperial Navy",
     classId: "lunar",
-    classes: ["lunar", "gothic", "tyrant", "dominator", "dauntless", "mars", "overlord"],
+    classes: ["lunar", "gothic", "tyrant", "dominator", "dauntless", "mars", "overlord", "emperor", "retribution"],
     carrierClassId: "dictator",
     names: ["Agrippa", "Hammer of Terra", "Sanctus Vigil", "Lord Valdane", "Righteous Fury", "Saint Kasimir", "Iron Litany", "Gothic Dawn"],
   },
   chaos: {
     name: "Chaos",
     classId: "murder",
-    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "styx", "hecate", "hades", "acheron", "repulsive"],
+    classes: ["murder", "murder_lances", "carnage", "inferno", "slaughter", "styx", "hecate", "hades", "acheron", "repulsive", "chaos_battle_barge", "despoiler", "desolator"],
     carrierClassId: "devastation",
     names: ["Unclean", "Carrion Hymn", "Woe Eternal", "Flayed Saint", "Hungering Dark", "Ninth Wound", "Red Lament", "Sorrowmaw"],
   },
@@ -109,14 +109,31 @@ function cheapest(classId: string): number {
   return (entry?.profile.points ?? 0) + (entry?.options ?? []).reduce((n, o) => n + Math.min(0, o.points), 0);
 }
 
-/** Each ship's options, keeping only those its (current) class has. */
+/** Each ship's options, keeping only those its (current) class has, and the first of any group (state N33). */
 export const optionIds = (side: Side, carriers: boolean, points = false): string[][] => {
   const classes = classIds(side, carriers, points);
   return side.ships.map((_, i) => {
     const offered = CATALOGUE[classes[i] ?? ""]?.options ?? [];
-    return (side.options?.[i] ?? []).filter((id) => offered.some((o) => o.id === id));
+    const groups = new Set<string>();
+    return (side.options?.[i] ?? []).filter((id) => {
+      const o = offered.find((x) => x.id === id);
+      if (o === undefined) return false;
+      if (o.group === undefined) return true;
+      if (groups.has(o.group)) return false;
+      groups.add(o.group);
+      return true;
+    });
   });
 };
+
+/** Ticking an option drops any other in its group: they replace the same weapons (state N33). */
+export function withOption(classId: string, chosen: readonly string[], id: string, on: boolean): string[] {
+  const rest = chosen.filter((x) => x !== id);
+  if (!on) return rest;
+  const offered = CATALOGUE[classId]?.options ?? [];
+  const group = offered.find((o) => o.id === id)?.group;
+  return [...rest.filter((x) => group === undefined || offered.find((o) => o.id === x)?.group !== group), id];
+}
 
 /** Ship i's profile as it would be fielded: its class with its options. */
 export const shipProfileOf = (side: Side, i: number, carriers: boolean, points = false) =>
