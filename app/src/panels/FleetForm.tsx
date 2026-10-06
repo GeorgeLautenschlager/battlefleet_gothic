@@ -1,6 +1,6 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
 import { CATALOGUE, type CommanderConfig, type Mark } from "@bfg/engine";
-import { classChoices, classIds, commandPoints, defaultCommand, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, mostExpensive, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, type Command, type Fleet, type NewGameOptions, type Side } from "../game/config";
+import { classChoices, classIds, commandPoints, defaultCommand, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, mostExpensive, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, withOption, type Command, type Fleet, type NewGameOptions, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
 export function duplicates(names: string[]): string[] {
@@ -194,7 +194,7 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
   const setClass = (i: number, classId: string) =>
     onChange({ classes: classes.map((c, j) => (j === i ? classId : c)), options: options.map((o, j) => (j === i ? [] : o)) });
   const toggle = (i: number, id: string, on: boolean) =>
-    onChange({ options: options.map((o, j) => (j !== i ? o : on ? [...o.filter((x) => x !== id), id] : o.filter((x) => x !== id))) });
+    onChange({ options: options.map((o, j) => (j !== i ? o : withOption(classes[i] ?? "", o, id, on))) });
   return (
     <fieldset className={className}>
       <legend>

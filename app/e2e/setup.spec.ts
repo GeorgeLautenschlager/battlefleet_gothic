@@ -215,3 +215,24 @@ test("grand and light cruisers: a torpedo Dauntless and a shielded Repulsive und
   await expect(page.locator(".card").filter({ hasText: "Dauntless class light cruiser" })).toBeVisible();
   await expect(page.locator(".card").filter({ hasText: "Repulsive class grand cruiser" })).toContainText("Warmaster");
 });
+
+test("battleships: an Emperor with Sharks against a refitted battle barge", async ({ page }) => {
+  await page.goto("/");
+  const form = page.locator("form", { hasText: "Hot-seat" });
+  await form.getByLabel("Battle").selectOption("1000");
+  await form.getByLabel(/^Fleet lists/).uncheck(); // the ratios have their own tests
+  const [p1, p2] = [form.locator("fieldset.p1"), form.locator("fieldset.p2")];
+  await p1.getByRole("combobox", { name: /^Class/ }).selectOption("emperor");
+  await p1.getByLabel(/Shark assault boats/).check();
+  await expect(p1).toContainText("1 × Emperor class battleship + sharks (370 pts)");
+  await p2.getByRole("combobox", { name: /^Class/ }).selectOption("chaos_battle_barge");
+  await p2.getByLabel(/45 cm, FP 8/).check();
+  await p2.getByLabel(/30 cm, FP 10/).check(); // the other battery refit drops the first
+  await expect(p2.getByLabel(/45 cm, FP 8/)).not.toBeChecked();
+  await p2.getByLabel(/Prow torpedoes/).check();
+  await expect(p2).toContainText("1 × Chaos battle barge + batteries 30 + prow torpedoes (420 pts)");
+  await expect(form.locator(".rejection")).toHaveCount(0);
+  await form.getByRole("button", { name: "Start" }).click();
+  await expect(page.locator(".card").filter({ hasText: "Emperor class battleship" })).toBeVisible();
+  await expect(page.locator(".card").filter({ hasText: "Chaos battle barge" })).toBeVisible();
+});

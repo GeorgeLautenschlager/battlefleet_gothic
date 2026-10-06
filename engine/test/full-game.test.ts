@@ -111,12 +111,24 @@ describe("full games, points battles with victory points", () => {
       },
     ],
   ];
+  const withOptions = (config: GameConfig, options: Record<number, string[]>): GameConfig => ({
+    ...config,
+    ships: config.ships.map((x, i) => (options[i] !== undefined ? { ...x, options: options[i] } : x)),
+  });
+  matchups.push([
+    "1500 pts: Emperor (Sharks), Retribution, Lunars vs battle barge (refits), Despoiler (torpedoes), Desolator, Murders",
+    withOptions(battle(["emperor", "retribution", "lunar", "lunar", "lunar"], ["chaos_battle_barge", "despoiler", "desolator", "murder", "murder"], 1500), {
+      0: ["sharks"],
+      5: ["batteries_45", "prow_torpedoes", "dorsal_lances_45"],
+      6: ["prow_torpedoes"],
+    }),
+  ]);
   for (const [name, config] of matchups) {
     test.each([1, 2, 3, 4])(`${name}, seed %i, plays to a result`, (seed) => {
       const s = playOut(seed, config);
       expect(s.result).not.toBeNull();
       expect(s.log.at(-1)?.data["scoring"]).toBe("victory_points");
-    });
+    }, 60_000);
   }
 });
 
@@ -141,6 +153,26 @@ describe("full games with fleet lists, commanders and Marks", () => {
   );
   test.each([1, 2, 3, 4])("seed %i plays to a result", (seed) => {
     const s = playOut(seed, config);
+    expect(s.result).not.toBeNull();
+  }, 60_000);
+
+  const battleships = withLists(
+    [
+      imperial("emperor", 0, { options: ["sharks"], commander: { kind: "admiral", leadership: 9, extraRerolls: 0 } }),
+      imperial("lunar", 1),
+      imperial("gothic", 2),
+      imperial("dauntless", 3, { options: ["prow_torpedoes"] }),
+    ],
+    [
+      chaos("despoiler", 0, { commander: { kind: "warmaster", leadership: 8, marks: ["nurgle"] } }),
+      chaos("murder", 1),
+      chaos("carnage", 2),
+      chaos("acheron", 3),
+    ],
+    1500,
+  );
+  test.each([1, 2, 3])("with battleships, seed %i plays to a result", (seed) => {
+    const s = playOut(seed, battleships);
     expect(s.result).not.toBeNull();
   }, 60_000);
 

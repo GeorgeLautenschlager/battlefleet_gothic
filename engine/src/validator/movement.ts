@@ -61,6 +61,9 @@ export function checkDeclareOrder(state: GameState, t: DeclareOrder): Validation
   if (t.order === "brace_for_impact") {
     return reject("INVALID_ORDER", "Brace For Impact! is only declared when a ship is attacked");
   }
+  if (t.order === "come_to_new_heading" && ship.profile.traits?.noComeToNewHeading === true) {
+    return reject("INVALID_ORDER", `${ship.name} is too ponderous to Come To New Heading`, { shipId: ship.id });
+  }
   if (t.ramTargetId !== undefined) {
     if (t.order !== "all_ahead_full" || !state.meta.options.ramming) {
       return reject("RAM_NOT_ALLOWED", "Ramming needs All Ahead Full, with ramming enabled");

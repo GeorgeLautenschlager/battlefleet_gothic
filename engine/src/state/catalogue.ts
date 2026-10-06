@@ -2,8 +2,8 @@
  * Ship catalogue: profiles snapshotted into new games (state spec §7.1).
  *
  * Hand-entered from rules/fleets/imperial-navy/vessels.md (Mars p. 61, Overlord p. 66,
- * Dictator p. 67, Dauntless p. 77, Dominator p. 68, Tyrant p. 69, Gothic p. 70, Lunar p. 71), and the
- * Chaos Repulsive grand cruiser (p. 269) and heavy cruisers (Styx p. 272, Hecate p. 273, Hades p. 274, Acheron p. 275) and rules/fleets/chaos/vessels.md (Devastation p. 276,
+ * Dictator p. 67, Dauntless p. 77, Emperor p. 53, Retribution p. 54, Dominator p. 68, Tyrant p. 69, Gothic p. 70, Lunar p. 71), and the
+ * Chaos battleships (battle barge p. 255, Despoiler p. 266, Desolator p. 267), Repulsive grand cruiser (p. 269) and heavy cruisers (Styx p. 272, Hecate p. 273, Hades p. 274, Acheron p. 275) and rules/fleets/chaos/vessels.md (Devastation p. 276,
  * Carnage p. 277, Inferno p. 278, Murder p. 279, Slaughter p. 280). Launch bays
  * carry their fleet's default attack craft (imperial-navy/rules.md, chaos/rules.md).
  * Later phases will generate this from rules/fleets/.
@@ -20,6 +20,9 @@ const CHAOS_CRAFT: CraftOption[] = [
   { role: "bomber", name: "Doomfire", speed: 20 },
   { role: "assault_boat", name: "Dreadclaw", speed: 30 },
 ];
+
+/** Shark assault boats, for the Imperial ships that may carry them (transform T74). */
+const SHARKS: CraftOption = { role: "assault_boat", name: "Shark", speed: 30 };
 
 /** A pair of launch bays, port and starboard, `squadrons` each. */
 function launchBays(squadrons: number, craft: CraftOption[]): Weapon[] {
@@ -59,6 +62,8 @@ export type ShipOption = {
   shields?: number;
   baseSize?: BaseSize;
   traits?: ShipTraits;
+  /** Options sharing a group replace the same weapons: a ship takes at most one (state N33). */
+  group?: string;
 };
 
 /** A prow nova cannon: 30–150 cm to the template's near edge (state N13), one shot. */
@@ -114,6 +119,40 @@ const broadside = (kind: "battery" | "lance", range: number, strength: number): 
     speed: null,
     strength,
   }));
+
+/** Battleships (state N30): Battleship/12, 45° turns, 4 shields, a large base, no Come to New Heading. */
+function battleship(
+  faction: FactionId,
+  classId: string,
+  className: string,
+  page: number,
+  points: number,
+  stats: { speed: number; front?: number; turrets: number; traits?: ShipTraits },
+  weapons: Weapon[],
+  options?: ShipOption[],
+): CatalogueEntry {
+  const front = stats.front ?? 5;
+  return {
+    faction,
+    ...(options !== undefined ? { options } : {}),
+    profile: {
+      classId, className, source: { book: "fleets", page }, points, type: "battleship", category: "battleship",
+      hits: 12, speed: stats.speed, turns: 45, shields: 4, armour: { front, left: 5, rear: 5, right: 5 }, turrets: stats.turrets, baseSize: "large",
+      weapons, traits: { noComeToNewHeading: true, ...stats.traits },
+    },
+  };
+}
+const dorsalBattery = (range: number, strength: number): Weapon => ({
+  id: "dorsal_battery", name: "Dorsal weapons battery", kind: "battery", location: "dorsal", arcs: ["left", "front", "right"], range, speed: null, strength,
+});
+const prowLances = (range: number, strength: number): Weapon => ({
+  id: "prow_lances", name: "Prow lance battery", kind: "lance", location: "prow", arcs: ["front"], range, speed: null, strength,
+});
+const prowBays = (squadrons: number, craft: CraftOption[]): Weapon => ({
+  id: "prow_launch_bays", name: "Prow launch bays", kind: "launch_bay", location: "prow", arcs: [], range: null, speed: null, strength: squadrons, craft: craft.map((c) => ({ ...c })),
+});
+const byId = (bays: Weapon[]): Record<string, Weapon> => Object.fromEntries(bays.map((w) => [w.id, w]));
+const TORPEDOES_FOR_PROW_LANCES: ShipOption = { id: "prow_torpedoes", name: "Prow torpedoes (Str 8) for the prow lances", points: 10, weapons: { prow_lances: prowTorpedoes(8) } };
 
 /** Chaos heavy cruisers (pp. 272–275): Cruiser/8, 25 cm, 45°, shields 2, armour 5+. */
 function chaosHeavy(classId: string, name: string, page: number, points: number, turrets: number, weapons: Weapon[]): CatalogueEntry {
@@ -481,6 +520,39 @@ export const CATALOGUE: Readonly<Record<string, CatalogueEntry>> = {
       weapons: [...broadside("battery", 45, 14), dorsalLances(30, 3), prowTorpedoes(6)],
     },
   },
+  emperor: battleship(
+    "imperial_navy", "emperor", "Emperor class battleship", 53, 365,
+    { speed: 15, turrets: 5, traits: { leadershipBonus: 1 } },
+    [...broadside("battery", 60, 6), ...launchBays(4, IMPERIAL_CRAFT), dorsalBattery(60, 5), prowBattery(60, 5)],
+    [{ id: "sharks", name: "Shark assault boats in its launch bays", points: 5, weapons: byId(launchBays(4, [...IMPERIAL_CRAFT, SHARKS])) }],
+  ),
+  retribution: battleship(
+    "imperial_navy", "retribution", "Retribution class battleship", 54, 345,
+    { speed: 20, front: 6, turrets: 4 },
+    [...broadside("battery", 60, 12), dorsalLances(60, 3), prowTorpedoes(9)],
+  ),
+  chaos_battle_barge: battleship(
+    "chaos", "chaos_battle_barge", "Chaos battle barge", 255, 410,
+    { speed: 20, turrets: 4 },
+    [...broadside("battery", 60, 6), dorsalLances(60, 3), ...launchBays(3, CHAOS_CRAFT), prowBays(2, CHAOS_CRAFT), prowLances(30, 4)],
+    [
+      { id: "batteries_45", name: "45 cm, FP 8 port and starboard batteries", points: 0, group: "batteries", weapons: byId(broadside("battery", 45, 8)) },
+      { id: "batteries_30", name: "30 cm, FP 10 port and starboard batteries", points: 0, group: "batteries", weapons: byId(broadside("battery", 30, 10)) },
+      TORPEDOES_FOR_PROW_LANCES,
+      { id: "dorsal_lances_45", name: "45 cm, Str 4 dorsal lances", points: 10, weapons: { dorsal_lances: dorsalLances(45, 4) } },
+    ],
+  ),
+  despoiler: battleship(
+    "chaos", "despoiler", "Despoiler class battleship", 266, 400,
+    { speed: 20, turrets: 4 },
+    [...launchBays(4, CHAOS_CRAFT), ...broadside("battery", 60, 6), dorsalLances(60, 3), prowLances(30, 4)],
+    [TORPEDOES_FOR_PROW_LANCES],
+  ),
+  desolator: battleship(
+    "chaos", "desolator", "Desolator class battleship", 267, 300,
+    { speed: 25, turrets: 4 },
+    [...broadside("lance", 60, 4), dorsalBattery(60, 6), prowTorpedoes(9)],
+  ),
   styx: chaosHeavy("styx", "Styx", 272, 260, 3, [...launchBays(3, CHAOS_CRAFT), dorsalLances(60), prowBattery(60, 6)]),
   hecate: chaosHeavy("hecate", "Hecate", 273, 230, 3, [...launchBays(2, CHAOS_CRAFT), ...broadside("battery", 45, 4), dorsalLances(60), prowBattery(45, 6)]),
   hades: chaosHeavy("hades", "Hades", 274, 200, 2, [
@@ -505,6 +577,10 @@ export function profileWithOptions(classId: string, optionIds: readonly string[]
     if (!available.some((o) => o.id === id)) throw new Error(`${classId} has no option "${id}"`);
   }
   const chosen = available.filter((o) => optionIds.includes(o.id));
+  for (const o of chosen) {
+    const rival = chosen.find((p) => p !== o && p.group !== undefined && p.group === o.group);
+    if (rival !== undefined) throw new Error(`${classId}: "${o.id}" and "${rival.id}" can't both be taken`);
+  }
   const base = entry.profile;
   let weapons = base.weapons.map((w) => ({ ...w, arcs: [...w.arcs], ...(w.craft ? { craft: w.craft.map((c) => ({ ...c })) } : {}) }));
   let turrets = base.turrets;

@@ -94,9 +94,9 @@ export function slaaneshNear(state: GameState, ship: Ship): boolean {
 export function leadership(state: GameState, ship: Ship): number {
   const commander = commanderOf(ship);
   if (commander === null && ship.leadership === null) throw new EngineError(`${ship.id} has no Leadership yet`);
-  const base = commander?.leadership ?? (ship.leadership as number);
-  const value = base - (hasCritical(ship, "bridge_smashed") ? 3 : 0) - (slaaneshNear(state, ship) ? 2 : 0);
-  return Math.min(MAX_LEADERSHIP, value);
+  // The Emperor's +1 goes on after a commander's value, capped at 10 (N32).
+  const base = Math.min(MAX_LEADERSHIP, (commander?.leadership ?? (ship.leadership as number)) + (ship.profile.traits?.leadershipBonus ?? 0));
+  return base - (hasCritical(ship, "bridge_smashed") ? 3 : 0) - (slaaneshNear(state, ship) ? 2 : 0);
 }
 
 /** The ship, its options and anyone aboard: its value for victory points (N25). */
