@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { activePlayer, geometry, squadronOf, type GameState, type PathStep, type Point, type Ship, type Transform } from "@bfg/engine";
 import { pick } from "../game/pick";
-import { append, judge, propose, stats, type PlotStats, type Verdict } from "./plot";
+import { append, gravityTurnFrom, judge, propose, stats, type PlotStats, type Verdict } from "./plot";
 
 type Plan = { shipId: string; playerTurn: number; path: PathStep[]; disengage: boolean; board: string | null };
 
@@ -29,6 +29,8 @@ export type Plot = {
   click: (p: Point, straight: boolean) => void;
   /** Add a typed step. */
   add: (step: PathStep) => void;
+  /** The gravity well's free turn the ship could make now (first or last step), or null (state N68). */
+  gravityTurn: PathStep | null;
   back: () => void;
   clear: () => void;
   fullAhead: () => void;
@@ -106,6 +108,8 @@ export function usePlot(state: GameState | null, pointer: Point | null, straight
 
   if (state === null || ship === null || st === null) return null;
   const full = append(path, preview);
+  // At the start, or at the end of a path that doesn't already end with one (T109).
+  const gravityTurn = path.at(-1)?.kind === "gravity_turn" ? null : gravityTurnFrom(state, st.end);
   return {
     ship,
     path,
@@ -121,6 +125,7 @@ export function usePlot(state: GameState | null, pointer: Point | null, straight
     setBoard: (id) => update({ board: id }),
     click: (p, straightOnly) => update({ path: append(path, propose(state, ship, path, p, straightOnly)) }),
     add: (step) => update({ path: append(path, [step]) }),
+    gravityTurn,
     back: () => update({ path: path.slice(0, -1) }),
     clear: () => update({ path: [] }),
     fullAhead: () => {

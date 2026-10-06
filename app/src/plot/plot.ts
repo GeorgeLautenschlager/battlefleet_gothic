@@ -4,7 +4,7 @@
  * so it's all unit-testable. (Platform trig is fine here: these numbers only
  * propose a path; the engine walks it with its own deterministic maths.)
  */
-import { geometry, moveParameters, movingOrder, paths, validate } from "@bfg/engine";
+import { geometry, moveParameters, movingOrder, paths, planets, validate } from "@bfg/engine";
 import type { GameState, PathStep, Point, Ship, Transform } from "@bfg/engine";
 
 /** Below this many degrees off the bow, a click means straight ahead. */
@@ -65,6 +65,20 @@ export const typedStep = (kind: "advance" | "port" | "starboard", amount: number
   return { kind: "turn", degrees: kind === "port" ? -n : n };
 };
 
+/**
+ * A gravity well's free turn from `pose` (state N68): toward the planet, as far
+ * as the bow can swing (45°, or less if the planet is nearer the bow), or null
+ * outside any well or already facing the planet.
+ */
+export function gravityTurnFrom(state: GameState, pose: { position: Point; heading: number }): PathStep | null {
+  const planet = planets.gravityWellAt(state, pose.position);
+  if (planet === undefined) return null;
+  const delta = planets.angleToPlanet(planet, pose.position, pose.heading);
+  const magnitude = Math.floor(Math.min(planets.GRAVITY_TURN, Math.abs(delta)) * 10) / 10;
+  if (magnitude <= 0) return null;
+  return { kind: "gravity_turn", degrees: delta < 0 ? -magnitude : magnitude };
+}
+
 /** Append steps, merging an advance into a preceding advance and a turn into a preceding turn. */
 export function append(path: readonly PathStep[], steps: readonly PathStep[]): PathStep[] {
   const out = [...path];
@@ -123,9 +137,11 @@ export function stats(state: GameState, ship: Ship, path: readonly PathStep[]): 
   const sinceTurn = lastTurn === undefined ? walk.total : walk.total - distanceAtStep(walk, lastTurn.stepIndex);
   const turnsLeft = walk.turns.length < p.turnsAllowed;
   const freeTurn = p.order === "burn_retros" && sinceTurn === 0;
+  // High orbit (state N69): a ship that starts in a gravity well needn't move.
+  const orbit = ship.position !== null && planets.gravityWellAt(state, ship.position) !== undefined;
   return {
     total: walk.total,
-    min: p.minDistance,
+    min: orbit ? 0 : p.minDistance,
     max: p.maxIfBR,
     turnsUsed: walk.turns.length,
     turnsAllowed: p.turnsAllowed,

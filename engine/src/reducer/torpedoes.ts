@@ -1,4 +1,5 @@
 /** Torpedoes (reducer spec §9): launch, moving a salvo, and torpedo attacks. */
+import { salvoPlanetContact } from "../rules/planets";
 import { BM_RADIUS, EPS, TORPEDO_WIDTH } from "../geometry/constants";
 import { baseRadius, headingVector, norm } from "../geometry/basic";
 import { exitT, sweptSegmentVsCircle, sweptSegmentVsSegment } from "../geometry/sweep";
@@ -62,12 +63,13 @@ function markMoved(state: GameState, id: string): void {
 
 type SalvoEvent =
   | { kind: "exit"; t: number }
+  | { kind: "planet"; t: number; planetId: string }
   | { kind: "salvo"; t: number; otherId: string }
   | { kind: "wave"; t: number; waveId: string }
   | { kind: "ship"; t: number; shipId: string }
   | { kind: "blast_marker"; t: number };
 
-const ORDER: Record<SalvoEvent["kind"], number> = { exit: 0, salvo: 1, wave: 1, ship: 2, blast_marker: 3 };
+const ORDER: Record<SalvoEvent["kind"], number> = { exit: 0, planet: 0, salvo: 1, wave: 1, ship: 2, blast_marker: 3 };
 
 function earliest(events: SalvoEvent[]): SalvoEvent | null {
   let best: SalvoEvent | null = null;
@@ -82,6 +84,8 @@ function salvoEvents(state: GameState, salvo: TorpedoSalvo, length: number, bmTe
   const events: SalvoEvent[] = [];
   const exit = exitT(position, heading, length, state.table);
   if (exit !== null) events.push({ kind: "exit", t: exit });
+  const planet = salvoPlanetContact(state, position, heading, length, width);
+  if (planet !== null) events.push({ kind: "planet", ...planet });
   for (const other of state.ordnance) {
     if (other.id === salvo.id) continue;
     if (other.kind === "torpedo_salvo") {
@@ -131,6 +135,12 @@ export function ordnanceMove(ctx: Ctx, ordnanceId: string, travelledSoFar: numbe
 
     if (event.kind === "exit") {
       removeSalvo(ctx, salvo.id, "left_table");
+      break;
+    }
+    if (event.kind === "planet") {
+      // Torpedoes are destroyed at a planet's edge (state N66, R48).
+      ctx.log("planet_contact", { planetId: event.planetId, ordnanceId: salvo.id });
+      removeSalvo(ctx, salvo.id, "planet");
       break;
     }
     if (event.kind === "salvo") {

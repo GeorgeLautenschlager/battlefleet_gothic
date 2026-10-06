@@ -202,6 +202,15 @@ describe("lobby and start", () => {
     await expect(Harness.create({ fleet: ann, scenario: "raiders", forces: { kind: "points", limit: 500 }, attacker: "p1" })).rejects.toThrow("INVALID_FLEET");
   });
 
+  test("a planet: the host's choice rides in the options and reaches the game", async () => {
+    const h = await Harness.create({ planet: "large" });
+    const [welcome] = await h.hello("a", "p1");
+    expect(welcome).toMatchObject({ lobby: { options: { planet: "large" } } });
+    await h.hello("b", "p2");
+    await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }] });
+    expect(h.stateOf("b")!.table.features).toMatchObject([{ kind: "planet", size: "large", diameter: 35, well: 30 }]);
+  });
+
   test("fleet lists: commanders ride on the ship entries and the engine checks the list", async () => {
     const ann: Fleet = {
       faction: "imperial_navy",

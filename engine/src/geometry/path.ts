@@ -20,6 +20,8 @@ export type Leg = {
 export type Walk = {
   legs: Leg[];
   turns: { stepIndex: number; degrees: number; sinceLastTurn: number }[];
+  /** A gravity well's free turns (state N68): not turns, so they're kept apart. */
+  gravityTurns: { stepIndex: number; degrees: number; at: Point; headingBefore: number }[];
   /** Total forward distance. */
   total: number;
   end: { position: Point; heading: number };
@@ -29,6 +31,7 @@ export type Walk = {
 export function walkPath(start: { position: Point; heading: number }, path: readonly PathStep[]): Walk {
   const legs: Leg[] = [];
   const turns: Walk["turns"] = [];
+  const gravityTurns: Walk["gravityTurns"] = [];
   let position = start.position;
   let heading = start.heading;
   let total = 0;
@@ -40,13 +43,18 @@ export function walkPath(start: { position: Point; heading: number }, path: read
       sinceLastTurn = 0;
       continue;
     }
+    if (step.kind === "gravity_turn") {
+      gravityTurns.push({ stepIndex, degrees: step.degrees, at: position, headingBefore: heading });
+      heading = norm(heading + step.degrees);
+      continue;
+    }
     legs.push({ stepIndex, start: position, heading, length: step.distance, distanceBefore: total });
     const dir = headingVector(heading);
     position = { x: position.x + step.distance * dir.x, y: position.y + step.distance * dir.y };
     total += step.distance;
     sinceLastTurn += step.distance;
   }
-  return { legs, turns, total, end: { position, heading } };
+  return { legs, turns, gravityTurns, total, end: { position, heading } };
 }
 
 /** walkPath from a ship's current pose. */

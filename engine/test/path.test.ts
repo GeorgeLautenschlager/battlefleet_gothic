@@ -50,7 +50,7 @@ describe("walkPath", () => {
 
   test("an empty path stays put", () => {
     const walk = walkPath({ position: { x: 1, y: 2 }, heading: 270 }, []);
-    expect(walk).toEqual({ legs: [], turns: [], total: 0, end: { position: { x: 1, y: 2 }, heading: 270 } });
+    expect(walk).toEqual({ legs: [], turns: [], gravityTurns: [], total: 0, end: { position: { x: 1, y: 2 }, heading: 270 } });
   });
 
   test("headings normalise", () => {

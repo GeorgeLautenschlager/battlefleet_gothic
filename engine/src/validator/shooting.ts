@@ -6,6 +6,7 @@ import type { GameState, Point, Ship, Weapon } from "../state/types";
 import type { Fire, FireNovaCannon, LaunchTorpedoes } from "../transforms/types";
 import { isResult, ownActiveShip, rerollCheck } from "./movement";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
+import { planetBlocks } from "../rules/planets";
 
 /** Shared checks 1–6: own active ship whose disengage test didn't fail, not grappled and not boarding. */
 export function shooter(state: GameState, shipId: string, player: string): Ship | ValidationResult {
@@ -126,10 +127,12 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
       }
       // 19: line of fire
       if (lineOfFireBlocked(state, ship, target.ship)) {
-        return reject("LINE_OF_FIRE_BLOCKED", "A hulk blocks the line of fire", { targetId: target.ship.id });
+        return reject("LINE_OF_FIRE_BLOCKED", "A hulk or a planet blocks the line of fire", { targetId: target.ship.id });
       }
-    } else if (t.aspect !== undefined) {
-      return reject("INVALID_ASPECT_CHOICE", "Ordnance has no aspect", { options: [] });
+    } else {
+      if (t.aspect !== undefined) return reject("INVALID_ASPECT_CHOICE", "Ordnance has no aspect", { options: [] });
+      // 19: line of fire: hulks don't block shots at ordnance, planets do (transform T111)
+      if (planetBlocks(state, from, at)) return reject("LINE_OF_FIRE_BLOCKED", "A planet blocks the line of fire", { targetId: target.salvo.id });
     }
 
     // 20: target priority
@@ -224,7 +227,10 @@ function reaches(state: GameState, ship: Ship, w: Weapon, target: Target, member
     return reject("OUT_OF_ARC", `The target is outside ${w.name}'s arc`, { weaponId: w.id, quadrants, arcs: w.arcs });
   }
   if (target.kind === "ship" && lineOfFireBlocked(state, ship, target.ship)) {
-    return reject("LINE_OF_FIRE_BLOCKED", "A hulk blocks the line of fire", { targetId: target.ship.id });
+    return reject("LINE_OF_FIRE_BLOCKED", "A hulk or a planet blocks the line of fire", { targetId: target.ship.id });
+  }
+  if (target.kind === "ordnance" && planetBlocks(state, ship.position as Point, target.salvo.position)) {
+    return reject("LINE_OF_FIRE_BLOCKED", "A planet blocks the line of fire", { targetId: target.salvo.id });
   }
   return OK;
 }
@@ -269,7 +275,7 @@ export function checkFireNovaCannon(state: GameState, t: FireNovaCannon): Valida
   }
   // 15
   if (novaLineBlocked(state, ship, t.aim)) {
-    return reject("LINE_OF_FIRE_BLOCKED", "A hulk blocks the line of fire", { aim: t.aim });
+    return reject("LINE_OF_FIRE_BLOCKED", "A hulk or a planet blocks the line of fire", { aim: t.aim });
   }
   return OK;
 }

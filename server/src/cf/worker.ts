@@ -79,6 +79,7 @@ export default {
             ? { scenario: body.scenario as "fleet_engagement" | "the_bait" | "raiders" }
             : {}),
           ...(body?.attacker === "p1" || body?.attacker === "p2" ? { attacker: body.attacker as "p1" | "p2" } : {}),
+          ...(body?.planet === "small" || body?.planet === "medium" || body?.planet === "large" ? { planet: body.planet as "small" | "medium" | "large" } : {}),
           ...forcesOf(body?.forces),
           ...(body?.scoring === "victory_points" ? { scoring: "victory_points" as const } : {}),
         },

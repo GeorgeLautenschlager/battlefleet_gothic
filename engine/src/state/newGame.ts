@@ -7,7 +7,8 @@ import { buildCommander, commanderPoints, fleetListProblem, type CommanderConfig
 import { EngineError } from "./derived";
 import { cloneJson } from "./json";
 import { createRng } from "./rng";
-import type { FactionId, Forces, GameState, PlayerId, Scenario, ScenarioId, Scoring, Ship, ShipProfile, ShipSquadron, ShipTurnState, TurnState } from "./types";
+import { PLANET_SIZES } from "../rules/planets";
+import type { FactionId, Forces, GameState, PlanetSize, PlayerId, Scenario, ScenarioId, Scoring, Ship, ShipProfile, ShipSquadron, ShipTurnState, TurnState } from "./types";
 
 export type GameConfig = {
   seed: number;
@@ -18,6 +19,8 @@ export type GameConfig = {
   scenario?: ScenarioId;
   /** The Bait: the pursuers (state N47); The Raiders: the raiders (N56). Required there, refused elsewhere. */
   attacker?: PlayerId;
+  /** A planet in the table centre (transform T107); default none. */
+  planet?: PlanetSize;
   /** Default: Cruiser Clash forces (state §4). */
   forces?: Forces;
   /** Default: Cruiser Clash scoring. */
@@ -77,6 +80,7 @@ function validateConfig(config: GameConfig): void {
     throw new EngineError(`seed must be a uint32, got ${config.seed}`);
   }
   const forces = config.forces ?? { kind: "cruiser_clash" };
+  if (config.planet !== undefined && !(config.planet in PLANET_SIZES)) throw new EngineError(`a planet is small, medium or large, not ${String(config.planet)}`);
   if (forces.kind === "points" && (!Number.isInteger(forces.limit) || forces.limit <= 0)) {
     throw new EngineError(`a points limit must be a positive whole number, got ${forces.limit}`);
   }
@@ -347,7 +351,14 @@ export function newGame(config: GameConfig): GameState {
       },
     },
     scenario: scenarioOf(config),
-    table: { width: 180, height: 120 },
+    table: {
+      width: 180,
+      height: 120,
+      // A planet in the centre, its id after the ships' and squadrons' (transform §5, T107).
+      ...(config.planet !== undefined
+        ? { features: [{ kind: "planet" as const, id: `planet-${ships.length + squadrons.length + 1}`, position: { x: 90, y: 60 }, size: config.planet, ...PLANET_SIZES[config.planet] }] }
+        : {}),
+    },
     players: { p1: player("p1"), p2: player("p2") },
     setup: {
       leadershipRolled: false,
@@ -374,7 +385,7 @@ export function newGame(config: GameConfig): GameState {
     pending: [],
     queue: [],
     rng: createRng(config.seed),
-    nextId: ships.length + squadrons.length + 1,
+    nextId: ships.length + squadrons.length + (config.planet !== undefined ? 1 : 0) + 1,
     log: [],
     result: null,
   };

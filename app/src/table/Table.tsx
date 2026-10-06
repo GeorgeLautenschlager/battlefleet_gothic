@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { constants, craft, formation, geometry, type AttackCraftWave, type GameState, type PlayerId, type Point } from "@bfg/engine";
+import { constants, craft, formation, geometry, planets, type AttackCraftWave, type GameState, type PlayerId, type Point } from "@bfg/engine";
 import { capOffset, markerOffset, ROLE_LETTER } from "../craft/craft";
 import { EntryEdges, Zones, type SetupPreview } from "./Zones";
 import { ShipGlyph } from "./ShipGlyph";
@@ -31,6 +31,24 @@ type Props = {
 };
 
 const GRID = 10; // cm
+
+/** Each planet's template, and its gravity well as a dashed ring (pp. 112–113). */
+function Planets({ state }: { state: GameState }) {
+  const view: View = state.table;
+  return (
+    <>
+      {planets.planets(state).map((p) => {
+        const c = toSvg(view, p.position);
+        return (
+          <g key={p.id} className="planet" data-planet={p.size}>
+            <circle className="well" cx={c.x} cy={c.y} r={p.diameter / 2 + p.well} />
+            <circle className="template" cx={c.x} cy={c.y} r={p.diameter / 2} />
+          </g>
+        );
+      })}
+    </>
+  );
+}
 
 export function Table({ state, ghost = null, ghosts = [], selectedShipId = null, highlight = [], setupPreview = null, entryFor = null, onSelectShip, onSelectSalvo, onPointer, onTableClick, children }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -71,6 +89,7 @@ export function Table({ state, ghost = null, ghosts = [], selectedShipId = null,
     >
       <rect className="space" x={0} y={0} width={width} height={height} />
       <g className="grid">{lines}</g>
+      <Planets state={state} />
 
       <defs>
         <marker id="zone-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto">

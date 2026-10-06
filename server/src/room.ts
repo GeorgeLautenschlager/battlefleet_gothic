@@ -3,7 +3,7 @@
  * authoritative engine. No Cloudflare APIs: messages in, addressed messages
  * out, and `data` to persist. Randomness, hashing and time come in as `Deps`.
  */
-import { newGame, reduce, validate, type FactionId, type Forces, type GameConfig, type GameState, type PlayerId, type ScenarioId, type Scoring, type Transform } from "@bfg/engine";
+import { newGame, reduce, validate, type FactionId, type Forces, type GameConfig, type GameState, type PlanetSize, type PlayerId, type ScenarioId, type Scoring, type Transform } from "@bfg/engine";
 import { cleanName, cruiserClash, fleetProblem } from "./config";
 import {
   MAX_MESSAGES_PER_SECOND,
@@ -109,6 +109,8 @@ export type CreateRequest = {
   scoring?: Scoring;
   /** The Bait and The Raiders: the attacker's seat (T93, T100). */
   attacker?: PlayerId;
+  /** A planet in the table centre (T107). */
+  planet?: PlanetSize;
 };
 export type Created = { data: RoomData; seat: PlayerId; token: string; inviteToken: string };
 export type CreateError = { error: "INVALID_NAME" | "INVALID_SIDE" | "INVALID_FLEET"; message?: string };
@@ -151,6 +153,7 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
       // Every scenario but Cruiser Clash is victory points (transform §5).
       scoring: scenario === "cruiser_clash" ? (req.scoring ?? "cruiser_clash") : "victory_points",
       ...(attacker !== undefined ? { attacker } : {}),
+      ...(req.planet === "small" || req.planet === "medium" || req.planet === "large" ? { planet: req.planet } : {}),
     },
     config: null,
     transforms: [],

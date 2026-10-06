@@ -2,6 +2,7 @@
  * Movement (reducer spec §8): executing a ship's path with its contact events,
  * rams, the 0-shield Blast Marker roll, finishing a move, and drifting hulks.
  */
+import { gravityTurnProblem, gravityWellAt, stemPlanetContact } from "../rules/planets";
 import { BM_RADIUS, BM_SLOWDOWN, EPS } from "../geometry/constants";
 import { approxGe, approxLe, baseRadius, basesTouch, distance, headingVector, norm } from "../geometry/basic";
 import { exitT, sweptCircleVsCircle, sweptCircleVsSegment } from "../geometry/sweep";
@@ -212,6 +213,17 @@ export function continueMove(ctx: Ctx): void {
   while (a.remainingPath.length > 0 && ship.status === "active") {
     const step = a.remainingPath[0];
     if (step === undefined) break;
+
+    if (step.kind === "gravity_turn") {
+      // A gravity well's free turn (state N68, R47): not a turn, so no counters; skipped if no longer legal.
+      const at = ship.position as Point;
+      const planet = gravityWellAt(state, at);
+      const skipped = gravityTurnProblem(state, at, ship.heading as number, step.degrees) !== null;
+      if (!skipped) ship.heading = norm((ship.heading as number) + step.degrees);
+      ctx.log("gravity_turn", { shipId: ship.id, degrees: step.degrees, planetId: planet?.id ?? null, ...(skipped ? { skipped: true } : {}) });
+      a.remainingPath.shift();
+      continue;
+    }
 
     if (step.kind === "turn") {
       if (!turnStillLegal(ship, a, step.degrees)) {
@@ -454,6 +466,11 @@ export function hulkDrift(ctx: Ctx, shipId: string, distanceTotal: number, trave
     const events: Event[] = [];
     const exit = exitT(position, heading, remaining, state.table);
     if (exit !== null) events.push({ kind: "exit", t: exit });
+    // A hulk drifting into a planet is destroyed there (state N70, R49).
+    const planet = stemPlanetContact(state, position, heading, remaining);
+    if (planet !== null && (exit === null || planet.t < exit - EPS)) {
+      events.push({ kind: "exit", t: planet.t });
+    }
     events.push(...salvoEvents(state, hulk, position, heading, remaining));
     const event = earliest(events);
     if (event === null) {
@@ -464,10 +481,12 @@ export function hulkDrift(ctx: Ctx, shipId: string, distanceTotal: number, trave
     advance(hulk, event.t);
     travelled += event.t;
     if (event.kind === "exit") {
+      const intoPlanet = planet !== null && Math.abs(event.t - planet.t) <= EPS && (exit === null || planet.t < exit - EPS);
       hulk.status = "destroyed";
       hulk.position = null;
       hulk.heading = null;
-      ctx.log("hulk_lost", { shipId, reason: "table_edge" });
+      if (intoPlanet) ctx.log("planet_contact", { planetId: planet.planetId, shipId });
+      ctx.log("hulk_lost", { shipId, reason: intoPlanet ? "planet" : "table_edge" });
       break;
     }
     if (event.kind === "salvo") {

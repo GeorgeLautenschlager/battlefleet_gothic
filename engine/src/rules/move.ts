@@ -56,9 +56,10 @@ export function moveParameters(ship: Ship, activation: Pick<Activation, "shipId"
  * Where an All Ahead Full move must end (validator §4.2 check 14): the full
  * distance, less 5 cm if slowed, unless a new Blast Marker in the last 5 cm stops it.
  */
-export function allAheadFullEnd(state: GameState, ship: Ship, d0: number): { end: number; stoppedByBm: boolean } {
+/** `heading`: the bow after any first gravity turn (validator check 14); the ship's own by default. */
+export function allAheadFullEnd(state: GameState, ship: Ship, d0: number, heading = ship.heading): { end: number; stoppedByBm: boolean } {
   const startingBms = bmsInContact(state, ship);
-  const line = walkShipPath(ship, [{ kind: "advance", distance: d0 }]);
+  const line = walkShipPath({ ...ship, heading }, [{ kind: "advance", distance: d0 }]);
   const contacts = bmContacts(state.blastMarkers, ship, line, new Set(startingBms.map((b) => b.id)));
   const first = contacts[0];
   const slowed = startingBms.length > 0 || (first !== undefined && first.distance < d0 - BM_SLOWDOWN);

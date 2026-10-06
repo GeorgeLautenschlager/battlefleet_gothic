@@ -28,7 +28,8 @@ function rulesLine(lobby: LobbyInfo, seat: PlayerId): string {
   const score =
     (scoring === "victory_points" ? ", victory points" : forces?.kind === "points" ? ", Cruiser Clash scoring" : "") +
     ((lobby.options as Partial<LobbyInfo["options"]>).fleetLists === true ? ", fleet lists" : "");
-  return `${size}${score}, ${ramming ? "ramming allowed" : "no ramming"}, ${boarding ? "boarding allowed" : "no boarding"}.`;
+  const planet = (lobby.options as Partial<LobbyInfo["options"]>).planet;
+  return `${size}${score}, ${ramming ? "ramming allowed" : "no ramming"}, ${boarding ? "boarding allowed" : "no boarding"}${planet !== undefined ? `, a ${planet} planet in the centre` : ""}.`;
 }
 
 /** "Imperial Navy: 2 × Lunar class cruiser (Agrippa, Hammer of Terra)" */

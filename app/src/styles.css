@@ -282,3 +282,6 @@ strong.p2 { color: var(--p2); }
 .vp-breakdown ul { margin: 0; padding-left: 1rem; color: var(--muted); }
 .battle-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
 .battle-fields select { min-width: 0; width: 100%; box-sizing: border-box; }
+
+.planet .template { fill: rgba(120, 150, 190, 0.28); stroke: rgba(160, 190, 230, 0.7); stroke-width: 0.4; }
+.planet .well { fill: rgba(120, 150, 190, 0.05); stroke: rgba(160, 190, 230, 0.35); stroke-width: 0.3; stroke-dasharray: 1.5 1; }

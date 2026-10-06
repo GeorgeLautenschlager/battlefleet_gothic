@@ -1,5 +1,5 @@
 /** The game server's HTTP side (spec §8.1). */
-import type { FactionId, Forces, PlayerId, ScenarioId, Scoring } from "@bfg/engine";
+import type { FactionId, Forces, PlanetSize, PlayerId, ScenarioId, Scoring } from "@bfg/engine";
 import type { ShipEntry } from "@bfg/server";
 import { SERVER_URL } from "./config";
 
@@ -25,6 +25,8 @@ export type CreateGame = {
   scoring?: Scoring;
   /** The Bait: the pursuers' seat (T93). */
   attacker?: PlayerId;
+  /** A planet in the table centre (T107). */
+  planet?: PlanetSize;
 };
 
 export async function createGame(req: CreateGame): Promise<CreatedGame> {

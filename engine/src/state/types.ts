@@ -84,7 +84,16 @@ export type Scenario = {
 
 export type ScenarioId = "cruiser_clash" | "the_bait" | "raiders" | "fleet_engagement";
 
-export type Table = { width: number; height: number };
+/** `features`: celestial phenomena (state §4); absent in older saves and on an empty table. */
+export type Table = { width: number; height: number; features?: Feature[] };
+
+/** More kinds (gas clouds, asteroid fields, moons…) to come. */
+export type Feature = Planet;
+
+export type PlanetSize = "small" | "medium" | "large";
+
+/** A planet's template (pp. 112–113): its centre, size, diameter and gravity well beyond the edge (state N64). */
+export type Planet = { kind: "planet"; id: string; position: Point; size: PlanetSize; diameter: number; well: number };
 
 export type Player = {
   id: PlayerId;
@@ -382,7 +391,9 @@ export type TurnState = {
 
 export type PathStep =
   | { kind: "advance"; distance: number }
-  | { kind: "turn"; degrees: number };
+  | { kind: "turn"; degrees: number }
+  /** A gravity well's free turn toward the planet: first and/or last step only (state N68). */
+  | { kind: "gravity_turn"; degrees: number };
 
 export type Activation = {
   kind: "move";

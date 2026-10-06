@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { carriersAllowed, defaultNames, listsOn, MAX_SHIPS, pursuedOf, roleOf, shipEntries, sideProblem, type Side } from "../game/config";
-import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks, type Battle, type Rules } from "../panels/FleetForm";
+import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, PlanetField, resize, RulesChecks, type Battle, type Rules } from "../panels/FleetForm";
+import type { PlanetSize } from "@bfg/engine";
 import { createGame } from "./api";
 import type { MyGame } from "./myGames";
 
@@ -9,6 +10,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
   const [side, setSide] = useState<Side>({ name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1) });
   const [rules, setRules] = useState<Rules>({ ramming: true, boarding: true, carriers: false, fleetLists: true });
   const [battle, setBattle] = useState<Battle>({});
+  const [planet, setPlanet] = useState<PlanetSize | undefined>(undefined);
   const points = battle.forces?.kind === "points" ? battle.forces.limit : null;
   const carriers = carriersAllowed({ carriers: rules.carriers, ...battle });
   const [busy, setBusy] = useState(false);
@@ -28,7 +30,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         setBusy(true);
         setError(null);
         const name = side.name.trim();
-        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists, reinforcements), ...rules, fleetLists: lists, ...battle })
+        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists, reinforcements), ...rules, fleetLists: lists, ...battle, ...(planet !== undefined ? { planet } : {}) })
           .then((g) => onCreated({ gameId: g.gameId, token: g.token, seat: g.seat, name, joinedAt: new Date().toISOString(), inviteToken: g.inviteToken }))
           .catch((err: unknown) => setError((err as Error).message))
           .finally(() => setBusy(false));
@@ -45,6 +47,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
           if (patch.forces?.kind !== "points" && side.ships.length > MAX_SHIPS) setSide({ ...side, ships: side.ships.slice(0, MAX_SHIPS) });
         }}
       />
+      <PlanetField value={planet} onChange={setPlanet} />
       {points === null && <CountSelect value={side.ships.length} onChange={(n) => setSide({ ...side, ships: resize(side.ships, side.fleet, n) })} />}
       <FleetFields
         legend="You"
