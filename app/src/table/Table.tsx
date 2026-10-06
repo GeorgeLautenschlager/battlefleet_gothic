@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { constants, craft, type AttackCraftWave, type GameState, type Point } from "@bfg/engine";
+import { constants, craft, formation, geometry, type AttackCraftWave, type GameState, type Point } from "@bfg/engine";
 import { capOffset, markerOffset, ROLE_LETTER } from "../craft/craft";
 import { Zones, type SetupPreview } from "./Zones";
 import { ShipGlyph } from "./ShipGlyph";
@@ -110,6 +110,19 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
               {o.strength}
             </text>
           </g>
+        );
+      })}
+
+      {(state.squadrons ?? []).flatMap((sq) => {
+        // Squadron formation (p. 96): a faint link between members in formation within 15 cm of each other.
+        const crew = formation(state, sq);
+        return crew.flatMap((a, i) =>
+          crew.slice(i + 1).flatMap((b) => {
+            if (a.position === null || b.position === null || geometry.distance(a.position, b.position) > constants.FORMATION_RANGE + 0.001) return [];
+            const p = toSvg(view, a.position);
+            const q = toSvg(view, b.position);
+            return [<line key={`formation-${a.id}-${b.id}`} className={`formation ${sq.owner}`} x1={p.x} y1={p.y} x2={q.x} y2={q.y} />];
+          }),
         );
       })}
 

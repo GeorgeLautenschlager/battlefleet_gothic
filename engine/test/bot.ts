@@ -154,6 +154,21 @@ function baseCandidates(s: GameState, n: number): Transform[] {
               for (const arc of ARCS) out.push({ type: "fire", player: p, shipId: ship.id, weaponId: w.id, target: { kind: "ordnance", id: o.id }, ...(arc === undefined ? {} : { arc }) });
             }
           }
+          // A squadron volley first, now and then (T84): every squadron-mate's unfired weapon of this kind, at each target and aspect.
+          const sq = squadronOf(s, ship);
+          if (sq !== undefined && n % 2 === 0) {
+            const mates = sq.shipIds.filter((id) => id !== ship.id).flatMap((id) => s.ships.find((x) => x.id === id && x.status === "active") ?? []);
+            const withShips = mates
+              .map((m) => ({ shipId: m.id, weaponIds: m.profile.weapons.filter((x) => x.kind === w.kind && !done(m.id, x.id) && !weaponDisabled(s, m, x)).map((x) => x.id) }))
+              .filter((e) => e.weaponIds.length > 0);
+            // Drop mates whose weapons can't reach: try the whole squadron, then each mate alone.
+            const options = withShips.length > 0 ? [withShips, ...withShips.map((e) => [e])] : [];
+            for (const e of enemies) {
+              for (const ws of options) for (const targetAspect of [undefined, "closing", "abeam", "moving_away"] as const) {
+                out.push({ type: "fire", player: p, shipId: ship.id, weaponId: w.id, target: { kind: "ship", id: e.id }, withShips: ws, ...(targetAspect === undefined ? {} : { targetAspect }) });
+              }
+            }
+          }
           for (const e of enemies) {
             // Batteries: first with every other unfired battery that bears on this target, in one volley (T32), then alone.
             const bearing = quadrantsOfPoint(ship.position!, ship.heading!, e.position!);

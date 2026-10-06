@@ -283,3 +283,100 @@ describe("escort losses (N34, R33, R41)", () => {
     expect(victoryPoints(s, "p2").squadrons).toEqual([{ squadronId: "sq-9", vp: 27, why: "disengaged" }]);
   });
 });
+
+describe("shooting at a squadron (T83–T87, R35–R38)", () => {
+  // ship-1 Sword and ship-2 Cobra in "Mixed", fleeing west; ship-3 a Murder heading north, the escorts off its port side.
+  const mixed = config([{ classId: "sword", squadron: "Mixed" }, { classId: "cobra", squadron: "Mixed" }], [{ classId: "murder" }]);
+  function murderToFire(at: Record<string, [number, number, number]>): GameState {
+    const s = newGame(cloneJson(mixed));
+    for (const x of s.ships) {
+      const [px, py, h] = at[x.id]!;
+      Object.assign(x, { leadership: 8, status: "active", position: { x: px, y: py }, heading: h });
+    }
+    s.setup.leadershipRolled = true;
+    s.setup.firstPlayer = "p1";
+    s.clock = { stage: "battle", setupStep: null, playerTurn: 2, phase: "shooting", step: "direct_fire" };
+    s.turnState = emptyTurnState(2, s.ships);
+    return s;
+  }
+  const portBattery = (extra: Record<string, unknown> = {}) =>
+    ({ type: "fire", player: "p2", shipId: "ship-3", weaponId: "port_battery", target: { kind: "ship", id: "ship-2" }, ...extra }) as Transform;
+
+  test("p. 98's example: rolls 4, 5, 6 at a closer Sword (5+) and a Cobra (4+): the 4 to the Cobra, the 5 and 6 to the Sword", () => {
+    // Sword 17 cm, Cobra 24 cm, both showing their rear: escorts moving away, column D, FP 10 → 4 dice.
+    const start = murderToFire({ "ship-1": [83, 50, 270], "ship-2": [76, 50, 270], "ship-3": [100, 50, 0] });
+    let s = play(start, portBattery()); // naming the Cobra targets the squadron (V15)
+    expect(s.pending[0]).toMatchObject({ shipId: "ship-1" }); // one offer, to the nearest eligible member (T86)
+    s = playDice(s, { type: "answer_brace", player: "p1", pendingId: s.pending[0]!.id, attempt: false }, [4, 5, 6, 1]);
+    const attack = logOf(s, "attack").at(-1)!.data;
+    expect(attack).toMatchObject({ columns: [{ column: "D", firepower: 10, dice: 4 }], need: 4, hits: 3, targetIds: ["ship-1", "ship-2"], targetAspect: "moving_away" });
+    expect(logOf(s, "allocation").at(-1)!.data["allocation"]).toEqual([
+      { roll: 4, shipId: "ship-2" },
+      { roll: 5, shipId: "ship-1" },
+      { roll: 6, shipId: "ship-1" },
+    ]);
+    expect(ship(s, "ship-1").status).toBe("destroyed"); // shield, then its one hit
+    expect(ship(s, "ship-2")).toMatchObject({ status: "active", damage: 0 }); // only its shield went
+  });
+
+  test("hits only go to members that took fire; the rest are lost", () => {
+    // The Cobra, 15 cm from the Sword, is behind the Murder's port arc: only the Sword can be hit.
+    const start = murderToFire({ "ship-1": [83, 50, 270], "ship-2": [92, 38, 270], "ship-3": [100, 50, 0] });
+    expect(squadronOf(start, ship(start, "ship-2"))!.shipIds).toHaveLength(2);
+    let s = play(start, portBattery());
+    s = playDice(s, { type: "answer_brace", player: "p1", pendingId: s.pending[0]!.id, attempt: false }, [6, 6, 6, 6]);
+    expect(logOf(s, "allocation").at(-1)!.data["allocation"]).toEqual([
+      { roll: 6, shipId: "ship-1" },
+      { roll: 6, shipId: "ship-1" },
+      { roll: 6, shipId: null },
+      { roll: 6, shipId: null },
+    ]);
+    expect(ship(s, "ship-2").status).toBe("active");
+  });
+
+  test("the aspect fired at: one a member shows; harder members can't be hit", () => {
+    // The Sword shows its rear (moving away, D), the Cobra its side (abeam, E).
+    const start = murderToFire({ "ship-1": [83, 50, 270], "ship-2": [83, 40, 0], "ship-3": [100, 50, 0] });
+    expectReject(start, portBattery({ targetAspect: "closing" }), "INVALID_TARGET_ASPECT");
+    expectOk(start, portBattery({ targetAspect: "abeam" }));
+    let s = play(start, portBattery({ targetAspect: "moving_away" }));
+    s = playDice(s, { type: "answer_brace", player: "p1", pendingId: s.pending[0]!.id, attempt: false }, [6, 6, 6, 6]);
+    expect(logOf(s, "attack").at(-1)!.data["targetIds"]).toEqual(["ship-1"]); // the abeam Cobra is harder than moving away
+  });
+});
+
+describe("shooting by a squadron (T84, T88, N40)", () => {
+  /** p2's Iconoclasts (ship-6, ship-7) fire at the Lunar ship-4, which sits off their prows. */
+  function lostToFire(): GameState {
+    const s = inBattle({ ...AT, "ship-6": [100, 55, 180], "ship-7": [106, 55, 180] });
+    s.clock = { ...s.clock, playerTurn: 2, phase: "shooting", step: "direct_fire" };
+    s.turnState = emptyTurnState(2, s.ships);
+    return s;
+  }
+  const volley = (extra: Record<string, unknown> = {}) =>
+    ({ type: "fire", player: "p2", shipId: "ship-6", weaponId: "battery", target: { kind: "ship", id: "ship-4" }, withShips: [{ shipId: "ship-7", weaponIds: ["battery"] }], ...extra }) as Transform;
+
+  test("firepower adds up, and each ship's weapon is spent", () => {
+    let s = play(lostToFire(), volley());
+    s = playDice(s, { type: "answer_brace", player: "p1", pendingId: s.pending[0]!.id, attempt: false }, [1, 1, 1, 1]);
+    expect(logOf(s, "attack").at(-1)!.data).toMatchObject({ shooterIds: ["ship-6", "ship-7"], columns: [{ column: "B", firepower: 6, dice: 4 }] });
+    expect(s.turnState.ships["ship-7"]!.weaponsFired).toEqual(["battery"]);
+  });
+
+  test("an escort squadron on a halving order halves its total, rounding up", () => {
+    const start = lostToFire();
+    for (const id of ["ship-6", "ship-7"]) ship(start, id).specialOrder = { kind: "burn_retros", issued: 2, expires: { playerTurn: 4, at: "movement_start" }, replaced: null };
+    let s = play(start, volley());
+    s = playDice(s, { type: "answer_brace", player: "p1", pendingId: s.pending[0]!.id, attempt: false }, [1, 1]);
+    expect(logOf(s, "attack").at(-1)!.data["columns"]).toEqual([expect.objectContaining({ firepower: 6 })]); // 3 + 3, halved to 3 at lookup
+    expect((logOf(s, "attack").at(-1)!.data["rolls"] as number[]).length).toBe(2); // FP 3 on column B: 2 dice
+  });
+
+  test("only squadron-mates in formation join; ordnance isn't a squadron's target", () => {
+    const start = lostToFire();
+    expectReject(start, volley({ withShips: [{ shipId: "ship-8", weaponIds: ["prow_lances"] }] }), "INVALID_SQUADRON_FIRE");
+    expectReject(start, volley({ withShips: [{ shipId: "ship-7", weaponIds: ["prow_lance"] }] }), "UNKNOWN_WEAPON");
+    ship(start, "ship-7").position = { x: 160, y: 55 }; // a stray
+    expectReject(start, volley(), "INVALID_SQUADRON_FIRE");
+  });
+});

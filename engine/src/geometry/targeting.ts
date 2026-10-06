@@ -3,7 +3,7 @@
  */
 import { EPS, NOVA_RADIUS } from "./constants";
 import { approxLe, baseRadius, distance, quadrantsOfPoint, segmentTouchesCircle } from "./basic";
-import { EngineError, isHulk } from "../state/derived";
+import { EngineError, formation, gunneryColumn, inFormation, isHulk, squadronOf } from "../state/derived";
 import type { GameState, Ordnance, Point, Quadrant, Ship, Weapon } from "../state/types";
 
 /** `salvo` is any ordnance: a torpedo salvo or an attack craft wave. */
@@ -78,11 +78,56 @@ export function nearestOrdnanceTargets(state: GameState, ship: Ship, weapon: Wea
   return nearestOf(from, candidates, (o) => o.position);
 }
 
-/** The target is (one of) the nearest for this weapon, so no priority test is needed. */
+/** The target is (one of) the nearest for this weapon, so no priority test is needed. A squadron is nearest if any member in formation is (V15). */
 export function isNearest(state: GameState, ship: Ship, weapon: Weapon, target: Target): boolean {
-  if (target.kind === "ship") return nearestShipTargets(state, ship, weapon).some((s) => s.id === target.ship.id);
+  if (target.kind === "ship") {
+    const ids = (squadronTarget(state, target.ship) ?? [target.ship]).map((s) => s.id);
+    return nearestShipTargets(state, ship, weapon).some((s) => ids.includes(s.id));
+  }
   return nearestOrdnanceTargets(state, ship, weapon).some((o) => o.id === target.salvo.id);
 }
+
+// --- Squadrons (validator §2.7, V15–V17; transform T83–T85)
+
+export type AspectCategory = "closing" | "moving_away" | "abeam";
+const CATEGORY_QUADRANT: Record<AspectCategory, Quadrant> = { closing: "front", moving_away: "rear", abeam: "left" };
+export const aspectCategory = (q: Quadrant): AspectCategory => (q === "front" ? "closing" : q === "rear" ? "moving_away" : "abeam");
+const COLUMNS = ["A", "B", "C", "D", "E"];
+
+/** The members in formation a target ship stands for (V15), or null if it's a stray or in no squadron. */
+export function squadronTarget(state: GameState, target: Ship): Ship[] | null {
+  const sq = squadronOf(state, target);
+  return sq !== undefined && inFormation(state, target) ? formation(state, sq) : null;
+}
+
+/** The aspect a ship shows from a point: on a quadrant boundary, the easier one (V16). */
+export function easiestAspect(ship: Ship, from: Point): AspectCategory {
+  const { position, heading } = pose(ship);
+  const quadrants = quadrantsOfPoint(position, heading, from);
+  const rank = (q: Quadrant) => COLUMNS.indexOf(gunneryColumn(ship, q));
+  const best = [...quadrants].sort((a, b) => rank(a) - rank(b))[0] ?? "front";
+  return aspectCategory(best);
+}
+
+/** Its Gothic column at an aspect (the squadron's members share a type, so columns compare). */
+export const columnAt = (ship: Ship, aspect: AspectCategory): number => COLUMNS.indexOf(gunneryColumn(ship, CATEGORY_QUADRANT[aspect]));
+
+/** Members of `members` that took fire from the volley: some weapon of it can engage them (V17). */
+export function tookFire(state: GameState, volley: readonly { ship: Ship; weapon: Weapon }[], members: readonly Ship[]): Ship[] {
+  return members.filter((m) => volley.some((v) => canEngage(state, v.ship, v.weapon, { kind: "ship", ship: m })));
+}
+
+/** The aspect a volley fires at: `chosen`, or the one shown to the lead by the nearest member that took fire (T85). */
+export function volleyAspect(lead: Ship, engaged: readonly Ship[], chosen: AspectCategory | undefined): AspectCategory {
+  if (chosen !== undefined) return chosen;
+  const from = pose(lead).position;
+  const nearest = [...engaged].sort((a, b) => distance(from, pose(a).position) - distance(from, pose(b).position))[0];
+  return nearest === undefined ? "closing" : easiestAspect(nearest, from);
+}
+
+/** Of the members that took fire, those no harder to hit than `aspect` (T83). */
+export const eligibleAt = (lead: Ship, engaged: readonly Ship[], aspect: AspectCategory): Ship[] =>
+  engaged.filter((m) => columnAt(m, easiestAspect(m, pose(lead).position)) <= columnAt(m, aspect));
 
 // --- Nova cannon (validator spec §2.4, §2.7)
 

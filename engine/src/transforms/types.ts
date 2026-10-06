@@ -41,6 +41,10 @@ export type Fire = Base<"fire"> & {
   aspect?: Quadrant;
   /** Re-roll a failed target-priority test (§2.7). */
   reroll?: boolean;
+  /** Squadron-mates' weapons joining the volley (T84). */
+  withShips?: { shipId: string; weaponIds: string[] }[];
+  /** A squadron target: the aspect fired at (T85). */
+  targetAspect?: "closing" | "moving_away" | "abeam";
 };
 /** Aim a nova cannon: `aim` is where the template's centre is placed (T40). */
 export type FireNovaCannon = Base<"fire_nova_cannon"> & { shipId: string; weaponId: string; aim: Point };

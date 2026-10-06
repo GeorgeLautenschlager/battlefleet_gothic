@@ -1,8 +1,8 @@
 /** The fire transform (reducer spec §4, transform §4.3). */
-import { quadrantsOfPoint } from "../../geometry/basic";
-import { isNearest, type Target } from "../../geometry/targeting";
-import { getShip, leadership } from "../../state/derived";
-import type { Point, Quadrant } from "../../state/types";
+import { distance, quadrantsOfPoint } from "../../geometry/basic";
+import { eligibleAt, isNearest, squadronTarget, tookFire, volleyAspect, type Target } from "../../geometry/targeting";
+import { formation, getShip, inFormation, priorityLd, squadronOf } from "../../state/derived";
+import type { Point, Quadrant, Ship, Weapon } from "../../state/types";
 import type { Fire } from "../../transforms/types";
 import type { Ctx } from "../context";
 import { rerollableTest } from "../reroll";
@@ -20,21 +20,35 @@ export function fire(ctx: Ctx, t: Fire): void {
     targetShip !== null ? { kind: "ship", ship: targetShip } : targetSalvo !== null ? { kind: "ordnance", salvo: targetSalvo } : null;
   if (target === null) return; // unreachable after validation
 
-  // A combined volley (T32): the other batteries firing with this one.
+  // A combined volley (T32): the other batteries firing with this one; and squadron-mates' weapons (T84).
   const combineWith = t.combineWith ?? [];
-  const volley = [weapon, ...combineWith.map((id) => ship.profile.weapons.find((w) => w.id === id)).filter((w) => w !== undefined)];
+  const own = [weapon, ...combineWith.map((id) => ship.profile.weapons.find((w) => w.id === id)).filter((w) => w !== undefined)];
+  const withShips = t.withShips ?? [];
+  const volley: { ship: Ship; weapon: Weapon }[] = [
+    ...own.map((w) => ({ ship, weapon: w })),
+    ...withShips.flatMap((e) => {
+      const mate = getShip(state, e.shipId);
+      return e.weaponIds.flatMap((id) => mate.profile.weapons.filter((w) => w.id === id).map((w) => ({ ship: mate, weapon: w })));
+    }),
+  ];
 
   // Target priority (p. 60): a test only if this isn't the nearest target (for any weapon in the volley, T34) and none was taken yet.
-  if (entry.priorityTest === null && volley.some((w) => !isNearest(state, ship, w, target))) {
-    const ld = leadership(state, ship);
+  // A squadron in formation takes one, on its Leadership, for all its members (N40).
+  if (entry.priorityTest === null && volley.some((v) => !isNearest(state, v.ship, v.weapon, target))) {
+    const ld = priorityLd(state, ship);
     const test = rerollableTest(ctx, ship, 2, ld, t.reroll === true, "priority", (r) =>
       ctx.log("priority_test", { shipId: ship.id, target: ld, rolls: r.rolls, passed: r.passed }),
     );
-    entry.priorityTest = test.passed ? "passed" : "failed";
+    const sq = squadronOf(state, ship);
+    const crew = sq !== undefined && inFormation(state, ship) ? formation(state, sq) : [ship];
+    for (const m of crew) {
+      const e = state.turnState.ships[m.id];
+      if (e !== undefined) e.priorityTest = test.passed ? "passed" : "failed";
+    }
     if (!test.passed) return; // the weapon isn't spent: it may fire at the nearest target instead
   }
 
-  for (const w of volley) entry.weaponsFired.push(w.id);
+  for (const v of volley) state.turnState.ships[v.ship.id]?.weaponsFired.push(v.weapon.id);
   const from = ship.position as Point;
   const at = targetShip !== null ? (targetShip.position as Point) : (targetSalvo?.position as Point);
   // Validation guarantees a single option wherever the transform left a choice out.
@@ -42,8 +56,27 @@ export function fire(ctx: Ctx, t: Fire): void {
   const aspect: Quadrant | null =
     targetShip !== null ? (t.aspect ?? quadrantsOfPoint(at, targetShip.heading as number, from)[0] ?? "front") : null;
 
-  if (targetShip !== null) {
-    state.queue.push({ kind: "brace_offer", shipId: targetShip.id, source: { kind: "ship", id: ship.id } });
+  // At a squadron (§4.5, T86): one brace offer, to the eligible member nearest the lead.
+  const members = targetShip !== null ? squadronTarget(state, targetShip) : null;
+  let braceId = targetShip?.id ?? null;
+  let targetAspect = t.targetAspect;
+  if (members !== null) {
+    const engaged = tookFire(state, volley, members);
+    targetAspect = volleyAspect(ship, engaged, t.targetAspect);
+    const eligible = eligibleAt(ship, engaged, targetAspect);
+    braceId = [...eligible].sort((a, b) => distance(from, a.position as Point) - distance(from, b.position as Point))[0]?.id ?? null;
   }
-  state.queue.push({ kind: "direct_fire", shooterId: ship.id, weaponId: weapon.id, combineWith: [...combineWith], target: { ...t.target }, arc, aspect });
+
+  if (braceId !== null) state.queue.push({ kind: "brace_offer", shipId: braceId, source: { kind: "ship", id: ship.id } });
+  state.queue.push({
+    kind: "direct_fire",
+    shooterId: ship.id,
+    weaponId: weapon.id,
+    combineWith: [...combineWith],
+    target: { ...t.target },
+    arc,
+    aspect,
+    ...(withShips.length > 0 ? { withShips: withShips.map((e) => ({ shipId: e.shipId, weaponIds: [...e.weaponIds] })) } : {}),
+    ...(members !== null && targetAspect !== undefined ? { targetAspect } : {}),
+  });
 }

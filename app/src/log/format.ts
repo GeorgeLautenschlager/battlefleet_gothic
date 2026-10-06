@@ -27,6 +27,7 @@ export function describe(state: GameState, entry: LogEntry): string {
     const from = state.ships.find((x) => x.id === o.launchedBy)?.name;
     return `${from ? `${from}'s ` : ""}${o.squadrons.map((q) => q.name).join(", ")}`;
   };
+  const squadronOfShip = (id: string): string | undefined => (state.squadrons ?? []).find((sq) => sq.shipIds.includes(id))?.name;
   const squadron = (key: string): string => (state.squadrons ?? []).find((sq) => sq.id === d[key])?.name ?? "the squadron";
   const player = (key: string): string => {
     const p = d[key];
@@ -98,8 +99,23 @@ export function describe(state: GameState, entry: LogEntry): string {
     case "attack": {
       const src = d["source"] as { id?: string } | undefined;
       const from = state.ships.find((s) => s.id === src?.id)?.name ?? words(String(d["weapon"]));
+      const shooters = Array.isArray(d["shooterIds"]) ? d["shooterIds"].map((id) => state.ships.find((x) => x.id === id)?.name ?? String(id)) : [];
+      if (shooters.length > 0) {
+        // A volley by or at a squadron (reducer §4.5).
+        const at = Array.isArray(d["targetIds"]) ? (squadronOfShip(String(d["targetId"])) ?? ship("targetId")) : ship("targetId");
+        const aspect = d["targetAspect"] !== undefined && d["targetAspect"] !== null ? ` (${words(String(d["targetAspect"]))})` : "";
+        const columns = Array.isArray(d["columns"]) ? ` [${(d["columns"] as { column: string; firepower: number }[]).map((c) => `FP ${c.firepower} on ${c.column}`).join(", ")}]` : "";
+        return `${shooters.join(" and ")} ${words(String(d["weapon"]))} at ${at}${aspect}${columns}: ${dice(d["rolls"])} need ${num(d["need"])}+, ${num(d["hits"])} hit${d["hits"] === 1 ? "" : "s"}`;
+      }
       const what = Array.isArray(d["weaponIds"]) ? `${d["weaponIds"].length} batteries (firepower ${num(d["firepower"])})` : words(String(d["weapon"]));
       return `${from} ${what} at ${ship("targetId")}: ${dice(d["rolls"])} need ${num(d["need"])}+, ${num(d["hits"])} hit${d["hits"] === 1 ? "" : "s"}`;
+    }
+    case "allocation": {
+      const list = (d["allocation"] as { roll: number; shipId: string | null }[] | undefined) ?? [];
+      const counts = new Map<string, number>();
+      for (const a of list) counts.set(a.shipId ?? "", (counts.get(a.shipId ?? "") ?? 0) + 1);
+      const parts = [...counts].map(([id, n]) => (id === "" ? `${n} lost` : `${state.ships.find((x) => x.id === id)?.name ?? id} ×${n}`));
+      return `Hits go to ${parts.join(", ")}`;
     }
     case "nova_cannon": {
       const scatter = d["scatter"] as { bearing?: number; distance?: number } | "hit" | undefined;
