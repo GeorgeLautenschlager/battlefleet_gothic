@@ -21,13 +21,16 @@ export function defaultCounts(ship: Ship, capacity: number): Counts {
 }
 
 /**
- * One strike wave of everything in `counts` (fighters first, so they're lost
- * last, T25), and `capFighters` more fighters on CAP over the carrier.
+ * A launch: one strike wave per entry of `strikes` (each fighters first, so
+ * they're lost last, T25; empty ones dropped), and `capFighters` more fighters
+ * on CAP over the carrier. Squadrons combine into waves only at launch (p. 85).
  */
-export function launchTransform(ship: Ship, counts: Counts, capFighters: number, recall: string[]): LaunchAttackCraft {
-  const roles: CraftRole[] = (["fighter", "bomber", "assault_boat"] as const).flatMap((r) => Array<CraftRole>(counts[r]).fill(r));
+export function launchTransform(ship: Ship, strikes: readonly Counts[], capFighters: number, recall: string[]): LaunchAttackCraft {
   const waves = [
-    ...(roles.length > 0 ? [{ roles, cap: false }] : []),
+    ...strikes.flatMap((counts) => {
+      const roles: CraftRole[] = (["fighter", "bomber", "assault_boat"] as const).flatMap((r) => Array<CraftRole>(counts[r]).fill(r));
+      return roles.length > 0 ? [{ roles, cap: false }] : [];
+    }),
     ...(capFighters > 0 ? [{ roles: Array<CraftRole>(capFighters).fill("fighter"), cap: true }] : []),
   ];
   return { type: "launch_attack_craft", player: ship.owner, shipId: ship.id, waves, recall };

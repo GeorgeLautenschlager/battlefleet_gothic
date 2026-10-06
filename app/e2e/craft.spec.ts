@@ -18,6 +18,18 @@ test.afterEach(async ({ page }, info) => {
   if (info.status !== info.expectedStatus) console.log(`[page at failure]\n${await page.locator("body").ariaSnapshot()}`);
 });
 
+test("several strike waves in one launch: bombers in one, fighters in another (p. 85)", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('input[type="file"]').setInputFiles(SAVE);
+  await expect(page.locator(".clock .where")).toContainText("launch");
+  await page.getByRole("button", { name: "Add a wave" }).click();
+  await page.getByLabel("Wave 1 Fury fighters").fill("0");
+  await page.getByLabel("Wave 2 Fury fighters").fill("2");
+  await page.getByRole("button", { name: "Launch 4 squadrons in 2 waves" }).click();
+  await expect(page.locator(".log")).toContainText("Fortitude launches attack craft (2 waves)");
+  await expect(page.locator("[data-wave]")).toHaveCount(2);
+});
+
 test("launch a strike wave and a CAP fighter, then fly the wave by waypoints", async ({ page }) => {
   await page.goto("/");
   await page.locator('input[type="file"]').setInputFiles(SAVE);

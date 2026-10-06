@@ -127,6 +127,8 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .launch-craft .counter { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 .launch-craft .counter input { width: 4rem; }
 .launch-craft .recall { border: none; padding: 0; margin: 0.25rem 0; }
+.launch-craft .strike-wave { border: none; padding: 0; margin: 0.25rem 0; }
+.launch-craft .strike-wave legend .link { background: none; border: none; padding: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: inherit; }
 
 /* --- Side panel */
 .hint { margin: 0; color: var(--muted); }
