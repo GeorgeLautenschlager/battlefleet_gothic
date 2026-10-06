@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.11, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.16](../game_state/SPEC.md) and [Transforms v0.14](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18).
+**Status:** draft v0.12, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.17](../game_state/SPEC.md) and [Transforms v0.15](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -69,6 +69,7 @@ norm(a)                 = ((a mod 360) + 360) mod 360
 tableBearing(from, to)  = norm(atan2deg(to.x − from.x, to.y − from.y))   // 0 = +y, clockwise
 relBearing(ship, point) = norm(tableBearing(ship.position, point) − ship.heading)
 headingVector(h)        = (sinDeg(h), cosDeg(h))
+angleBetween(a, b)      = min(norm(a − b), 360 − norm(a − b))                // 0..180
 ```
 
 `atan2deg(x, y)` is `atan2(x, y)` in degrees. Note the argument order: `x` first, because 0° is `+y`. All trig here goes through the deterministic maths module (§2.8), never the platform's `Math.sin` & co.
@@ -267,7 +268,8 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 |---|---|---|
 | 1 | Ship exists | `UNKNOWN_SHIP` |
 | 2 | `ship.owner = player` | `NOT_YOUR_SHIP` |
-| 3 | `ship.status = "undeployed"` | `ALREADY_DEPLOYED` |
+| 3 | `ship.status ≠ "reserve"`: reinforcements arrive during the battle (transform §4.2) | `IN_RESERVE` |
+| 3a | `ship.status = "undeployed"` | `ALREADY_DEPLOYED` |
 | 4 | `position` lies in one of `deploymentDivisions(player)` (inclusive, `EPS`); the first in list order that holds it is the ship's division | `NOT_IN_ZONE` |
 | 5 | If the player's undeployed ships (this one included) are no more than their empty divisions, this ship's division is empty (state N18) | `FILL_DIVISIONS_FIRST` |
 | 6 | The new base doesn't overlap any deployed ship's base: `distance > r1 + r2 − EPS`. Touching is allowed. | `BASES_OVERLAP` |
@@ -318,6 +320,25 @@ A ship in formation in a squadron declares for the squadron (transform T81): che
 | 2 | `owner = player` | `NOT_YOUR_ORDNANCE` |
 | 3 | `cap ≠ null` | `NOT_ON_CAP` |
 | 4 | `activation = null`, and no active-player ship has moved this turn other than grappled ones (transform §4.2) | `TOO_LATE_TO_RELEASE` |
+
+**`arrive`**
+
+| # | Check | Code |
+|---|---|---|
+| 1 | `placements` isn't empty and names no ship twice | `MALFORMED` |
+| 2 | Each ship exists | `UNKNOWN_SHIP` |
+| 3 | Each `ship.owner = player` | `NOT_YOUR_SHIP` |
+| 4 | Each `ship.status = "reserve"` | `NOT_IN_RESERVE` |
+| 5 | The ships are one unit: a single ship in no squadron, or every member of one squadron (transform T94) | `ARRIVE_ONE_UNIT` |
+| 6 | `activation = null` | `ACTIVATION_OPEN` |
+| 7 | `turnState.squadronMove = null` | `SQUADRON_MOVING` |
+| 8 | `canArrive(player)` (state §11) | `NO_ENTRY_EDGE` |
+| 9 | Each `position` lies on a segment of `entryEdges(player)`: within `EPS` of the segment (V2) | `NOT_ON_ENTRY_EDGE` |
+| 10 | Each `heading` is in `[0, 360)` and faces into the table: `angleBetween(heading, inward) < 90 − EPS` for the inward heading of every table edge the stem is within `EPS` of (transform T96) | `NOT_FACING_IN` |
+| 11 | A squadron's stems form one chain: each within `FORMATION_RANGE` (inclusive) of another's | `NOT_IN_FORMATION` |
+| 12 | No new base overlaps another new base or any base on the table: `distance > r1 + r2 − EPS` (V5) | `BASES_OVERLAP` |
+
+`NOT_ON_ENTRY_EDGE.details` and `NO_ENTRY_EDGE.details` are `{ edges: entryEdges(player) }`; the others name the `shipId`.
 
 **`move`**
 
@@ -488,11 +509,22 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 
 `TOO_MANY_SQUADRONS.details` is `{ launching, capacity }`; `FLEET_LIMIT.details` is `{ inPlay, recalled, launching, limit }`.
 
-**`end_step`**: G6 already limits it to `direct_fire`, `launch_ordnance` and `boarding`. In `boarding`, one check:
+**`end_step`**: G6 already limits it to `move_ships`, `direct_fire`, `launch_ordnance` and `boarding`. In `boarding`, one check:
 
 | # | Check | Code |
 |---|---|---|
 | 1 | `boardingsToFight(state)` is empty (transform §4.6): declared boarding actions must be fought | `BOARDING_UNRESOLVED` |
+
+In `move_ships` (transform T95):
+
+| # | Check | Code |
+|---|---|---|
+| 1 | `canArrive(player)`: the step is only held open for reserves | `NO_ENTRY_EDGE` |
+| 2 | `activation = null` | `ACTIVATION_OPEN` |
+| 3 | `turnState.squadronMove = null` | `SQUADRON_MOVING` |
+| 4 | Every `active` ship of the player's has `moved` | `SHIPS_TO_MOVE` |
+
+`SHIPS_TO_MOVE.details` is `{ shipIds }`, the ships still to move.
 
 ### 4.4 Ordnance
 
@@ -588,6 +620,13 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 | `NOT_YOUR_SHIP` / `NOT_YOUR_ORDNANCE` | Belongs to the other player |
 | `SHIP_NOT_ACTIVE` | Ship is a hulk, undeployed, destroyed or disengaged |
 | `ALREADY_DEPLOYED` | Ship is already on the table |
+| `IN_RESERVE` | `deploy_ship` with a reinforcement: it arrives during the battle |
+| `NOT_IN_RESERVE` | `arrive` with a ship that isn't waiting in reserve |
+| `ARRIVE_ONE_UNIT` | `arrive` with more than one ship outside a squadron, or only part of a squadron |
+| `NO_ENTRY_EDGE` | No reserves can arrive now: none left, or no entry edge this turn |
+| `NOT_ON_ENTRY_EDGE` | An arriving stem isn't on an entry edge |
+| `NOT_FACING_IN` | An arriving ship doesn't face into the table |
+| `SHIPS_TO_MOVE` | `end_step` in `move_ships` before every ship on the table has moved |
 | `FILL_DIVISIONS_FIRST` | Fleet Engagement: a division still needs a ship before this one gets another (p. 142) |
 | `INVALID_SETUP` | `choose_setup` with a set-up the formations don't offer |
 | `NOT_IN_ZONE` | Deployment position outside the player's zone |
@@ -700,6 +739,9 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V16 | **No arc or aspect choices against a squadron.** A member on an arc boundary is in arc if either quadrant is one of the weapon's arcs, and a member on a quadrant boundary shows the shooter the easier of its two aspects. The choice that matters is `targetAspect`. |
 | V17 | **A member "took fire" if any weapon in the volley can engage it** (p. 97): `squadronEngageable` over the whole volley. The dice are pooled, as the book adds firepower together, so any hit can go to any member that took fire (reducer §4.5). |
 | V18 | **Squadron moves are checked against the squadron's order**: a member's limits come from `squadronMove` when the activation hasn't been opened for it. |
+| V19 | **An arrival is checked as a whole**: every placement passes or the transform fails; there's no partial arrival. |
+| V20 | **Entry edges are inclusive at their ends** (V2): a stem exactly at the corner of an open long-edge segment and the east edge is on both, and must face in from both (transform T96). |
+| V21 | **`deploy_ship` with a reserve** says why (`IN_RESERVE`) rather than `ALREADY_DEPLOYED`: the ship isn't on the table, it's waiting. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |
 
 ## 8. Decisions

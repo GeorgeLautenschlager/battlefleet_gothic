@@ -64,6 +64,15 @@ export function describe(state: GameState, entry: LogEntry): string {
       return `First-turn roll-off ${dice(d["rolls"])}: ${d["winner"] === null ? "a tie, roll again" : `${player("winner")} chooses`}`;
     case "deploy":
       return `${ship("shipId")} deploys at (${num((d["position"] as { x: number })?.x)}, ${num((d["position"] as { y: number })?.y)})`;
+    case "arrive": {
+      const ships = (d["ships"] as { shipId: string }[] | undefined) ?? [];
+      const names = ships.map((s) => state.ships.find((x) => x.id === s.shipId)?.name ?? s.shipId);
+      return `${names.length > 1 ? `${squadronOfShip(ships[0]?.shipId ?? "") ?? names.join(", ")} arrive` : `${names[0] ?? "A ship"} arrives`} from the table edge`;
+    }
+    case "reserves_disengaged": {
+      const ids = (d["shipIds"] as string[] | undefined) ?? [];
+      return `${player("player")} has nothing left on the table: ${ids.length} reinforcement${ids.length === 1 ? "" : "s"} never arrive and count as disengaged`;
+    }
     case "first_turn_choice":
       return `${player("firstPlayer")} will go first`;
     case "battle_start":

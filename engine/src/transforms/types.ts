@@ -28,6 +28,8 @@ export type DeclareOrder = Base<"declare_order"> & { shipId: string; order: Orde
 export type Move = Base<"move"> & { shipId: string; path: PathStep[]; disengage: boolean; boardTargetId?: string; reroll?: boolean };
 /** Take a CAP fighter off CAP at the start of its owner's Movement Phase (p. 82). */
 export type ReleaseCap = Base<"release_cap"> & { ordnanceId: string };
+/** Bring one unit of reserves on along an entry edge (T94): a ship in no squadron, or a whole squadron. */
+export type Arrive = Base<"arrive"> & { placements: { shipId: string; position: Point; heading: number }[] };
 
 // Shooting (§4.3)
 export type FireTarget = { kind: "ship" | "ordnance"; id: string };
@@ -86,6 +88,7 @@ export type Transform =
   | DeclareOrder
   | Move
   | ReleaseCap
+  | Arrive
   | Fire
   | FireNovaCannon
   | LaunchTorpedoes

@@ -107,6 +107,8 @@ export type CreateRequest = {
   fleetLists?: boolean;
   forces?: Forces;
   scoring?: Scoring;
+  /** The Bait: the pursuers' seat (T93). */
+  attacker?: PlayerId;
 };
 export type Created = { data: RoomData; seat: PlayerId; token: string; inviteToken: string };
 export type CreateError = { error: "INVALID_NAME" | "INVALID_SIDE" | "INVALID_FLEET"; message?: string };
@@ -117,9 +119,11 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
   const name = cleanName(req.name);
   if (name === null) return { error: "INVALID_NAME" };
   const forces = req.forces ?? CRUISER_CLASH;
-  const scenario: ScenarioId = req.scenario === "fleet_engagement" ? "fleet_engagement" : "cruiser_clash";
+  const scenario: ScenarioId = req.scenario === "fleet_engagement" || req.scenario === "the_bait" ? req.scenario : "cruiser_clash";
   const fleetLists = req.fleetLists === true && forces.kind === "points"; // points battles only (T58)
-  const problem = fleetProblem(req.faction, req.ships, req.ships.length, req.carriers ?? false, forces, scenario, fleetLists);
+  // The Bait: the host names the pursuers (T93, D37); the pursued player is the other seat.
+  const attacker: PlayerId | undefined = scenario === "the_bait" ? (req.attacker === "p1" ? "p1" : "p2") : undefined;
+  const problem = fleetProblem(req.faction, req.ships, req.ships.length, req.carriers ?? false, forces, scenario, fleetLists, attacker !== undefined && attacker !== req.side);
   if (problem !== null) return { error: "INVALID_FLEET", message: problem };
   const token = toBase64Url(deps.randomBytes(16));
   const inviteToken = toBase64Url(deps.randomBytes(16));
@@ -144,8 +148,9 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
       fleetLists,
       scenario,
       forces,
-      // Fleet Engagement is always victory points (transform §5).
-      scoring: scenario === "fleet_engagement" ? "victory_points" : (req.scoring ?? "cruiser_clash"),
+      // Fleet Engagement and The Bait are always victory points (transform §5).
+      scoring: scenario === "cruiser_clash" ? (req.scoring ?? "cruiser_clash") : "victory_points",
+      ...(attacker !== undefined ? { attacker } : {}),
     },
     config: null,
     transforms: [],
@@ -264,7 +269,8 @@ export class GameRoom {
     if (this.data.status !== "lobby") return this.reject(conn, "", "ALREADY_STARTED", "The game has already started");
     const name = cleanName(rawName);
     if (name === null) return this.reject(conn, "", "INVALID_NAME", `Names need 1–${MAX_NAME_LENGTH} characters`);
-    const problem = fleetProblem(faction, ships, this.data.count, this.data.options.carriers, this.data.options.forces, this.data.options.scenario, this.data.options.fleetLists);
+    const { attacker } = this.data.options;
+    const problem = fleetProblem(faction, ships, this.data.count, this.data.options.carriers, this.data.options.forces, this.data.options.scenario, this.data.options.fleetLists, attacker !== undefined && attacker !== seat);
     if (problem !== null) return this.reject(conn, "", "INVALID_FLEET", problem);
     const other = this.data.seats[seat === "p1" ? "p2" : "p1"];
     const taken = trimShips(ships).find((s) => other.ships.some((o) => o.name === s.name));

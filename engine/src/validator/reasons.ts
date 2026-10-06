@@ -104,6 +104,14 @@ export const REASON_CODES = [
   "TOO_LATE_TO_RELEASE",
   "WRONG_ORDNANCE_MOVE",
   "PATH_OFF_TABLE",
+  // Reserves (validator spec v0.12)
+  "IN_RESERVE",
+  "NOT_IN_RESERVE",
+  "ARRIVE_ONE_UNIT",
+  "NO_ENTRY_EDGE",
+  "NOT_ON_ENTRY_EDGE",
+  "NOT_FACING_IN",
+  "SHIPS_TO_MOVE",
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

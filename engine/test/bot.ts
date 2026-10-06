@@ -10,6 +10,7 @@ import { removableBlastMarkers } from "../src/reducer/steps";
 import { baseRadius, distance, headingVector, quadrantsOfPoint } from "../src/geometry/basic";
 import { boardingsToFight } from "../src/rules/boarding";
 import { deploymentDivisions, emptyDivisions, setupOptions } from "../src/rules/engagement";
+import { canArrive, entryEdges } from "../src/rules/reserves";
 import { exitDistance, walkShipPath } from "../src/geometry/path";
 import { allAheadFullEnd, moveParameters, movingOrder } from "../src/rules/move";
 import type { AttackCraftWave, CraftRole, GameState, PathStep, PlayerId, Point } from "../src/state/types";
@@ -64,8 +65,8 @@ function baseCandidates(s: GameState, n: number): Transform[] {
           })),
         );
         if (near.length > 0) return near;
-        if (s.setup.engagement !== undefined) {
-          // Fleet Engagement: empty divisions first, at spots across each one.
+        if (s.setup.engagement !== undefined || s.scenario.id === "the_bait") {
+          // Fleet Engagement and The Bait: empty divisions first, at spots across each one.
           const divisions = deploymentDivisions(s, p);
           const empty = emptyDivisions(s, p);
           const order = [...empty, ...divisions.map((_, i) => i).filter((i) => !empty.includes(i))];
@@ -99,11 +100,14 @@ function baseCandidates(s: GameState, n: number): Transform[] {
         out.push({ type: "drift_hulk", player: p, shipId: h.id });
       }
       break;
-    case "move_ships":
+    case "move_ships": {
       // Now and then, release CAP at the start of the phase.
       if (n % 3 === 0) {
         for (const o of s.ordnance) if (isWave(o) && o.owner === p && o.cap !== null) out.push({ type: "release_cap", player: p, ordnanceId: o.id });
       }
+      // Reserves (The Bait): usually bring the next unit on before moving, now and then after, or leave it waiting.
+      const arrivals = canArrive(s, p) ? arrivalCandidates(s, p, n) : [];
+      if (n % 4 !== 3) out.push(...arrivals);
       for (const ship of mine.filter((x) => x.status === "active" && !s.turnState.ships[x.id]?.moved)) {
         if (s.activation === null && ship.specialOrder === null && !s.turnState.commandCheckFailed) {
           const { x, y } = ship.position!;
@@ -135,7 +139,10 @@ function baseCandidates(s: GameState, n: number): Transform[] {
         // A disengaging escort squadron's members must try to (state N41); so must the rest once its first mover asked.
         for (const path of ranked) out.push({ type: "move", player: p, shipId: ship.id, path, disengage: true });
       }
+      if (n % 4 === 3) out.push(...arrivals);
+      if (arrivals.length > 0) out.push({ type: "end_step", player: p });
       break;
+    }
     case "direct_fire":
       for (const ship of mine.filter((x) => x.status === "active")) {
         // A nova cannon at each enemy's stem, or just short of it (the validator sorts out range, arc and orders).
@@ -254,6 +261,26 @@ function baseCandidates(s: GameState, n: number): Transform[] {
 }
 
 /** A waypoint as far toward `target` as the wave flies, stopping `short` cm before it, kept on the table. */
+/** One unit of reserves along the entry edges: stems a few centimetres apart, facing straight in. */
+function arrivalCandidates(s: GameState, p: PlayerId, n: number): Transform[] {
+  const waiting = s.ships.filter((x) => x.owner === p && x.status === "reserve");
+  const first = waiting[n % waiting.length]!;
+  const unit = squadronOf(s, first)?.shipIds ?? [first.id];
+  const out: Transform[] = [];
+  for (const edge of entryEdges(s, p)) {
+    for (const f of [0.5, 0.3, 0.7, 0.15, 0.85]) {
+      const along = { x: edge.to.x - edge.from.x, y: edge.to.y - edge.from.y };
+      const len = Math.max(Math.abs(along.x), Math.abs(along.y));
+      const placements = unit.map((shipId, k) => {
+        const t = Math.min(1, Math.max(0, f + ((k % 2 === 0 ? 1 : -1) * Math.ceil(k / 2) * 7) / len));
+        return { shipId, position: { x: edge.from.x + along.x * t, y: edge.from.y + along.y * t }, heading: edge.inward };
+      });
+      out.push({ type: "arrive", player: p, placements });
+    }
+  }
+  return out;
+}
+
 function toward(s: GameState, wave: AttackCraftWave, target: Point, short: number): Point {
   const d = distance(wave.position, target);
   const go = Math.max(0, Math.min(waveSpeed(wave) - 0.01, d - short));

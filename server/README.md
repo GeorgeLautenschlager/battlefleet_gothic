@@ -14,6 +14,7 @@ Network play's server side ([network/SPEC.md](../network/SPEC.md), [ADR 0003](..
 | Deploy from `main` (`.github/workflows/server.yml`) | ✅ |
 | The app talking to it | ✅ |
 | Fleets (protocol 2): each seat brings 1–4 cruisers of any faction, checked on offer; protocol 1 rooms migrate on load | ✅ |
+| The Bait: the host names the pursuers (`attacker`); ship entries carry `reserve`; each seat's fleet is checked in its own role, against a lone cruiser | ✅ |
 
 ## Layout
 

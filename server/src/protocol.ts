@@ -18,8 +18,8 @@ export const MAX_SHIPS = 4;
 export const MAX_POINTS_SHIPS = 16;
 
 /** One ship a player brings: its name and its class in the engine catalogue. */
-/** `options`: the class's option ids (transform §5, T57); `commander`: aboard, with fleet lists (T60); `squadron`: its squadron's name (T76). */
-export type ShipEntry = { name: string; classId: string; options?: string[]; commander?: CommanderConfig; squadron?: string };
+/** `options`: the class's option ids (transform §5, T57); `commander`: aboard, with fleet lists (T60); `squadron`: its squadron's name (T76); `reserve`: The Bait's reinforcements (T93). */
+export type ShipEntry = { name: string; classId: string; options?: string[]; commander?: CommanderConfig; squadron?: string; reserve?: boolean };
 
 // --- Client → server (§4.1)
 
@@ -38,8 +38,8 @@ export type SeatInfo = { name: string | null; faction: FactionId | null; ships: 
  * The game's rules. `carriers`: one carrier each over the 185-point cap (p. 129).
  * `scenario`: Cruiser Clash or Fleet Engagement; `forces`: Cruiser Clash or a points battle; `scoring`: Cruiser Clash or victory points (transform §5).
  */
-/** `fleetLists`: points battles follow the fleet lists, with commanders (T58). */
-export type RoomOptions = { ramming: boolean; boarding: boolean; carriers: boolean; fleetLists: boolean; scenario: ScenarioId; forces: Forces; scoring: Scoring };
+/** `fleetLists`: points battles follow the fleet lists, with commanders (T58). `attacker`: The Bait's pursuers (state N47). */
+export type RoomOptions = { ramming: boolean; boarding: boolean; carriers: boolean; fleetLists: boolean; scenario: ScenarioId; forces: Forces; scoring: Scoring; attacker?: PlayerId };
 /** `count`: ships a side, set by the host (Cruiser Clash; a points battle leaves each side its own); `options`: the game's rules. */
 export type Lobby = { seats: Record<PlayerId, SeatInfo>; count: number; options: RoomOptions };
 export type Presence = Record<PlayerId, boolean>;
@@ -118,6 +118,7 @@ export const shipEntry = (s: ShipEntry): ShipEntry => ({
   ...(s.options !== undefined ? { options: [...s.options] } : {}),
   ...(s.commander !== undefined ? { commander: JSON.parse(JSON.stringify(s.commander)) as CommanderConfig } : {}),
   ...(s.squadron !== undefined ? { squadron: s.squadron } : {}),
+  ...(s.reserve === true ? { reserve: true } : {}),
 });
 
 const MARKS = ["slaanesh", "khorne", "tzeentch", "nurgle"];
@@ -143,7 +144,8 @@ export function isShipList(v: unknown): v is ShipEntry[] {
         isString(s["classId"], 40) &&
         (s["options"] === undefined || (Array.isArray(s["options"]) && s["options"].length <= 8 && s["options"].every((o) => isString(o, 40)))) &&
         (s["commander"] === undefined || isCommander(s["commander"])) &&
-        (s["squadron"] === undefined || isString(s["squadron"], 30)),
+        (s["squadron"] === undefined || isString(s["squadron"], 30)) &&
+        (s["reserve"] === undefined || typeof s["reserve"] === "boolean"),
     )
   );
 }

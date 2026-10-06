@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** draft v0.10, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.16](../game_state/SPEC.md), [Transforms v0.14](../transforms/SPEC.md) and [Validator v0.11](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end). v0.8 adds the nova cannon (§3, §4.4, §5.3, §11, §12, R26–R29). v0.9 logs Fleet Engagement's set-up (§12) and ends a game on rounds only when `maxRounds` is set. v0.10 adds fleet commander re-rolls (§2.2), the targeting matrix (§4.1), the Mark of Khorne in boarding, and losing re-rolls to Bridge Smashed (§6, §10.4, §12, R30–R32). v0.11 adds escorts and squadrons: escort losses (§3, §6, §10.5), squadron Leadership tests (§2.2), fire by and at squadrons (§4.5), squadron moves and disengaging (§8.1, §8.2), and their log entries (§11, §12, R33–R41).
+**Status:** draft v0.12, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.17](../game_state/SPEC.md), [Transforms v0.15](../transforms/SPEC.md) and [Validator v0.12](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end). v0.8 adds the nova cannon (§3, §4.4, §5.3, §11, §12, R26–R29). v0.9 logs Fleet Engagement's set-up (§12) and ends a game on rounds only when `maxRounds` is set. v0.10 adds fleet commander re-rolls (§2.2), the targeting matrix (§4.1), the Mark of Khorne in boarding, and losing re-rolls to Bridge Smashed (§6, §10.4, §12, R30–R32). v0.11 adds escorts and squadrons: escort losses (§3, §6, §10.5), squadron Leadership tests (§2.2), fire by and at squadrons (§4.5), squadron moves and disengaging (§8.1, §8.2), and their log entries (§11, §12, R33–R41). v0.12 adds The Bait's reserves: `arrive`, `end_step` in `move_ships`, reserves given up, and the game end that waits for them (§8.1, §12, R42–R44).
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState
@@ -51,7 +51,7 @@ settle(s):
     while pending is empty and queue is non-empty:
       item = queue.shift(); run(item)         // §11; may insert items at the front and/or push a pending decision
     if pending is non-empty: return           // waiting on a brace answer
-    if stage = "battle" and some side has no ship with status "active": endGame(s, "fleet_eliminated"); return
+    if stage = "battle" and some side is eliminated (no ship "active" or in "reserve", state §11): endGame(s, "fleet_eliminated"); return
     if stage ≠ "ended" and stepComplete(s): advanceStep(s); continue      // transform §2.3; entry housekeeping may enqueue work
     return
 ```
@@ -492,6 +492,12 @@ They move in the next Ordnance Phase like any other wave.
 1. Create the activation if there isn't one (no order).
 2. Set `stage: "moving"`, `remainingPath = path`, `disengage` and `boardTargetId` (null if absent).
 3. Enqueue `continue_move`.
+
+**`arrive`.** For each placement, in order: `status = "active"`, `position` and `heading` as given. Log one `arrive { player, ships: [{ shipId, position, heading }] }`. No dice, and `turnState` is untouched: the ships are unmoved (`moved = false`) and must move this phase like the rest (transform T97).
+
+**`end_step` in `move_ships`.** Log `end_step { step: "move_ships" }` and advance (transform T95).
+
+**Entering `direct_fire`: reserves given up** (state N52). If the active player has no `active` ship and some in `reserve`, each of those becomes `disengaged`, in `ships` order; log `reserves_disengaged { player, shipIds }`. The game-end check after the reduce then ends the game.
 
 **`release_cap`.** `cap = null` on the fighter; it stays at the stem. Log `cap_released { shipId, ordnanceIds: [id], reason: "order" }`. No dice.
 
@@ -985,6 +991,8 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `setup_choice` | `player, map, colours` |
 | `deploy_order_roll`, `first_turn_roll` | `rolls: [p1, p2], winner: PlayerId \| null` |
 | `deploy` | `shipId, position, heading` |
+| `arrive` | `player, ships: { shipId, position, heading }[]` |
+| `reserves_disengaged` | `player, shipIds` |
 | `first_turn_choice` | `firstPlayer` |
 | `battle_start` | `firstPlayer` |
 | `turn_start` | `round, player` |
@@ -1114,6 +1122,9 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | R39 | **An escort squadron's disengage test** comes after its last member moves, so members that sailed off the table edge mid-move are already gone and don't count towards it. A pass takes every member still `active`. |
 | R40 | **Squadron orders are logged once**: one `command_check` with `squadronId`, then `order_set` for each member that took the order. |
 | R41 | **Escort Hit-and-Run** (p. 92): 4+ destroys, 1–3 fails, whatever the critical table would say; Brace saves on 4+ as for a critical. |
+| R42 | **Arrivals are logged once** per `arrive`, with every ship of the unit, so a squadron coming on reads as one event. |
+| R43 | **Reserves given up disengage, they aren't destroyed** (state N52): they score as uncrippled ships that left, and their squadrons as uncrippled squadrons. |
+| R44 | **Reserves still waiting at game end stay `reserve`**: they score nothing, and the final state shows they never arrived. |
 | R30 | **Bridge Smashed on a commander's ship** sets that commander's `rerolls` to 0 and logs `rerolls_lost` (fleets book, p. 11). The Leadership −3 applies to the commander's Leadership as to any ship's. |
 | R31 | **The Warmaster's Mark of Khorne** adds +1 to the boarding critical rolls his ship's fight inflicts on the enemy ships in it (p. 232): `khorne(x)` is 1 when the side fighting `x` includes the Warmaster's ship with the Mark, else 0. A Lord's Mark of Khorne only doubles his ship's boarding value. |
 | R32 | **A re-roll is spent only on a failure**, and only when the transform asked for it: a passed test, or a ship whose commander has none left, spends nothing. |

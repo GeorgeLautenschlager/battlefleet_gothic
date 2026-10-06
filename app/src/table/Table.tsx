@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
-import { constants, craft, formation, geometry, type AttackCraftWave, type GameState, type Point } from "@bfg/engine";
+import { constants, craft, formation, geometry, type AttackCraftWave, type GameState, type PlayerId, type Point } from "@bfg/engine";
 import { capOffset, markerOffset, ROLE_LETTER } from "../craft/craft";
-import { Zones, type SetupPreview } from "./Zones";
+import { EntryEdges, Zones, type SetupPreview } from "./Zones";
 import { ShipGlyph } from "./ShipGlyph";
 import { pointerToTable, toSvg, type View } from "./view";
 
@@ -16,6 +16,10 @@ type Props = {
   highlight?: string[];
   /** Fleet Engagement: a set-up being considered, drawn in place of the chosen map. */
   setupPreview?: SetupPreview | null;
+  /** The Bait: the player whose reserves may arrive, to draw their entry edges (state §11). */
+  entryFor?: PlayerId | null;
+  /** More ships being placed at once: a squadron arriving (T94). */
+  ghosts?: Ghost[];
   /** Return true if the click was used up, so it doesn't also count as a table click. */
   onSelectShip?: (id: string) => boolean;
   /** A salvo or wave clicked. Return true if the click was used up. */
@@ -28,7 +32,7 @@ type Props = {
 
 const GRID = 10; // cm
 
-export function Table({ state, ghost = null, selectedShipId = null, highlight = [], setupPreview = null, onSelectShip, onSelectSalvo, onPointer, onTableClick, children }: Props) {
+export function Table({ state, ghost = null, ghosts = [], selectedShipId = null, highlight = [], setupPreview = null, entryFor = null, onSelectShip, onSelectSalvo, onPointer, onTableClick, children }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hover, setHover] = useState<Point | null>(null);
   const view: View = state.table;
@@ -74,6 +78,7 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
         </marker>
       </defs>
       {showZones && <Zones state={state} preview={setupPreview} />}
+      {entryFor !== null && <EntryEdges state={state} player={entryFor} />}
 
       {state.blastMarkers.map((bm) => {
         const p = toSvg(view, bm.position);
@@ -157,6 +162,10 @@ export function Table({ state, ghost = null, selectedShipId = null, highlight = 
       {ghost !== null && ghostShip !== undefined && (
         <ShipGlyph ship={{ ...ghostShip, position: ghost.position, heading: ghost.heading }} view={view} ghost={ghost.status} />
       )}
+      {ghosts.map((g) => {
+        const ship = state.ships.find((s) => s.id === g.shipId);
+        return ship === undefined ? null : <ShipGlyph key={g.shipId} ship={{ ...ship, position: g.position, heading: g.heading }} view={view} ghost={g.status} />;
+      })}
 
       {children}
 

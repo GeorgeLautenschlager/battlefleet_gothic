@@ -177,10 +177,22 @@ export function checkInvariants(state: GameState): Violation[] {
   }
 
   // I14: the scenario's blocks match its id
-  const engagement = state.scenario.id === "fleet_engagement";
-  if (engagement !== (state.setup.engagement !== undefined)) fail("I14", `setup.engagement doesn't match scenario ${state.scenario.id}`);
-  if (engagement === (state.scenario.deploymentZones !== undefined)) fail("I14", `deploymentZones don't match scenario ${state.scenario.id}`);
-  if (state.scenario.maxRounds !== (engagement ? null : 8)) fail("I14", `maxRounds ${state.scenario.maxRounds} for ${state.scenario.id}`);
+  const { id } = state.scenario;
+  const engagement = id === "fleet_engagement";
+  const bait = id === "the_bait";
+  if (engagement !== (state.setup.engagement !== undefined)) fail("I14", `setup.engagement doesn't match scenario ${id}`);
+  if ((id === "cruiser_clash") !== (state.scenario.deploymentZones !== undefined)) fail("I14", `deploymentZones don't match scenario ${id}`);
+  if (state.scenario.maxRounds !== (id === "cruiser_clash" ? 8 : null)) fail("I14", `maxRounds ${state.scenario.maxRounds} for ${id}`);
+  if (bait !== (state.scenario.attacker !== undefined)) fail("I14", `attacker doesn't match scenario ${id}`);
+
+  // I17: reserves are The Bait's pursued player's, and a squadron is all in reserve or none of it
+  for (const ship of state.ships) {
+    if (ship.status === "reserve" && (!bait || ship.owner === state.scenario.attacker)) fail("I17", `${ship.id} is in reserve in ${id}`);
+  }
+  for (const sq of state.squadrons ?? []) {
+    const reserve = sq.shipIds.filter((sid) => state.ships.find((s) => s.id === sid)?.status === "reserve").length;
+    if (reserve !== 0 && reserve !== sq.shipIds.length) fail("I17", `${sq.id} is partly in reserve`);
+  }
 
   // I10: turnState belongs to this player turn
   if (state.turnState.playerTurn !== clock.playerTurn) {

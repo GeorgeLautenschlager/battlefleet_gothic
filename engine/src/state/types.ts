@@ -69,7 +69,7 @@ export type Scoring = "cruiser_clash" | "victory_points";
 
 export type Scenario = {
   id: ScenarioId;
-  /** Cruiser Clash 8; Fleet Engagement null: until a fleet is destroyed or gone (state N17). */
+  /** Cruiser Clash 8; The Bait and Fleet Engagement null: until a fleet is destroyed or gone (state N17, N53). */
   maxRounds: number | null;
   /** Absent in older saves: Cruiser Clash forces. */
   forces?: Forces;
@@ -78,9 +78,11 @@ export type Scenario = {
   deploymentZones?: { A: Rect; B: Rect };
   /** Cruiser Clash only. */
   deploymentFacing?: { A: number; B: number };
+  /** Scenarios with an attacker and a defender. The Bait: the pursuers (state N47). */
+  attacker?: PlayerId;
 };
 
-export type ScenarioId = "cruiser_clash" | "fleet_engagement";
+export type ScenarioId = "cruiser_clash" | "the_bait" | "fleet_engagement";
 
 export type Table = { width: number; height: number };
 
@@ -161,6 +163,8 @@ export type Clock = {
 
 export type ShipStatus =
   | "undeployed"
+  /** Off the table, waiting to arrive along an entry edge (state N51): The Bait's reinforcements. */
+  | "reserve"
   | "active"
   | "drifting_hulk"
   | "blazing_hulk"

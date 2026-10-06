@@ -20,6 +20,7 @@ import { advanceStep, eliminatedSide, endGame, stepComplete } from "./steps";
 import { runWorkItem } from "./work";
 import { board, teleport } from "./boarding";
 import { launchAttackCraft, moveAttackCraft, releaseCapOrder } from "./craft";
+import { arrive } from "./reserves";
 
 export function reduce(state: GameState, transform: Transform): GameState {
   const ctx = new Ctx(cloneJson(state));
@@ -93,6 +94,8 @@ function handle(ctx: Ctx, t: Transform): void {
       return launchAttackCraft(ctx, t);
     case "release_cap":
       return releaseCapOrder(ctx, t);
+    case "arrive":
+      return arrive(ctx, t);
     case "board":
       return board(ctx, t);
     case "teleport":

@@ -75,6 +75,10 @@ svg.table { width: 100%; height: auto; max-height: calc(100vh - 80px); display: 
 .zone.p1 .facing { stroke: var(--p1); }
 .zone.p2 .facing { stroke: var(--p2); }
 #zone-arrow path { fill: var(--muted); }
+.entry-edges .edge { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 2 1; }
+.entry-edges.p1 .edge, .entry-edges.p1 .facing { stroke: var(--p1); }
+.entry-edges.p2 .edge, .entry-edges.p2 .facing { stroke: var(--p2); }
+.entry-edges .facing { stroke-width: 0.4; }
 .zones.preview rect { stroke-dasharray: 0.5 0.5; }
 .coords { fill: var(--muted); font-size: 2.4px; }
 

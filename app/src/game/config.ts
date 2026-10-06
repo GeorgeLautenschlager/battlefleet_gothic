@@ -35,7 +35,7 @@ export const POINTS_LIMITS = [500, 750, 1000, 1500] as const;
  * `classes[i]`: ship i's class; missing means the fleet's standard cruiser. `options[i]`: its option ids (T57).
  * `command`: commanders, with fleet lists. `squadrons[i]`: its squadron's name, "" for none (T76).
  */
-export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[]; options?: string[][]; command?: Command | undefined; squadrons?: string[] };
+export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[]; options?: string[][]; command?: Command | undefined; squadrons?: string[]; reserves?: boolean[] };
 
 /** An escort left without a squadron name joins this one (every escort is in a squadron, T76). */
 export const DEFAULT_ESCORT_SQUADRON = "Escorts";
@@ -64,8 +64,14 @@ export type NewGameOptions = {
   scenario?: ScenarioId;
   forces?: Forces;
   scoring?: Scoring;
+  /** The Bait: the pursuers (state N47); the other player is pursued and fields the bait and its reinforcements. */
+  attacker?: PlayerId;
   seed?: number;
 };
+
+/** The Bait's pursued player, who fields reinforcements (T93), or null in any other battle. */
+export const pursuedOf = (o: Pick<NewGameOptions, "scenario" | "attacker">): PlayerId | null =>
+  o.scenario === "the_bait" ? (o.attacker === "p1" ? "p2" : "p1") : null;
 
 /** Fleet lists apply to points battles only (T58). */
 export const listsOn = (o: Pick<NewGameOptions, "fleetLists" | "forces">): boolean => o.forces?.kind === "points" && o.fleetLists === true;
@@ -180,13 +186,14 @@ export function squadronNames(side: Side, carriers: boolean, points = false): st
   });
 }
 
-/** A side's ships as `{ name, classId, options?, commander?, squadron? }`: the online protocol's shape. Commanders only with fleet lists. */
+/** A side's ships as `{ name, classId, options?, commander?, squadron?, reserve? }`: the online protocol's shape. Commanders only with fleet lists; reinforcements only for The Bait's pursued side. */
 export const shipEntries = (
   side: Side,
   carriers = false,
   points = false,
   lists = false,
-): { name: string; classId: string; options?: string[]; commander?: CommanderConfig; squadron?: string }[] => {
+  reserves = false,
+): { name: string; classId: string; options?: string[]; commander?: CommanderConfig; squadron?: string; reserve?: boolean }[] => {
   const classes = classIds(side, carriers, points);
   const options = optionIds(side, carriers, points);
   const command = lists ? commanders(side, carriers, points) : [];
@@ -197,6 +204,7 @@ export const shipEntries = (
     ...((options[i] ?? []).length > 0 ? { options: options[i] } : {}),
     ...(command[i] !== undefined ? { commander: command[i] } : {}),
     ...((squadrons[i] ?? "") !== "" ? { squadron: squadrons[i] } : {}),
+    ...(reserves && side.reserves?.[i] === true ? { reserve: true } : {}),
   }));
 };
 
@@ -210,9 +218,17 @@ export function configProblem(options: NewGameOptions): string | null {
   }
 }
 
-/** Why one side's fleet can't play, tried against a mirror of itself (as the server checks it), or null. */
-export const sideProblem = (side: Side, carriers: boolean, forces?: Forces, fleetLists = false): string | null =>
-  configProblem({ p1: side, p2: { ...side, ships: side.ships.map((_, i) => `mirror ${i}`) }, ramming: true, boarding: false, carriers, fleetLists, ...(forces ? { forces } : {}) });
+/**
+ * Why one side's fleet can't play, tried against a mirror of itself (as the server checks it), or null.
+ * `bait`: The Bait, the side's role; it plays against a lone cruiser of its fleet instead, as the server does (T93).
+ */
+export function sideProblem(side: Side, carriers: boolean, forces?: Forces, fleetLists = false, bait?: "pursued" | "pursuers"): string | null {
+  if (bait === undefined) {
+    return configProblem({ p1: side, p2: { ...side, ships: side.ships.map((_, i) => `mirror ${i}`) }, ramming: true, boarding: false, carriers, fleetLists, ...(forces ? { forces } : {}) });
+  }
+  const standIn: Side = { name: "Stand-in", fleet: side.fleet, ships: ["(stand-in)"], classes: [FLEETS[side.fleet].classId] };
+  return configProblem({ p1: side, p2: standIn, ramming: true, boarding: false, carriers, fleetLists, scenario: "the_bait", attacker: bait === "pursued" ? "p2" : "p1", ...(forces ? { forces } : {}) });
+}
 
 /** The app's fleets are the boxed game's two; anything else reads as Imperial. */
 export const asFleet = (faction: string | null): Fleet => (faction === "chaos" ? "chaos" : "imperial_navy");
@@ -220,7 +236,9 @@ export const asFleet = (faction: string | null): Fleet => (faction === "chaos" ?
 export function cruiserClash(options: NewGameOptions, now = new Date()): GameConfig {
   const carriers = options.carriers ?? false;
   const lists = listsOn(options);
-  const ships = (owner: PlayerId) => shipEntries(options[owner], carriersAllowed(options), options.forces?.kind === "points", lists).map((s) => ({ owner, ...s }));
+  const pursued = pursuedOf(options);
+  const ships = (owner: PlayerId) =>
+    shipEntries(options[owner], carriersAllowed(options), options.forces?.kind === "points", lists, owner === pursued).map((s) => ({ owner, ...s }));
   return {
     seed: options.seed ?? randomSeed(),
     createdAt: now.toISOString(),
@@ -228,6 +246,7 @@ export function cruiserClash(options: NewGameOptions, now = new Date()): GameCon
     ...(options.scenario !== undefined ? { scenario: options.scenario } : {}),
     ...(options.forces !== undefined ? { forces: options.forces } : {}),
     ...(options.scoring !== undefined ? { scoring: options.scoring } : {}),
+    ...(pursued !== null ? { attacker: pursued === "p1" ? "p2" : "p1" } : {}),
     players: {
       p1: { name: options.p1.name.trim(), faction: options.p1.fleet satisfies FactionId },
       p2: { name: options.p2.name.trim(), faction: options.p2.fleet satisfies FactionId },

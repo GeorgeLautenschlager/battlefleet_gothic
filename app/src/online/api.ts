@@ -23,6 +23,8 @@ export type CreateGame = {
   fleetLists?: boolean;
   forces?: Forces;
   scoring?: Scoring;
+  /** The Bait: the pursuers' seat (T93). */
+  attacker?: PlayerId;
 };
 
 export async function createGame(req: CreateGame): Promise<CreatedGame> {

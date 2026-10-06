@@ -1,6 +1,6 @@
 /** The battle: table, controls, ships and log, driven by any GameSource (hot-seat or online). */
 import { useMemo, useState, type ReactNode } from "react";
-import { actor, engagement, validate, type GameState, type Point, type Transform } from "@bfg/engine";
+import { activePlayer, actor, engagement, reserves, validate, type GameState, type Point, type Transform } from "@bfg/engine";
 import { controls, waitingOn, type GameSource, type Seat } from "./game/source";
 import { Table, type Ghost } from "./table/Table";
 import type { SetupPreview } from "./table/Zones";
@@ -24,6 +24,8 @@ import { bearingToward, launch, novaShot, novaTargets, targets } from "./fire/fi
 import { useCraftPlot } from "./craft/useCraftPlot";
 import { CraftOverlay } from "./craft/CraftOverlay";
 import { movableWaves } from "./craft/craft";
+import { arrivalAt, reserveUnits } from "./reserves/arrival";
+import { ReinforcementControls } from "./reserves/ReinforcementControls";
 
 const REROLLABLE = new Set<Transform["type"]>(["declare_order", "fire", "move", "answer_brace"]);
 
@@ -106,6 +108,15 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
     const ds = deploy?.divisions ?? [];
     return (ds[engagement.divisionAt(ds, p)] ?? ds[0])?.heading ?? 0;
   };
+  // The Bait's reinforcements (transform §4.2): the unit picked to arrive and its facing; a table click brings it on.
+  const [arrivalShip, setArrivalShip] = useState<string | null>(null);
+  const [arrivalTurn, setArrivalTurn] = useState(0);
+  const mover = state.clock.stage === "battle" ? activePlayer(state) : null;
+  const arrivals = mover !== null && state.pending.length === 0 && reserves.canArrive(state, mover) ? mover : null;
+  const arrivalsHere = arrivals !== null && waiting === null && controls(seat, arrivals);
+  const arrivingUnit = arrivalsHere && arrivalShip !== null ? reserveUnits(state, arrivals).find((u) => u.some((s) => s.id === arrivalShip)) : undefined;
+  const arrival = arrivingUnit !== undefined && arrivals !== null && pointer !== null ? arrivalAt(state, arrivals, arrivingUnit, pointer, arrivalTurn) : null;
+
   /** Fleet Engagement: the set-up the chooser is looking at, drawn on the table. */
   const [setupPreview, setSetupPreview] = useState<SetupPreview | null>(null);
 
@@ -127,7 +138,11 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
   const highlighted = plot?.ship.id ?? deploy?.ship.id ?? selected;
 
   let ghost: Ghost | null = null;
-  if (deploy !== null && pointer !== null) {
+  let ghosts: Ghost[] = [];
+  if (arrival !== null) {
+    const status = validate(state, arrival).ok ? "ok" : "bad";
+    ghosts = arrival.placements.map((p) => ({ shipId: p.shipId, position: p.position, heading: p.heading, status }));
+  } else if (deploy !== null && pointer !== null) {
     const t: Transform = { type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(pointer) };
     ghost = { shipId: deploy.ship.id, position: pointer, heading: deployHeading(pointer), status: validate(state, t).ok ? "ok" : "bad" };
   } else if (plot !== null && (plot.path.length > 0 || plot.preview.length > 0)) {
@@ -142,6 +157,8 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
         <Table
           state={state}
           ghost={ghost}
+          ghosts={ghosts}
+          entryFor={arrivals}
           selectedShipId={highlighted}
           setupPreview={state.clock.setupStep === "choose_setup" ? setupPreview : null}
           highlight={
@@ -183,6 +200,10 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           }}
           onTableClick={(p, s) => {
             if (deploy !== null) act({ type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(p) });
+            else if (arrivingUnit !== undefined && arrivals !== null) {
+              const t = arrivalAt(state, arrivals, arrivingUnit, p, arrivalTurn);
+              if (t !== null) void run(t).then((ok) => ok && setArrivalShip(null));
+            }
             else if (plot !== null) plot.click(p, s);
             else if (craftPlot !== null) craftPlot.click(p);
             else if (aimed !== null && aimed.weapon.kind === "torpedoes") act(launch(aimed.ship, aimed.weapon, bearingToward(aimed.ship, aimed.weapon, p)));
@@ -210,16 +231,29 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           ) : shooting ? (
             <FireControls state={state} aimed={aimed} onAim={setAim} onApply={act} bearing={bearing} novaAim={novaAim} />
           ) : state.clock.stage === "battle" ? (
-            <StepControls
-              state={state}
-              onApply={act}
-              onHighlight={setHighlight}
-              plot={plot}
-              seat={seat}
-              onFocus={(id) => choose(id, false)}
-              craftPlot={craftPlot}
-              onFocusWave={setWaveFocus}
-            />
+            <>
+              {arrivalsHere && arrivals !== null && (
+                <ReinforcementControls
+                  state={state}
+                  player={arrivals}
+                  chosen={arrivingUnit?.[0]?.id ?? null}
+                  onChoose={setArrivalShip}
+                  turn={arrivalTurn}
+                  onTurn={setArrivalTurn}
+                  onApply={act}
+                />
+              )}
+              <StepControls
+                state={state}
+                onApply={act}
+                onHighlight={setHighlight}
+                plot={plot}
+                seat={seat}
+                onFocus={(id) => choose(id, false)}
+                craftPlot={craftPlot}
+                onFocusWave={setWaveFocus}
+              />
+            </>
           ) : null}
           <Result state={state} />
           {rejection && (
