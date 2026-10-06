@@ -140,7 +140,7 @@ ai/: campaign decisions (utility) + tactical search in battles (ADR 0004)
 - **D15.** The attacker sets the battle's size within the order's limits, in steps of 50. Each side's limit is then reduced:
   - by 10 points per system that side holds over its opponent;
   - for the defender, by 100 more at an uninhabited location.
-- **D16.** Each player picks their force from their register within their limit. Withdrawn ships can't be picked. The force follows the scenario's restrictions; fleet list ratios aren't checked again for the force.
+- **D16.** Each player picks their force from their register within their limit. Withdrawn ships can't be picked. The force follows the scenario's restrictions; fleet list ratios apply to the register only and aren't checked for the force (settled, Q3): at many sizes no force could meet them.
 - **D17.** Each player rolls a sub-plot (P2) once forces are fixed. Each player sees their own sub-plot; the opponent's stays hidden until it's revealed in play or the battle ends.
 
 ### Battles
@@ -148,7 +148,7 @@ ai/: campaign decisions (utility) + tactical search in battles (ADR 0004)
 - **D18.** In a campaign battle:
   - a ship's Leadership is its register Leadership, never rolled;
   - it starts with its register damage, and is crippled from the start if that damage is at least half its hits;
-  - a ship that starts crippled gives no crippling VPs in that battle;
+  - a ship that starts crippled gives no crippling VPs in that battle: it was crippled in an earlier one (settled, Q1);
   - its points value includes +10% (rounded up) per refit.
 - **D19.** The commander's Leadership, re-rolls and Marks come from their rank (p. 153). They are aboard their flagship, and their re-rolls and abilities work only while the flagship is in the battle. If the flagship is destroyed, the commander survives but has no further effect that battle, and their player picks a new flagship afterwards.
 - **D20.** A hulk counts as captured (+1 renown each, p. 152) when it is an enemy capital ship hulk and the capturing player holds the field (p. 123) at the battle's end.
@@ -213,9 +213,8 @@ ai/: campaign decisions (utility) + tactical search in battles (ADR 0004)
 
 ## Open Questions
 
-- **Q1.** Should a ship that starts a battle crippled (from carried damage) give crippling VPs? — *proposed default:* no (D18): it was crippled in an earlier battle.
+- **Q1, Q3.** Settled by George (2026-10-06): a ship that starts crippled gives no crippling VPs (D18); fleet list ratios apply to the register only, not to battle forces (D16).
 - **Q2.** Who sets the battle's size: the attacker, or an offer and counter-offer? — *proposed default:* the attacker, within the limits (D15). It's simple, AI-friendly, and the limits already constrain it.
-- **Q3.** Does the battle force have to meet the fleet list ratios, or only the register? — *proposed default:* only the register (D16). Battle forces are drawn from it, and requiring ratios at every size would often leave no legal force.
 - **Q4.** Should a hidden sub-plot stay secret online, given the honour system locally? — *proposed default:* yes: the `CampaignDO` and `GameDO` redact the opponent's sub-plot until it's revealed (D17). Locally the same UI hides it, on the honour system.
 - **Q5.** "Other" appeals (allies) need allied fleet lists we don't have. Drop them, or hold the slot? — *proposed default:* not offered in v1; added with the first allied list.
 - **Q6.** Map size and route density defaults? — *proposed default:* 12 systems, 2–4 routes each (D6); revisit after a few generated maps.
