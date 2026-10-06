@@ -125,6 +125,7 @@ test("points battle: each side spends its points, any number of ships, scored in
   await expect(form.getByLabel("Scoring")).toHaveValue("victory_points");
   await expect(form.getByLabel("Cruisers a side")).toHaveCount(0);
   await expect(form.getByText("One carrier each")).toHaveCount(0); // no cap, so no carrier option
+  await form.getByLabel(/^Fleet lists/).uncheck(); // just the points here; fleet lists have their own test
   const [p1, p2] = [form.locator("fieldset.p1"), form.locator("fieldset.p2")];
   await p1.getByRole("button", { name: "Add a ship" }).click();
   await p1.getByRole("button", { name: "Add a ship" }).click();
@@ -142,4 +143,52 @@ test("points battle: each side spends its points, any number of ships, scored in
   await form.getByRole("button", { name: "Start" }).click();
   await expect(page.locator(".card")).toHaveCount(5);
   await expect(page.locator(".card").filter({ hasText: "Dictator class cruiser" })).toHaveCount(1);
+});
+
+test("ship options: a Mars with a targeting matrix and a third turret in a points battle", async ({ page }) => {
+  await page.goto("/");
+  const form = page.locator("form", { hasText: "Hot-seat" });
+  await form.getByLabel("Battle").selectOption("750");
+  const p1 = form.locator("fieldset.p1");
+  await p1.getByRole("combobox", { name: /^Class/ }).selectOption("mars");
+  await p1.getByLabel(/Targeting matrix/).check();
+  await p1.getByLabel(/Third turret/).check();
+  await expect(p1).toContainText("1 × Mars class battlecruiser + targeting matrix + third turret (295 pts) · 295 of 750 pts");
+  // A different class drops the options.
+  await p1.getByRole("combobox", { name: /^Class/ }).selectOption("lunar");
+  await expect(p1.getByLabel(/Nova cannon/)).not.toBeChecked();
+  await p1.getByLabel(/Nova cannon/).check();
+  await expect(p1).toContainText("1 × Lunar class cruiser + nova cannon (200 pts)");
+  await form.getByRole("button", { name: "Start" }).click();
+  await expect(page.locator(".card").filter({ hasText: "Agrippa" })).toBeVisible();
+});
+
+test("fleet lists: an Admiral over 750 points, a Warmaster with Marks and a Lord on their ships", async ({ page }) => {
+  await page.goto("/");
+  const form = page.locator("form", { hasText: "Hot-seat" });
+  await form.getByLabel("Battle").selectOption("1000");
+  await expect(form.getByLabel(/^Fleet lists/)).toBeChecked();
+  const [p1, p2] = [form.locator("fieldset.p1"), form.locator("fieldset.p2")];
+  for (let i = 0; i < 3; i++) await p1.getByRole("button", { name: "Add a ship" }).click();
+  await p1.getByRole("combobox", { name: /^Ship 1 class/ }).selectOption("mars");
+  await expect(form.locator(".rejection")).toContainText("must have an Admiral");
+  await p1.getByRole("combobox", { name: /^Admiral/ }).selectOption("9");
+  await p1.getByRole("combobox", { name: /^Extra re-rolls/ }).selectOption("1");
+  await expect(p1).toContainText("commanders (125 pts)");
+  // Chaos: the Warmaster rides the most expensive ship; give him Khorne, and a Lord with Tzeentch.
+  await p2.getByRole("button", { name: "Add a ship" }).click();
+  await p2.getByRole("combobox", { name: /^Ship 2 class/ }).selectOption("styx");
+  await expect(form.locator(".rejection")).toContainText("one heavy cruiser per two cruisers"); // a Styx needs two cruisers
+  await p2.getByRole("button", { name: "Add a ship" }).click();
+  await expect(p2).toContainText("aboard the most expensive ship");
+  await p2.getByLabel("Mark of Khorne (+20)").check();
+  await p2.getByRole("button", { name: "Add a Chaos Lord" }).click();
+  await p2.getByRole("combobox", { name: /^Chaos Lord 1 \(Ld 8, 50 pts\) aboard/ }).selectOption("0");
+  await p2.getByRole("combobox", { name: /^Chaos Lord 1 mark/ }).selectOption("tzeentch");
+  await expect(form.locator(".rejection")).toHaveCount(0);
+  await form.screenshot({ path: "e2e-results/fleet-lists-form.png" });
+  await form.getByRole("button", { name: "Start" }).click();
+  await expect(page.locator(".card").filter({ hasText: "Mars class battlecruiser" })).toContainText("Admiral, Ld 9 · 2 re-rolls");
+  await expect(page.locator(".card").filter({ hasText: "Styx class heavy cruiser" })).toContainText("Warmaster, Ld 8 · Mark of Khorne · 1 re-roll");
+  await expect(page.locator(".card").filter({ hasText: "Murder class cruiser" }).first()).toContainText("Chaos Lord, Ld 8 · Mark of Tzeentch · 1 re-roll");
 });

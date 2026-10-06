@@ -4,7 +4,7 @@ import { isNearest, lineOfFireBlocked, novaLineBlocked, novaRange, shootableOrdn
 import { novaCannonBarred, onTable, weaponDisabled } from "../state/derived";
 import type { GameState, Point, Ship, Weapon } from "../state/types";
 import type { Fire, FireNovaCannon, LaunchTorpedoes } from "../transforms/types";
-import { isResult, ownActiveShip } from "./movement";
+import { isResult, ownActiveShip, rerollCheck } from "./movement";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
 
 /** Shared checks 1–6: own active ship whose disengage test didn't fail, not grappled and not boarding. */
@@ -128,8 +128,8 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
     return reject("MUST_TARGET_NEAREST", `${ship.name} failed its Leadership test: it must fire at the nearest target`);
   }
 
-  // 21–25: combined batteries (T32)
-  if (t.combineWith === undefined) return OK;
+  // 21–25: combined batteries (T32); then 26, the re-roll
+  if (t.combineWith === undefined) return rerollCheck(state, ship, t.reroll);
   const ids = t.combineWith;
   if (weapon.kind !== "battery" || new Set(ids).size !== ids.length || ids.includes(weapon.id)) {
     return reject("INVALID_VOLLEY", "Only weapons batteries combine, each named once besides the main one", { combineWith: ids });
@@ -151,7 +151,7 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
       return reject("MUST_TARGET_NEAREST", `${ship.name} failed its Leadership test: ${extra.name} must fire at the nearest target`);
     }
   }
-  return OK;
+  return rerollCheck(state, ship, t.reroll);
 }
 
 export function checkFireNovaCannon(state: GameState, t: FireNovaCannon): ValidationResult {

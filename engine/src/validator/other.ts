@@ -5,7 +5,7 @@ import { onTable } from "../state/derived";
 import { deploymentDivisions, divisionAt, emptyDivisions, setupOptions } from "../rules/engagement";
 import type { GameState } from "../state/types";
 import type { AnswerBrace, ChooseSetup, DeployShip, RemoveBlastMarkers, Repair } from "../transforms/types";
-import { isResult, ownActiveShip, ownShip } from "./movement";
+import { isResult, ownActiveShip, ownShip, rerollCheck } from "./movement";
 import { OK, reject, type ValidationResult } from "./reasons";
 
 const UNREPAIRABLE = new Set(["bridge_smashed", "shields_collapse"]);
@@ -53,7 +53,9 @@ export function checkAnswerBrace(state: GameState, t: AnswerBrace): ValidationRe
   if (top === undefined || top.id !== t.pendingId) {
     return reject("NOT_TOP_PENDING", "That isn't the decision being asked", { pendingId: top?.id ?? null });
   }
-  return OK;
+  // 2: a re-roll for a failed brace check
+  const ship = state.ships.find((s) => s.id === top.shipId);
+  return ship === undefined ? OK : rerollCheck(state, ship, t.reroll, t.attempt);
 }
 
 /** Exactly the required set: no extras, no duplicates, none missing. */

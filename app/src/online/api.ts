@@ -20,6 +20,7 @@ export type CreateGame = {
   boarding: boolean;
   carriers: boolean;
   scenario?: ScenarioId;
+  fleetLists?: boolean;
   forces?: Forces;
   scoring?: Scoring;
 };

@@ -30,8 +30,16 @@ const PATHS: PathStep[][] = [
 ];
 const ARCS = [undefined, "front", "left", "right", "rear"] as const;
 
-/** Every transform the bot would consider now, best first. */
+const REROLLABLE = new Set(["declare_order", "fire", "move", "answer_brace"]);
+
+/** Every transform the bot would consider now, best first; every other time, with a fleet commander re-roll asked for. */
 export function candidates(s: GameState, n: number): Transform[] {
+  const plain = baseCandidates(s, n);
+  if (n % 2 === 1) return plain;
+  return plain.flatMap((t) => (REROLLABLE.has(t.type) ? [{ ...t, reroll: true } as Transform, t] : [t]));
+}
+
+function baseCandidates(s: GameState, n: number): Transform[] {
   const who = actor(s);
   const top = s.pending[s.pending.length - 1];
   if (top !== undefined) return [{ type: "answer_brace", player: top.player, pendingId: top.id, attempt: n % 3 === 0 }];

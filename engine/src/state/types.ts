@@ -55,7 +55,8 @@ export type Meta = {
   ruleset: "bfg-remastered-1.10";
   createdAt: string;
   /** `carriers`: one ship with launch bays each, above the 185-point cap (p. 129). Absent in older saves: read as false. */
-  options: { ramming: boolean; boarding: boolean; carriers?: boolean };
+  /** `fleetLists`: fleets follow their fleet list, with commanders (state §4). Absent in older saves: false. */
+  options: { ramming: boolean; boarding: boolean; carriers?: boolean; fleetLists?: boolean };
 };
 
 export type Rect = { x: number; y: number; width: number; height: number };
@@ -179,6 +180,8 @@ export type Ship = {
   loaded: { torpedoes?: boolean; launchBays?: boolean };
   lastMove: { playerTurn: number; distance: number } | null;
   grapple: Grapple | null;
+  /** An Admiral, Warmaster or Chaos Lord aboard (state §7.4). Absent in older saves: none. */
+  commander?: Commander | null;
 };
 
 /** A drawn boarding action, still being fought (state §7). Every member carries an identical copy. */
@@ -196,6 +199,10 @@ export type ShipProfile = {
   source: { book: "fleets"; page: number };
   points: number;
   type: ShipType;
+  /** The fleet lists' kind of hull, for their ratios (state N20). Absent in older saves: "cruiser". */
+  category?: ShipCategory;
+  /** The option ids taken for this ship, already applied (state N21). Absent in older saves: none. */
+  options?: string[];
   hits: number;
   speed: number;
   turns: 45 | 90;
@@ -211,6 +218,26 @@ export type ShipProfile = {
 export type ShipTraits = {
   /** D6 rolled for All Ahead Full; default 4. Improved thrusters: 5 (state N10). */
   allAheadFullDice?: number;
+  /** Its weapons batteries take one column shift left (Mars and Overlord option, transform T64). */
+  targetingMatrix?: boolean;
+};
+
+export type ShipCategory = "cruiser" | "heavy_cruiser" | "battlecruiser";
+
+// --- Fleet commanders (§7.4)
+
+export type Mark = "slaanesh" | "khorne" | "tzeentch" | "nurgle";
+
+export type Commander = {
+  /** admiral, warmaster: the fleet commander; lord: a Chaos Lord. */
+  kind: "admiral" | "warmaster" | "lord";
+  /** Replaces the ship's rolled Leadership, even if lower (state N22). */
+  leadership: number;
+  /** The commander, extra re-rolls and Marks: part of the ship's value (N25). */
+  points: number;
+  marks: Mark[];
+  /** Re-rolls left this game (N23). */
+  rerolls: number;
 };
 
 export type WeaponKind = "battery" | "lance" | "torpedoes" | "launch_bay" | "nova_cannon";
@@ -327,6 +354,8 @@ export type Activation = {
   slowedByBlastMarkers: boolean;
   zeroShieldBMTestDone: boolean;
   disengage: boolean;
+  /** The move asked to re-roll a failed disengage test (transform §2.7). Absent in older saves. */
+  reroll?: boolean;
   boardTargetId: string | null;
 };
 
@@ -361,7 +390,7 @@ export type WorkItem =
   | { kind: "hulk_drift"; shipId: string; distance: number; travelled: number }
   | { kind: "fire_damage"; shipId: string }
   | { kind: "boarding_fight"; defenderId: string; attackerIds: string[] }
-  | { kind: "boarding_critical"; shipId: string; need: number | "auto" | "none" }
+  | { kind: "boarding_critical"; shipId: string; need: number | "auto" | "none"; bonus?: number }
   | { kind: "teleport_attack"; shipId: string; targetId: string }
   | { kind: "craft_meets_ship"; ordnanceId: string; targetId: string; bmTested: boolean }
   | { kind: "craft_attack"; ordnanceId: string; targetId: string }

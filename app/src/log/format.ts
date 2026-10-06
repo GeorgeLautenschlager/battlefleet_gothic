@@ -105,6 +105,10 @@ export function describe(state: GameState, entry: LogEntry): string {
       const miss = typeof d["blastMarkerId"] === "string" ? "touches nothing: a Blast Marker" : "touches nothing, off the table";
       return `${ship("shipId")} fires its nova cannon at ${num(d["range"])} cm ${dice(d["rolls"])}: ${where}, ${outcome.length > 0 ? outcome.join(", ") : miss}`;
     }
+    case "reroll":
+      return `${ship("shipId")} re-rolls its ${words(String(d["test"]))} with ${ship("commanderShipId")}'s fleet commander ${dice(d["rolls"])}: ${pass(d["passed"])}`;
+    case "rerolls_lost":
+      return `${ship("shipId")}'s bridge is smashed: its commander's re-rolls are lost`;
     case "shields":
       return `${ship("shipId")}'s shields absorb ${num(d["absorbed"])}`;
     case "brace_offer":

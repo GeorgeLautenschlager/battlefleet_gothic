@@ -4,6 +4,7 @@ import { moveParameters } from "../../rules/move";
 import type { Activation, ShipType } from "../../state/types";
 import type { AnswerBrace, DeclareOrder } from "../../transforms/types";
 import { sum, type Ctx } from "../context";
+import { rerollableTest } from "../reroll";
 
 /** Size order for rams (p. 55): escort < cruiser < battleship (< defence). */
 const SIZE: Record<ShipType, number> = { escort: 0, cruiser: 1, battleship: 2 };
@@ -20,8 +21,9 @@ export function declareOrder(ctx: Ctx, t: DeclareOrder): void {
   const now = state.clock.playerTurn;
 
   const target = commandCheckLd(state, ship);
-  const check = ctx.test(2, target);
-  ctx.log("command_check", { shipId: ship.id, order: t.order, target, rolls: check.rolls, passed: check.passed });
+  const check = rerollableTest(ctx, ship, 2, target, t.reroll === true, "command_check", (r) =>
+    ctx.log("command_check", { shipId: ship.id, order: t.order, target, rolls: r.rolls, passed: r.passed }),
+  );
 
   let order: Activation["order"] = null;
   let aafExtra: number | null = null;
@@ -37,10 +39,11 @@ export function declareOrder(ctx: Ctx, t: DeclareOrder): void {
       if (t.ramTargetId !== undefined) {
         const victim = getShip(state, t.ramTargetId);
         const dice = ramTestDice(ship.profile.type, victim.profile.type);
-        const ld = leadership(ship);
-        const ramTest = ctx.test(dice, ld);
+        const ld = leadership(state, ship);
+        const ramTest = rerollableTest(ctx, ship, dice, ld, t.reroll === true, "ram", (r) =>
+          ctx.log("ram_test", { shipId: ship.id, targetId: victim.id, target: ld, rolls: r.rolls, passed: r.passed }),
+        );
         ram = { targetId: victim.id, testPassed: ramTest.passed, resolved: false };
-        ctx.log("ram_test", { shipId: ship.id, targetId: victim.id, target: ld, rolls: ramTest.rolls, passed: ramTest.passed });
       }
       const rolls = ctx.nD6(ship.profile.traits?.allAheadFullDice ?? 4); // improved thrusters: 5D6 (state N10)
       aafExtra = sum(rolls);
@@ -87,8 +90,9 @@ export function answerBrace(ctx: Ctx, t: AnswerBrace): void {
     return;
   }
   const target = commandCheckLd(state, ship);
-  const check = ctx.test(2, target);
-  ctx.log("brace_check", { shipId: ship.id, target, rolls: check.rolls, passed: check.passed });
+  const check = rerollableTest(ctx, ship, 2, target, t.reroll === true, "command_check", (r) =>
+    ctx.log("brace_check", { shipId: ship.id, target, rolls: r.rolls, passed: r.passed }),
+  );
   if (check.passed) {
     // "Until the end of its next turn" (state §7.3).
     const now = state.clock.playerTurn;

@@ -2,7 +2,7 @@
  * The network protocol (network/SPEC.md §4): every message between a client
  * and a game room. Plain JSON, one `type` per message.
  */
-import type { FactionId, Forces, GameConfig, GameState, PlayerId, ScenarioId, Scoring, Transform } from "@bfg/engine";
+import type { CommanderConfig, FactionId, Forces, GameConfig, GameState, PlayerId, ScenarioId, Scoring, Transform } from "@bfg/engine";
 
 /** Bumped on any incompatible change to these messages. 2: fleets (several ships a side, any faction). */
 export const PROTOCOL = 2;
@@ -18,7 +18,8 @@ export const MAX_SHIPS = 4;
 export const MAX_POINTS_SHIPS = 8;
 
 /** One ship a player brings: its name and its class in the engine catalogue. */
-export type ShipEntry = { name: string; classId: string };
+/** `options`: the class's option ids (transform §5, T57); `commander`: aboard, with fleet lists (T60). */
+export type ShipEntry = { name: string; classId: string; options?: string[]; commander?: CommanderConfig };
 
 // --- Client → server (§4.1)
 
@@ -37,7 +38,8 @@ export type SeatInfo = { name: string | null; faction: FactionId | null; ships: 
  * The game's rules. `carriers`: one carrier each over the 185-point cap (p. 129).
  * `scenario`: Cruiser Clash or Fleet Engagement; `forces`: Cruiser Clash or a points battle; `scoring`: Cruiser Clash or victory points (transform §5).
  */
-export type RoomOptions = { ramming: boolean; boarding: boolean; carriers: boolean; scenario: ScenarioId; forces: Forces; scoring: Scoring };
+/** `fleetLists`: points battles follow the fleet lists, with commanders (T58). */
+export type RoomOptions = { ramming: boolean; boarding: boolean; carriers: boolean; fleetLists: boolean; scenario: ScenarioId; forces: Forces; scoring: Scoring };
 /** `count`: ships a side, set by the host (Cruiser Clash; a points battle leaves each side its own); `options`: the game's rules. */
 export type Lobby = { seats: Record<PlayerId, SeatInfo>; count: number; options: RoomOptions };
 export type Presence = Record<PlayerId, boolean>;
@@ -109,8 +111,39 @@ const isString = (v: unknown, max = 200): v is string => typeof v === "string" &
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
 
 /** A list of ships, shape only: names and classes are checked by the room. */
+/** Just the fields a ship entry has. */
+export const shipEntry = (s: ShipEntry): ShipEntry => ({
+  name: s.name,
+  classId: s.classId,
+  ...(s.options !== undefined ? { options: [...s.options] } : {}),
+  ...(s.commander !== undefined ? { commander: JSON.parse(JSON.stringify(s.commander)) as CommanderConfig } : {}),
+});
+
+const MARKS = ["slaanesh", "khorne", "tzeentch", "nurgle"];
+const isMark = (v: unknown): boolean => typeof v === "string" && MARKS.includes(v);
+
+/** A commander's shape (the engine checks the rules). */
+function isCommander(v: unknown): boolean {
+  if (!isObject(v)) return false;
+  if (v["kind"] === "admiral") return [8, 9, 10].includes(v["leadership"] as number) && [0, 1, 2, 3].includes(v["extraRerolls"] as number);
+  if (v["kind"] === "warmaster") return [8, 9].includes(v["leadership"] as number) && Array.isArray(v["marks"]) && v["marks"].length <= 4 && v["marks"].every(isMark);
+  if (v["kind"] === "lord") return v["mark"] === null || isMark(v["mark"]);
+  return false;
+}
+
 export function isShipList(v: unknown): v is ShipEntry[] {
-  return Array.isArray(v) && v.length <= MAX_POINTS_SHIPS && v.every((s) => isObject(s) && isString(s["name"]) && isString(s["classId"], 40));
+  return (
+    Array.isArray(v) &&
+    v.length <= MAX_POINTS_SHIPS &&
+    v.every(
+      (s) =>
+        isObject(s) &&
+        isString(s["name"]) &&
+        isString(s["classId"], 40) &&
+        (s["options"] === undefined || (Array.isArray(s["options"]) && s["options"].length <= 8 && s["options"].every((o) => isString(o, 40)))) &&
+        (s["commander"] === undefined || isCommander(s["commander"])),
+    )
+  );
 }
 
 /** Parse one raw client message, or say why not. */
@@ -135,7 +168,7 @@ export function parseClientMessage(raw: string): ClientMessage | { error: ErrorC
             token: v["token"],
             name: v["name"],
             faction: v["faction"] as FactionId,
-            ships: v["ships"].map((s) => ({ name: s.name, classId: s.classId })),
+            ships: v["ships"].map(shipEntry),
           }
         : { error: "MALFORMED_MESSAGE" };
     case "propose":

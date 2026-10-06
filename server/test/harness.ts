@@ -40,12 +40,12 @@ export class Harness {
   ) {}
 
   static async create(
-    opts: { side?: PlayerId; seed?: number; fleet?: Fleet; ramming?: boolean; boarding?: boolean; carriers?: boolean; scenario?: ScenarioId; forces?: Forces; scoring?: Scoring } = {},
+    opts: { side?: PlayerId; seed?: number; fleet?: Fleet; ramming?: boolean; boarding?: boolean; carriers?: boolean; fleetLists?: boolean; scenario?: ScenarioId; forces?: Forces; scoring?: Scoring } = {},
   ): Promise<Harness> {
     const deps = testDeps(opts.seed);
     const fleet = opts.fleet ?? HOST_FLEET;
     const created = await createRoom(
-      { name: "Ann", side: opts.side ?? "p1", faction: fleet.faction, ships: [...fleet.ships], ramming: opts.ramming ?? true, boarding: opts.boarding ?? false, carriers: opts.carriers ?? false, ...(opts.scenario ? { scenario: opts.scenario } : {}), ...(opts.forces ? { forces: opts.forces } : {}), ...(opts.scoring ? { scoring: opts.scoring } : {}) },
+      { name: "Ann", side: opts.side ?? "p1", faction: fleet.faction, ships: [...fleet.ships], ramming: opts.ramming ?? true, boarding: opts.boarding ?? false, carriers: opts.carriers ?? false, ...(opts.scenario ? { scenario: opts.scenario } : {}), ...(opts.fleetLists ? { fleetLists: true } : {}), ...(opts.forces ? { forces: opts.forces } : {}), ...(opts.scoring ? { scoring: opts.scoring } : {}) },
       deps,
     );
     if ("error" in created) throw new Error(created.error);

@@ -22,8 +22,10 @@ export type ChooseSetup = Base<"choose_setup"> & { map: SetupMap; colour: Colour
 // Movement (§4.2)
 export type DriftHulk = Base<"drift_hulk"> & { shipId: string };
 /** `order` is any OrderKind so that a declared Brace is well-formed and rejected as INVALID_ORDER. */
-export type DeclareOrder = Base<"declare_order"> & { shipId: string; order: OrderKind; ramTargetId?: string };
-export type Move = Base<"move"> & { shipId: string; path: PathStep[]; disengage: boolean; boardTargetId?: string };
+/** `reroll`: re-roll a failed Command check or ram test with a fleet commander re-roll (§2.7). */
+export type DeclareOrder = Base<"declare_order"> & { shipId: string; order: OrderKind; ramTargetId?: string; reroll?: boolean };
+/** `reroll`: re-roll a failed disengage test (§2.7). */
+export type Move = Base<"move"> & { shipId: string; path: PathStep[]; disengage: boolean; boardTargetId?: string; reroll?: boolean };
 /** Take a CAP fighter off CAP at the start of its owner's Movement Phase (p. 82). */
 export type ReleaseCap = Base<"release_cap"> & { ordnanceId: string };
 
@@ -37,6 +39,8 @@ export type Fire = Base<"fire"> & {
   target: FireTarget;
   arc?: Quadrant;
   aspect?: Quadrant;
+  /** Re-roll a failed target-priority test (§2.7). */
+  reroll?: boolean;
 };
 /** Aim a nova cannon: `aim` is where the template's centre is placed (T40). */
 export type FireNovaCannon = Base<"fire_nova_cannon"> & { shipId: string; weaponId: string; aim: Point };
@@ -54,7 +58,8 @@ export type EndStep = Base<"end_step">;
 export type MoveOrdnance = Base<"move_ordnance"> & { ordnanceId: string; path?: Point[]; cap?: string };
 
 // Brace (§4.5)
-export type AnswerBrace = Base<"answer_brace"> & { pendingId: string; attempt: boolean };
+/** `reroll`: re-roll a failed brace Command check (§2.7). */
+export type AnswerBrace = Base<"answer_brace"> & { pendingId: string; attempt: boolean; reroll?: boolean };
 
 // End Phase (§4.6)
 export type Repair = Base<"repair"> & { shipId: string; priority: string[] };

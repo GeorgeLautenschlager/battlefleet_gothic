@@ -98,6 +98,7 @@ describe("full games, points battles with victory points", () => {
     ["750 pts: Dictator, Gothic, Lunar vs Devastation, Slaughter ×2, Murder", battle(["dictator", "gothic", "lunar"], ["devastation", "slaughter", "slaughter", "murder"], 750)],
     ["500 pts: two Tyrants vs three Slaughters", battle(["tyrant", "tyrant"], ["slaughter", "slaughter", "slaughter"], 500)],
     ["1000 pts: nova cannons (Dominator ×2, Lunar, Tyrant) vs Murder ×4, Carnage", battle(["dominator", "dominator_long", "lunar_nova", "tyrant_long_nova"], ["murder", "murder", "murder", "murder", "carnage"], 1000)],
+    ["1500 pts: Mars, Overlord and cruisers vs Styx, Hecate, Hades, Acheron and cruisers", battle(["mars", "overlord", "lunar", "gothic", "dominator", "tyrant"], ["styx", "hecate", "hades", "acheron", "murder", "carnage"], 1500)],
   ];
   for (const [name, config] of matchups) {
     test.each([1, 2, 3, 4])(`${name}, seed %i, plays to a result`, (seed) => {
@@ -106,6 +107,37 @@ describe("full games, points battles with victory points", () => {
       expect(s.log.at(-1)?.data["scoring"]).toBe("victory_points");
     });
   }
+});
+
+describe("full games with fleet lists, commanders and Marks", () => {
+  const withLists = (p1: GameConfig["ships"], p2: GameConfig["ships"], limit: number): GameConfig => ({
+    ...cloneJson(LUNAR_VS_MURDER),
+    options: { fleetLists: true, boarding: true },
+    forces: { kind: "points", limit },
+    scoring: "victory_points",
+    ships: [...p1, ...p2],
+  });
+  const imperial = (classId: string, i: number, extra: Partial<GameConfig["ships"][number]> = {}) => ({ owner: "p1" as const, name: `I${i}`, classId, ...extra });
+  const chaos = (classId: string, i: number, extra: Partial<GameConfig["ships"][number]> = {}) => ({ owner: "p2" as const, name: `C${i}`, classId, ...extra });
+  const config = withLists(
+    [imperial("mars", 0, { options: ["targeting_matrix"], commander: { kind: "admiral", leadership: 9, extraRerolls: 1 } }), imperial("lunar", 1), imperial("gothic", 2)],
+    [
+      chaos("styx", 0, { commander: { kind: "warmaster", leadership: 9, marks: ["slaanesh", "khorne"] } }),
+      chaos("murder", 1, { commander: { kind: "lord", mark: "tzeentch" } }),
+      chaos("carnage", 2, { commander: { kind: "lord", mark: "nurgle" } }),
+    ],
+    1200,
+  );
+  test.each([1, 2, 3, 4])("seed %i plays to a result", (seed) => {
+    const s = playOut(seed, config);
+    expect(s.result).not.toBeNull();
+  }, 60_000);
+
+  test("across those games, re-rolls get spent", () => {
+    const kinds = new Set<string>();
+    for (const seed of [1, 2, 3, 4]) for (const e of playOut(seed, config).log) kinds.add(e.kind);
+    expect(kinds).toContain("reroll");
+  }, 60_000);
 });
 
 describe("full games, Fleet Engagement", () => {

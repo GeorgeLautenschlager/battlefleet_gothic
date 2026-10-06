@@ -34,7 +34,7 @@ test("host creates, guest joins by link, setup over the server, online undo, rec
   await bo.goto(link);
   await expect(bo.getByText("You've been invited")).toBeVisible();
   await expect(bo.getByText("Ann brings Imperial Navy: 1 × Lunar class cruiser (Agrippa).")).toBeVisible();
-  await expect(bo.locator("fieldset")).toContainText("1 × Murder class cruiser"); // the other fleet, by default
+  await expect(bo.locator("fieldset").first()).toContainText("1 × Murder class cruiser"); // the other fleet, by default
   await bo.getByLabel("Commander").fill("Bo");
   await bo.getByRole("button", { name: "Join the battle" }).click();
 
@@ -99,7 +99,7 @@ test("fleets online: two a side, a Chaos mirror match, names checked against the
   await expect(bo.getByText("2 cruisers a side, no ramming")).toBeVisible();
   const form = bo.locator("form", { hasText: "You've been invited" });
   await form.getByRole("combobox", { name: /^Fleet/ }).selectOption("chaos");
-  await expect(form.locator("fieldset")).toContainText("2 × Murder class cruiser");
+  await expect(form.locator("fieldset").first()).toContainText("2 × Murder class cruiser");
   // The default names steer clear of Ann's; a clash is caught before it's sent.
   const annShips = (await ann.locator(".seats li.p1 .small").innerText()).match(/\((.*)\)/)?.[1]?.split(", ") ?? [];
   expect(annShips).toHaveLength(2);
@@ -130,7 +130,7 @@ test("points battle online: the host sets the limit, each side brings its own nu
   await online.getByRole("button", { name: "Add a ship" }).click();
   await online.getByRole("button", { name: "Add a ship" }).click();
   await online.getByLabel("Ship 1 class").selectOption("dictator");
-  await expect(online.locator("fieldset")).toContainText("· 580 of 750 pts");
+  await expect(online.locator("fieldset").first()).toContainText("· 580 of 750 pts");
   await online.getByRole("button", { name: "Create game" }).click();
   await expect(ann.getByText("Waiting for your opponent")).toBeVisible();
   const link = await ann.getByLabel("Invite link").inputValue();

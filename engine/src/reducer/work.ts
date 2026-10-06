@@ -59,7 +59,7 @@ export function runWorkItem(ctx: Ctx, item: WorkItem): void {
     case "boarding_fight":
       return boardingFight(ctx, item.defenderId, item.attackerIds);
     case "boarding_critical":
-      return boardingCritical(ctx, item.shipId, item.need);
+      return boardingCritical(ctx, item.shipId, item.need, item.bonus ?? 0);
     case "teleport_attack":
       return teleportAttack(ctx, item.shipId, item.targetId);
     case "craft_meets_ship":

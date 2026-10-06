@@ -2,16 +2,18 @@
  * The newGame factory (transform spec §5). Not a transform: there's no state
  * to validate against yet, so a bad config throws instead of returning a reason.
  */
-import { boardingModifier, CATALOGUE } from "./catalogue";
+import { boardingModifier, CATALOGUE, profileWithOptions } from "./catalogue";
+import { buildCommander, commanderPoints, fleetListProblem, type CommanderConfig } from "../rules/fleetLists";
 import { EngineError } from "./derived";
 import { cloneJson } from "./json";
 import { createRng } from "./rng";
-import type { FactionId, Forces, GameState, PlayerId, Scenario, ScenarioId, Scoring, Ship, ShipTurnState, TurnState } from "./types";
+import type { FactionId, Forces, GameState, PlayerId, Scenario, ScenarioId, Scoring, Ship, ShipProfile, ShipTurnState, TurnState } from "./types";
 
 export type GameConfig = {
   seed: number;
   createdAt: string;
-  options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean };
+  /** `fleetLists`: points battles follow the Gothic War fleet lists, with commanders (T58). */
+  options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean; fleetLists?: boolean };
   /** Default: Cruiser Clash. Fleet Engagement needs points forces and victory points (transform §5). */
   scenario?: ScenarioId;
   /** Default: Cruiser Clash forces (state §4). */
@@ -22,8 +24,18 @@ export type GameConfig = {
     p1: { name: string; faction: FactionId };
     p2: { name: string; faction: FactionId };
   };
-  ships: { owner: PlayerId; name: string; classId: string }[];
+  /** `options`: the class's option ids (transform §5, T57). */
+  ships: { owner: PlayerId; name: string; classId: string; options?: string[]; commander?: CommanderConfig }[];
 };
+
+/** A ship's profile as fielded: its class with its options applied, or an EngineError. */
+function shipProfile(ship: GameConfig["ships"][number], i: number): ShipProfile {
+  try {
+    return profileWithOptions(ship.classId, ship.options ?? []);
+  } catch (e) {
+    throw new EngineError(`ships[${i}]: ${(e as Error).message}`);
+  }
+}
 
 /** Cruiser Clash forces (p. 128): 1–4 cruisers a side, equal numbers, ≤ 185 points each. */
 const CRUISER_CLASH = { minShips: 1, maxShips: 4, maxPoints: 185 } as const;
@@ -85,13 +97,15 @@ function validateConfig(config: GameConfig): void {
     if (entry.profile.type !== "cruiser") {
       throw new EngineError(`ships[${i}]: Cruiser Clash allows cruisers only`);
     }
-    points[ship.owner] += entry.profile.points;
+    if (entry.legacy === true && (ship.options ?? []).length > 0) throw new EngineError(`ships[${i}]: ${ship.classId} takes no options`);
+    const profile = shipProfile(ship, i);
+    points[ship.owner] += profile.points + (ship.commander !== undefined ? commanderPoints(ship.commander) : 0);
     // A points battle has no per-ship cap (T36): only the side's total counts.
-    if (forces.kind === "cruiser_clash" && entry.profile.points > CRUISER_CLASH.maxPoints) {
+    if (forces.kind === "cruiser_clash" && profile.points > CRUISER_CLASH.maxPoints) {
       // "One carrier each" (p. 129): a ship with launch bays may go over the cap, one per side.
-      const carrier = entry.profile.weapons.some((w) => w.kind === "launch_bay");
+      const carrier = profile.weapons.some((w) => w.kind === "launch_bay");
       if (!carriers || !carrier) {
-        throw new EngineError(`ships[${i}]: ${entry.profile.points} pts exceeds the ${CRUISER_CLASH.maxPoints} pt cap`);
+        throw new EngineError(`ships[${i}]: ${profile.points} pts exceeds the ${CRUISER_CLASH.maxPoints} pt cap`);
       }
       carriersOverCap[ship.owner] += 1;
       if (carriersOverCap[ship.owner] > 1) {
@@ -102,14 +116,26 @@ function validateConfig(config: GameConfig): void {
   }
   // Rarity limits (T35): e.g. two Murder lance variants per 750 points of the side's fleet, or part.
   for (const player of ["p1", "p2"] as const) {
-    const side = config.ships.filter((s) => s.owner === player).map((s) => CATALOGUE[s.classId]);
-    const points = side.reduce((n, e) => n + (e?.profile.points ?? 0), 0);
+    const mine = config.ships.filter((s) => s.owner === player);
+    const side = mine.map((s) => CATALOGUE[s.classId]);
+    const points = mine.reduce((n, s) => n + profileWithOptions(s.classId, s.options ?? []).points, 0);
     for (const entry of new Set(side)) {
       if (entry?.limit === undefined) continue;
       const allowed = entry.limit.max * Math.ceil(points / entry.limit.perPoints);
       const n = side.filter((e) => e === entry).length;
       if (n > allowed) throw new EngineError(`${player} may field at most ${allowed} × ${entry.profile.className} in ${points} pts`);
     }
+  }
+  // Fleet lists and commanders (T58–T60): points battles only.
+  if (config.options?.fleetLists === true) {
+    if (forces.kind !== "points") throw new EngineError("fleet lists need a points battle");
+    for (const player of ["p1", "p2"] as const) {
+      const side = config.ships.flatMap((s, i) => (s.owner === player ? [{ classId: s.classId, profile: shipProfile(s, i), ...(s.commander ? { commander: s.commander } : {}) }] : []));
+      const problem = fleetListProblem(config.players[player].faction, side);
+      if (problem !== null) throw new EngineError(`${player}: ${problem}`);
+    }
+  } else if (config.ships.some((s) => s.commander !== undefined)) {
+    throw new EngineError("commanders come with the fleet lists");
   }
   if (forces.kind === "points") {
     for (const player of ["p1", "p2"] as const) {
@@ -154,9 +180,9 @@ export function newGame(config: GameConfig): GameState {
   validateConfig(config);
 
   const ships: Ship[] = config.ships.map((spec, i) => {
-    const entry = CATALOGUE[spec.classId];
-    if (entry === undefined) throw new EngineError(`unknown class ${spec.classId}`); // checked above
-    const profile = cloneJson(entry.profile);
+    const profile = cloneJson(shipProfile(spec, i)); // checked above
+    const commander = spec.commander !== undefined ? buildCommander(spec.commander) : null;
+    if (commander?.marks.includes("nurgle") === true) profile.hits += 1; // the Mark of Nurgle: +1 hit (state §7.4)
     const hasTorpedoes = profile.weapons.some((w) => w.kind === "torpedoes");
     const hasBays = profile.weapons.some((w) => w.kind === "launch_bay");
     return {
@@ -174,6 +200,7 @@ export function newGame(config: GameConfig): GameState {
       loaded: { ...(hasTorpedoes ? { torpedoes: true } : {}), ...(hasBays ? { launchBays: true } : {}) },
       lastMove: null,
       grapple: null,
+      ...(commander !== null ? { commander } : {}),
     };
   });
 
@@ -191,6 +218,7 @@ export function newGame(config: GameConfig): GameState {
         ramming: config.options?.ramming ?? true,
         boarding: config.options?.boarding ?? false,
         carriers: config.options?.carriers ?? false,
+        ...(config.options?.fleetLists === true ? { fleetLists: true } : {}),
       },
     },
     scenario: scenarioOf(config),

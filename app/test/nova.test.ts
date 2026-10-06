@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { GameState } from "@bfg/engine";
 import { apply, current, fromSave, type History } from "../src/game/history";
-import { classChoices, classIds, configProblem, type Side } from "../src/game/config";
+import { classChoices, configProblem, optionIds, shipEntries, type Side } from "../src/game/config";
 import { novaReach, novaShot, novaTargets } from "../src/fire/fire";
 import { describe as prose } from "../src/log/format";
 import save from "../e2e/fixtures/nova-cannon.json";
@@ -9,15 +9,24 @@ import save from "../e2e/fixtures/nova-cannon.json";
 /** The e2e fixture: Ann's Dominator at (90, 30) facing the Unclean at (90, 100), at her direct-fire step. */
 const fixture = (): History => fromSave(save) as History;
 
-describe("nova cannon classes in the fleet forms", () => {
-  test("Cruiser Clash offers only those within 185 points; a points battle offers them all", () => {
-    expect(classChoices("imperial_navy", false)).toEqual(["lunar", "gothic", "tyrant", "dominator_long"]);
-    expect(classChoices("imperial_navy", false, true)).toContain("tyrant_long_nova");
-    const side: Side = { name: "Ann", fleet: "imperial_navy", ships: ["A", "B"], classes: ["lunar_nova", "dominator_long"] };
-    expect(classIds(side, false)).toEqual(["lunar", "dominator_long"]); // a nova Lunar reads as a Lunar outside a points battle
-    expect(classIds(side, false, true)).toEqual(["lunar_nova", "dominator_long"]);
-    const bo: Side = { name: "Bo", fleet: "chaos", ships: ["C", "D"] };
+describe("ship options in the fleet forms (T57)", () => {
+  test("Cruiser Clash offers the classes that can fit 185 points; a points battle offers them all", () => {
+    expect(classChoices("imperial_navy", false)).toEqual(["lunar", "gothic", "tyrant", "dominator"]); // the Dominator, with its original batteries
+    expect(classChoices("imperial_navy", false, true)).toEqual(["lunar", "gothic", "tyrant", "dominator", "mars", "overlord"]);
+    expect(classChoices("chaos", false, true)).toContain("acheron");
+  });
+
+  test("options ride with each ship; a class's options are dropped when it doesn't have them", () => {
+    const side: Side = { name: "Ann", fleet: "imperial_navy", ships: ["A", "B"], classes: ["lunar", "mars"], options: [["nova_cannon"], ["third_turret", "nova_cannon"]] };
+    expect(optionIds(side, false, true)).toEqual([["nova_cannon"], ["third_turret"]]);
+    expect(shipEntries(side, false, true)).toEqual([
+      { name: "A", classId: "lunar", options: ["nova_cannon"] },
+      { name: "B", classId: "mars", options: ["third_turret"] },
+    ]);
+    const bo: Side = { name: "Bo", fleet: "chaos", ships: ["C", "D"], classes: ["styx", "murder"] };
     expect(configProblem({ p1: side, p2: bo, ramming: true, boarding: false, forces: { kind: "points", limit: 750 } })).toBeNull();
+    const clash: Side = { ...side, ships: ["A"], classes: ["lunar"], options: [["nova_cannon"]] };
+    expect(configProblem({ p1: clash, p2: { ...bo, ships: ["C"], classes: ["murder"] }, ramming: true, boarding: false })).toMatch(/200 pts exceeds/);
   });
 });
 

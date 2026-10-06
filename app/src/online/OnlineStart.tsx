@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { carriersAllowed, defaultNames, MAX_SHIPS, shipEntries, sideProblem, type Side } from "../game/config";
+import { carriersAllowed, defaultNames, listsOn, MAX_SHIPS, shipEntries, sideProblem, type Side } from "../game/config";
 import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, resize, RulesChecks, type Battle, type Rules } from "../panels/FleetForm";
 import { createGame } from "./api";
 import type { MyGame } from "./myGames";
@@ -7,14 +7,15 @@ import type { MyGame } from "./myGames";
 /** New online game: you're Player 1 and set the size of the battle; your opponent joins with a link and brings their own fleet. */
 export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }) {
   const [side, setSide] = useState<Side>({ name: "Player 1", fleet: "imperial_navy", ships: defaultNames("imperial_navy", 1) });
-  const [rules, setRules] = useState<Rules>({ ramming: true, boarding: true, carriers: false });
+  const [rules, setRules] = useState<Rules>({ ramming: true, boarding: true, carriers: false, fleetLists: true });
   const [battle, setBattle] = useState<Battle>({});
   const points = battle.forces?.kind === "points" ? battle.forces.limit : null;
   const carriers = carriersAllowed({ carriers: rules.carriers, ...battle });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dupes = duplicates(side.ships);
-  const problem = dupes.length > 0 ? null : sideProblem(side, carriers, battle.forces);
+  const lists = listsOn({ fleetLists: rules.fleetLists === true, ...battle });
+  const problem = dupes.length > 0 ? null : sideProblem(side, carriers, battle.forces, lists);
   return (
     <form
       className="new-game"
@@ -24,7 +25,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         setBusy(true);
         setError(null);
         const name = side.name.trim();
-        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points"), ...rules, ...battle })
+        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists), ...rules, fleetLists: lists, ...battle })
           .then((g) => onCreated({ gameId: g.gameId, token: g.token, seat: g.seat, name, joinedAt: new Date().toISOString(), inviteToken: g.inviteToken }))
           .catch((err: unknown) => setError((err as Error).message))
           .finally(() => setBusy(false));
@@ -46,11 +47,12 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         className="p1"
         side={side}
         onChange={(patch) =>
-          setSide({ ...side, ...patch, ...(patch.fleet !== undefined && patch.fleet !== side.fleet ? { ships: defaultNames(patch.fleet, side.ships.length), classes: [] } : {}) })
+          setSide({ ...side, ...patch, ...(patch.fleet !== undefined && patch.fleet !== side.fleet ? { ships: defaultNames(patch.fleet, side.ships.length), classes: [], options: [], command: undefined } : {}) })
         }
         dupes={dupes}
         carriers={carriers}
         pointsLimit={points}
+        lists={lists}
       />
       <RulesChecks value={rules} onChange={setRules} points={points !== null} />
       <DuplicateNames dupes={dupes} />
