@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.12, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.17](../game_state/SPEC.md) and [Transforms v0.15](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21).
+**Status:** draft v0.13, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.18](../game_state/SPEC.md) and [Transforms v0.16](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21). v0.13 adds The Raiders: `choose_facing`, spacing at deployment (`deploy_ship` 6a), and raiders who can't wait (`end_step` in `move_ships`, check 1a) (V22–V23).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -252,7 +252,7 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 
 ### 4.1 Setup
 
-`roll_leadership`, `roll_zones`, `roll_setup`, `roll_deploy_order` and `roll_first_turn` have no checks beyond the gates. `choose_formation` has none either: G5 and G6 already make it Fleet Engagement and the right player's pick.
+`roll_leadership`, `roll_zones`, `roll_setup`, `roll_deploy_order` and `roll_first_turn` have no checks beyond the gates. `choose_formation` has none either: G5 and G6 already make it Fleet Engagement and the right player's pick. Nor has `choose_facing`: G1 limits `heading` to 0, 90, 180 or 270, and G5–G6 make it The Raiders and the defender's choice.
 
 **`choose_setup`**
 
@@ -273,6 +273,7 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 | 4 | `position` lies in one of `deploymentDivisions(player)` (inclusive, `EPS`); the first in list order that holds it is the ship's division | `NOT_IN_ZONE` |
 | 5 | If the player's undeployed ships (this one included) are no more than their empty divisions, this ship's division is empty (state N18) | `FILL_DIVISIONS_FIRST` |
 | 6 | The new base doesn't overlap any deployed ship's base: `distance > r1 + r2 − EPS`. Touching is allowed. | `BASES_OVERLAP` |
+| 6a | The Raiders: the stem is at least 20 cm (`approxGe`) from the stem of every deployed ship in another unit (state N59) | `TOO_CLOSE` |
 | 7 | If the player has a squadron with some members deployed and some not, the ship is one of its undeployed members (transform T80) | `SQUADRON_DEPLOYING` |
 | 8 | A squadron member after the first goes in the first member's division | `SQUADRON_DIVISION` |
 | 9 | … with its stem within `FORMATION_RANGE` (15 cm, inclusive) of a deployed member's stem | `NOT_IN_FORMATION` |
@@ -520,6 +521,7 @@ In `move_ships` (transform T95):
 | # | Check | Code |
 |---|---|---|
 | 1 | `canArrive(player)`: the step is only held open for reserves | `NO_ENTRY_EDGE` |
+| 1a | `reservesMayWait(player)`: The Raiders' raiders all arrive now (transform T104) | `RESERVES_MUST_ARRIVE` |
 | 2 | `activation = null` | `ACTIVATION_OPEN` |
 | 3 | `turnState.squadronMove = null` | `SQUADRON_MOVING` |
 | 4 | Every `active` ship of the player's has `moved` | `SHIPS_TO_MOVE` |
@@ -627,6 +629,8 @@ In `move_ships` (transform T95):
 | `NOT_ON_ENTRY_EDGE` | An arriving stem isn't on an entry edge |
 | `NOT_FACING_IN` | An arriving ship doesn't face into the table |
 | `SHIPS_TO_MOVE` | `end_step` in `move_ships` before every ship on the table has moved |
+| `TOO_CLOSE` | The Raiders: a deployed ship within 20 cm of a ship of another unit |
+| `RESERVES_MUST_ARRIVE` | The Raiders: `end_step` while raiders are still off the table |
 | `FILL_DIVISIONS_FIRST` | Fleet Engagement: a division still needs a ship before this one gets another (p. 142) |
 | `INVALID_SETUP` | `choose_setup` with a set-up the formations don't offer |
 | `NOT_IN_ZONE` | Deployment position outside the player's zone |
@@ -742,6 +746,8 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V19 | **An arrival is checked as a whole**: every placement passes or the transform fails; there's no partial arrival. |
 | V20 | **Entry edges are inclusive at their ends** (V2): a stem exactly at the corner of an open long-edge segment and the east edge is on both, and must face in from both (transform T96). |
 | V21 | **`deploy_ship` with a reserve** says why (`IN_RESERVE`) rather than `ALREADY_DEPLOYED`: the ship isn't on the table, it's waiting. |
+| V22 | **`TOO_CLOSE.details`** is `{ shipId }`, the nearest ship it's too close to. Squadron-mates are exempt: they follow the 15 cm formation rule. |
+| V23 | **`RESERVES_MUST_ARRIVE`** comes after `NO_ENTRY_EDGE`: when reserves can't arrive at all, the step isn't being held for them. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |
 
 ## 8. Decisions

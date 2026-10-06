@@ -2,7 +2,7 @@
  * Transforms (transforms/SPEC.md): plain-data proposals, one player decision each.
  * Section references (§n) are to the transform spec.
  */
-import type { Colour, CraftRole, Formation, OrderKind, PathStep, PlayerId, Point, Quadrant, SetupMap } from "../state/types";
+import type { Colour, CraftRole, Facing, Formation, OrderKind, PathStep, PlayerId, Point, Quadrant, SetupMap } from "../state/types";
 
 type Base<T extends string> = { type: T; player: PlayerId };
 
@@ -18,6 +18,8 @@ export type ChooseFormation = Base<"choose_formation"> & { formation: Formation 
 export type RollSetup = Base<"roll_setup">;
 /** `colour`: the chooser's own; the opponent takes the other. */
 export type ChooseSetup = Base<"choose_setup"> & { map: SetupMap; colour: Colour };
+/** The Raiders: the table edge the defender's fleet faces (T103). */
+export type ChooseFacing = Base<"choose_facing"> & { heading: Facing };
 
 // Movement (§4.2)
 export type DriftHulk = Base<"drift_hulk"> & { shipId: string };
@@ -84,6 +86,7 @@ export type Transform =
   | ChooseFormation
   | RollSetup
   | ChooseSetup
+  | ChooseFacing
   | DriftHulk
   | DeclareOrder
   | Move

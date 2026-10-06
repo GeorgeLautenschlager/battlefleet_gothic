@@ -26,10 +26,28 @@ export function pursuedPlayer(state: GameState): PlayerId | null {
   return state.scenario.id === "the_bait" && attacker !== undefined ? otherPlayer(attacker) : null;
 }
 
-/** Where `player`'s reserves may arrive this turn (state §11): The Bait's east edge, and the long edges opening behind it. */
+/** The Raiders' defender's zone (state §4, N58): every stem at least 30 cm from every edge; the heading comes from `raid.facing`. */
+export const RAIDERS_ZONE = { x: 30, y: 30, width: 120, height: 60 } as const;
+
+/** Stems of different units at least this far apart when the defender deploys (state N59). */
+export const RAIDERS_SPACING = 20;
+
+/**
+ * Where `player`'s reserves may arrive this turn (state §11): The Bait's east edge, and the
+ * long edges opening behind it; The Raiders' four edges, in the raiders' first turn only.
+ */
 export function entryEdges(state: GameState, player: PlayerId): EntryEdge[] {
-  if (pursuedPlayer(state) !== player) return [];
   const { width: w, height: h } = state.table;
+  if (state.scenario.id === "raiders") {
+    if (state.scenario.attacker !== player || state.clock.playerTurn !== 1) return [];
+    return [
+      { from: { x: 0, y: h }, to: { x: w, y: h }, inward: 180 },
+      { from: { x: w, y: 0 }, to: { x: w, y: h }, inward: 270 },
+      { from: { x: 0, y: 0 }, to: { x: w, y: 0 }, inward: 0 },
+      { from: { x: 0, y: 0 }, to: { x: 0, y: h }, inward: 90 },
+    ];
+  }
+  if (pursuedPlayer(state) !== player) return [];
   const edges: EntryEdge[] = [{ from: { x: w, y: 0 }, to: { x: w, y: h }, inward: 270 }];
   const round = roundOf(state.clock.playerTurn);
   if (round >= 2) {
@@ -52,6 +70,9 @@ export function canArrive(state: GameState, player: PlayerId): boolean {
     entryEdges(state, player).length > 0
   );
 }
+
+/** `player`'s reserves may stay off the table past their Movement Phase: The Bait's may, The Raiders' all arrive (state N60). */
+export const reservesMayWait = (state: GameState): boolean => state.scenario.id !== "raiders";
 
 /** Nothing of `player`'s is active or waiting in reserve (state D6, N52). */
 export const eliminated = (state: GameState, player: PlayerId): boolean =>

@@ -66,16 +66,52 @@ export function BattleFields({ value, onChange, players = PLAYER_LABELS }: { val
               ? { scenario: "fleet_engagement", forces: { kind: "points", limit: limit ?? 750 }, scoring: "victory_points" }
               : e.target.value === "the_bait"
               ? { scenario: "the_bait", forces: { kind: "points", limit: 500 }, scoring: "victory_points", attacker: "p2" }
+              : e.target.value === "raiders"
+              ? { scenario: "raiders", forces: { kind: "points", limit: 500 }, scoring: "victory_points", attacker: "p2" }
               : { scenario: "cruiser_clash", forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" },
           )
         }
       >
         <option value="cruiser_clash">Cruiser Clash (p. 128)</option>
         <option value="the_bait">The Bait (p. 130)</option>
+        <option value="raiders">The Raiders (p. 131)</option>
         <option value="fleet_engagement">Fleet Engagement (pp. 142–143)</option>
       </select>
     </label>
   );
+  if (value.scenario === "raiders") {
+    const raiders = value.attacker ?? "p2";
+    const l = limit ?? 500;
+    return (
+      <div className="battle-fields">
+        {scenario}
+        <label>
+          Raiders
+          <select value={raiders} onChange={(e) => onChange({ ...value, attacker: e.target.value === "p1" ? "p1" : "p2" })}>
+            {(["p1", "p2"] as const).map((p) => (
+              <option key={p} value={p}>
+                {players[p]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Defender's points
+          <select value={String(l)} onChange={(e) => onChange({ ...value, forces: { kind: "points", limit: Number(e.target.value) } })}>
+            {POINTS_LIMITS.map((p) => (
+              <option key={p} value={p}>
+                {p} points
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="muted small">
+          The defender fields up to {l} points, at anchor in the middle of the table and caught napping: −1 Leadership for the first D6 turns. The raiders field
+          up to {Math.floor(l / 2)} points and all move on from any table edge in their first turn, which they take. Victory points, 8 turns.
+        </p>
+      </div>
+    );
+  }
   if (value.scenario === "the_bait") {
     const pursuers = value.attacker ?? "p2";
     const pursued: PlayerId = pursuers === "p1" ? "p2" : "p1";

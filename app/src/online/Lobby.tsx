@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CATALOGUE, type PlayerId } from "@bfg/engine";
 import type { Lobby as LobbyInfo, SeatInfo } from "@bfg/server";
-import { asFleet, carriersAllowed, shipEntries, sideProblem, type Side } from "../game/config";
+import { asFleet, carriersAllowed, roleOf, shipEntries, sideProblem, type Side } from "../game/config";
 import { duplicates, DuplicateNames, FleetFields, FleetProblem, resize } from "../panels/FleetForm";
 import { factionName } from "../players";
 import { inviteLink } from "./config";
@@ -18,6 +18,8 @@ function rulesLine(lobby: LobbyInfo, seat: PlayerId): string {
   const size =
     scenario === "fleet_engagement" && forces?.kind === "points"
       ? `Fleet Engagement, ${forces.limit} points a side`
+      : scenario === "raiders" && forces?.kind === "points"
+      ? `The Raiders: ${attacker === seat ? "you raid" : `${lobby.seats[attacker === "p1" ? "p1" : "p2"].name ?? "your opponent"} raids`} with up to ${Math.floor(forces.limit / 2)} points against ${forces.limit} points at anchor, 8 turns`
       : scenario === "the_bait" && forces?.kind === "points"
       ? `The Bait: ${(attacker === "p1" ? "p2" : "p1") === seat ? "you are" : `${lobby.seats[attacker === "p1" ? "p2" : "p1"].name ?? "your opponent"} is`} pursued; the pursuers field ${forces.limit} points, the bait up to ${Math.floor(forces.limit / 2)} and its reinforcements up to ${forces.limit}`
       : forces?.kind === "points"
@@ -101,15 +103,16 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
   const carriers = carriersAllowed({ carriers: options.carriers === true, ...(forces ? { forces } : {}) });
   const dupes = duplicates([...hostNames, ...side.ships]);
   const lists = options.fleetLists === true;
-  // The Bait: the host chose who is pursued (T93).
-  const role = options.scenario === "the_bait" ? (options.attacker === seat ? "pursuers" : "pursued") : undefined;
+  // The Bait and The Raiders: the host chose the roles (T93, T100).
+  const role = roleOf(options.scenario, options.attacker, seat);
+  const reinforcements = options.scenario === "the_bait" && role?.defender === true;
   const problem = dupes.length > 0 ? null : sideProblem(side, carriers, forces, lists, role);
   return (
     <form
       className="new-game"
       onSubmit={(e) => {
         e.preventDefault();
-        if (dupes.length === 0 && problem === null) remote.join(side.name.trim(), side.fleet, shipEntries(side, carriers, forces?.kind === "points", lists, role === "pursued"));
+        if (dupes.length === 0 && problem === null) remote.join(side.name.trim(), side.fleet, shipEntries(side, carriers, forces?.kind === "points", lists, reinforcements));
       }}
     >
       <h2>You've been invited</h2>
@@ -137,7 +140,7 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
         pointsLimit={points}
         taken={hostNames}
         lists={lists}
-        reinforcements={role === "pursued"}
+        reinforcements={reinforcements}
       />
       <DuplicateNames dupes={dupes} />
       <FleetProblem problem={problem} />

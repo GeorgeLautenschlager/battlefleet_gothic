@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.17, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29). v0.15 adds battleships: the `battleship` category, the traits that bar Come to New Heading and raise Leadership, and options that exclude each other (§7.1, §11, N30–N33). v0.16 adds escorts and squadrons, escort and capital: §3, §7.5, §8, §9.1, §11, §13, N34–N45. v0.17 adds the second scenario, The Bait (p. 130), and with it reserves: ships that start off the table and arrive along an entry edge during the battle (§4, §5, §6, §7, §11, §13, N47–N55).
+**Status:** draft v0.18, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29). v0.15 adds battleships: the `battleship` category, the traits that bar Come to New Heading and raise Leadership, and options that exclude each other (§7.1, §11, N30–N33). v0.16 adds escorts and squadrons, escort and capital: §3, §7.5, §8, §9.1, §11, §13, N34–N45. v0.17 adds the second scenario, The Bait (p. 130), and with it reserves: ships that start off the table and arrive along an entry edge during the battle (§4, §5, §6, §7, §11, §13, N47–N55). v0.18 adds the third scenario, The Raiders (p. 131): the defender's facing and spacing, raiders arriving from any edge in their first turn, and the defenders' surprise (§4, §5, §11, §13, N56–N63).
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -133,14 +133,15 @@ type Meta = {
 type Scenario = {
   id: "cruiser_clash"          // p. 128
      | "the_bait"              // p. 130
+     | "raiders"               // p. 131
      | "fleet_engagement"      // pp. 142–143
-  maxRounds: number | null     // Cruiser Clash 8; The Bait and Fleet Engagement null: until a fleet is destroyed or gone (N17, N53)
+  maxRounds: number | null     // Cruiser Clash and The Raiders 8; The Bait and Fleet Engagement null: until a fleet is destroyed or gone (N17, N53)
   forces: Forces               // absent in older saves: { kind: "cruiser_clash" }
   scoring: "cruiser_clash"     // 1/damage, +1 crippled or +3 destroyed (p. 128)
          | "victory_points"    // standard victory points (pp. 122–123, §11)
   deploymentZones?: { A: Rect, B: Rect }  // Cruiser Clash only
   deploymentFacing?: { A: 180, B: 0 }     // Cruiser Clash only: "towards the opposite long table edge"
-  attacker?: PlayerId          // scenarios with an attacker and a defender. The Bait: the pursuers (N47); absent elsewhere
+  attacker?: PlayerId          // scenarios with an attacker and a defender. The Bait: the pursuers (N47); The Raiders: the raiders (N56); absent elsewhere
 }
 
 // How the fleets were chosen (transform §5). Kept for the record: the rules never read it after newGame.
@@ -187,6 +188,8 @@ A deployed ship's stem must be inside one of its zone's divisions, and it faces 
 | Pursuers | `0, 0, 30, 120` → 90: at least 60 cm behind the centre, chasing the bait (N50) |
 
 Reinforcements arrive along the pursued player's **entry edges** (`entryEdges`, §11): the east short edge from the first round; from round *r* ≥ 2, also the last 30 × (*r* − 1) cm of each long edge next to it (N51).
+
+**The Raiders (p. 131, N56–N63).** The defender deploys everything in one division, `30, 30, 120, 60`: every stem at least 30 cm from every table edge, all facing the table edge the defender chose (`raid.facing`, §5). Ships of different units (a ship in no squadron, or a squadron) stand at least 20 cm apart, stem to stem (N59). The raiders (`scenario.attacker`) start in **reserve** and all arrive in their first Movement Phase, each unit from any table edge (N60): `entryEdges` is all four edges in player turn 1, and none after.
 
 ---
 
@@ -236,6 +239,8 @@ A result naming two set-ups is a **split**. A plain **B** leaves the colours ope
 
 `SetupState.firstDeployer` and `firstPlayer` start filled in for The Bait: the pursued player places the bait first and takes the first turn (p. 130, N55). There's no zone, deploy-order or first-turn roll.
 
+The Raiders fill them in too: the defender deploys (everything; the raiders have nothing to deploy) and the raiders take the first turn (p. 131). `SetupState` gains `raid?: { facing: 0 | 90 | 180 | 270 | null, surpriseTurns: number | null }`, present exactly in The Raiders: the heading the defender chose for their fleet, and the D6 rolled with Leadership for how many rounds the defenders suffer −1 Leadership (N61).
+
 Who deploys next during `deploy` is derived: start with `firstDeployer`, then alternate, skipping a player who has no undeployed ships left. A squadron is one placement: while a player has a squadron partly deployed, they deploy next (transform T80).
 
 ---
@@ -254,6 +259,7 @@ type Clock = {
 type SetupStep =
   | "roll_leadership" | "roll_zones" | "roll_deploy_order"
   | "choose_formation" | "roll_setup" | "choose_setup"          // Fleet Engagement, in place of roll_zones
+  | "choose_facing"                                             // The Raiders: the defender's facing, before deploying
   | "deploy" | "roll_first_turn" | "choose_first_turn"
 
 type Phase = "movement" | "shooting" | "ordnance" | "end"
@@ -707,11 +713,13 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `squadronVP(sq)` | escort squadrons only (p. 123, N42): every member `destroyed` → the sum of their values; otherwise, once no member is `active`, `undeployed` or in `reserve`: ⌈25%⌉ of the squadron's full value if `escortSquadronCrippled`, else ⌈10%⌉; otherwise 0 |
 | `isHulk(s)` | `status ∈ {drifting_hulk, blazing_hulk}` |
 | `onTable(s)` | `status ∈ {active, drifting_hulk, blazing_hulk}` |
-| `entryEdges(player)` | the segments of the table edge where `player`'s reserves may arrive this turn, each `{ from: Point, to: Point, inward: heading }`. The Bait, the pursued player: the east edge, `(180, 0)`–`(180, 120)`, inward 270; from round *r* = ⌈`playerTurn`/2⌉ ≥ 2 also `(180 − 30(r − 1), 0)`–`(180, 0)` inward 0 and `(180 − 30(r − 1), 120)`–`(180, 120)` inward 180, clipped to the table (N51). Otherwise none |
+| `entryEdges(player)` | the segments of the table edge where `player`'s reserves may arrive this turn, each `{ from: Point, to: Point, inward: heading }`. The Bait, the pursued player: the east edge, `(180, 0)`–`(180, 120)`, inward 270; from round *r* = ⌈`playerTurn`/2⌉ ≥ 2 also `(180 − 30(r − 1), 0)`–`(180, 0)` inward 0 and `(180 − 30(r − 1), 120)`–`(180, 120)` inward 180, clipped to the table (N51). The Raiders, the raiders, in player turn 1 only: all four edges, inward 180 (top), 270 (east), 0 (bottom) and 90 (west) (N60). Otherwise none |
 | `canArrive(player)` | `stage = "battle"`, `step = "move_ships"`, `player` is active, has a ship in `reserve`, and `entryEdges(player)` isn't empty |
 | `eliminated(player)` | no ship of `player`'s is `active` or in `reserve` (D6, N52) |
+| `reservesMayWait(player)` | `player`'s reserves may stay off the table at the end of their Movement Phase: The Bait, yes; The Raiders, no, they all arrive in their first turn (N60) |
+| `surprised(s)` | The Raiders: `s` is the defender's and the round ⌈`playerTurn`/2⌉ is at most `raid.surpriseTurns` (N61) |
 | `has(s, k)` | `s.criticals` contains an entry of kind `k` |
-| `leadership(s)` | `min(10, base + (profile.traits.leadershipBonus ?? 0)) − (has(bridge_smashed) ? 3 : 0) − (slaaneshNear(s) ? 2 : 0)`, where `base` is `s.commander.leadership` if it has a commander, else the rolled `s.leadership` (N22, N32) |
+| `leadership(s)` | `min(10, base + (profile.traits.leadershipBonus ?? 0)) − (has(bridge_smashed) ? 3 : 0) − (slaaneshNear(s) ? 2 : 0) − (surprised(s) ? 1 : 0)`, where `base` is `s.commander.leadership` if it has a commander, else the rolled `s.leadership` (N22, N32) |
 | `slaaneshNear(s)` | an enemy ship with the Mark of Slaanesh, `active`, has its stem within 15 cm of `s`'s stem (§7.4) |
 | `shipValue(s)` | `profile.points + (commander?.points ?? 0)`: the ship, its options and anyone aboard (N25) |
 | `rerollFor(s)` | the commander whose re-roll `s` would use, or none: its own commander if they have re-rolls left, else its side's fleet commander if theirs is `active` with re-rolls left (N23–N24) |
@@ -740,7 +748,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `shipVP(s)` | escorts → 0 (they score by squadron, `squadronVP`); `destroyedForScoring(s)` → `points`; `disengaged` → ⌈25%⌉ if `crippled`, else ⌈10%⌉; `active` and `crippled` → ⌈25%⌉; otherwise 0. `points` is `shipValue(s)` (N25) |
 | `holdingTheField(player)` | if no enemy ship is `active` and at least one of the player's is: Σ ⌈50% × shipValue⌉ over every **hulk** on the table, friend or foe (N11); otherwise 0 |
 | `destroyedForScoring(s)` | `status ∈ {destroyed, drifting_hulk, blazing_hulk}` (D7) |
-| `deploymentDivisions(player)` | Cruiser Clash: one division, the player's zone rectangle facing `deploymentFacing[zone]`. Fleet Engagement: the divisions of the player's colour on `engagement.map` (§4). The Bait: the pursued player's or the pursuers' division (§4) |
+| `deploymentDivisions(player)` | Cruiser Clash: one division, the player's zone rectangle facing `deploymentFacing[zone]`. Fleet Engagement: the divisions of the player's colour on `engagement.map` (§4). The Bait: the pursued player's or the pursuers' division (§4). The Raiders: the defender's one division, facing `raid.facing`; none for the raiders (§4) |
 | `setupOptions()` | Fleet Engagement, both formations chosen: the two set-ups `{ map, colours }` from p1's row of the formation table (§5), split or B with each colour |
 | `isSplit()` | the formation table gave two different maps, or Wedge against Wedge (D with each colour): a split result, which takes the roll-off bonuses |
 | `setupBonus(player)` | on a split only: +1 if the player's fastest ship (profile `speed`) is faster than any enemy ship; +1 if their fleet commander has the higher Leadership, or they have one and the enemy hasn't (N46); +1 if they have more escorts (p. 142) |
@@ -753,7 +761,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 `actor(state)` is derived, never stored:
 
 1. If `pending` is non-empty → top entry's `player`.
-2. If `stage = "setup"` → by `setupStep`: `roll_*` steps accept the transform from either player (it's one machine; the reducer rolls for both). `choose_formation` → p1 until p1 has picked, then p2 (N16). `choose_setup` → `engagement.setupChooser`. `deploy` → the next deployer (§5). `choose_first_turn` → `setup.firstTurnChooser`.
+2. If `stage = "setup"` → by `setupStep`: `roll_*` steps accept the transform from either player (it's one machine; the reducer rolls for both). `choose_formation` → p1 until p1 has picked, then p2 (N16). `choose_setup` → `engagement.setupChooser`. `choose_facing` → the defender (the player who isn't `scenario.attacker`). `deploy` → the next deployer (§5). `choose_first_turn` → `setup.firstTurnChooser`.
 3. If `stage = "battle"`:
    - `step = "inactive_ordnance"` → the player who is **not** active.
    - `step = "damage_control"` → either player, for their own ships. Each ship needing repair repairs once (`turnState.ships[id].repaired`); the step closes by itself when all have.
@@ -781,10 +789,10 @@ Properties every valid state satisfies. These are good property-test fodder.
 11. `clock.stage = "ended"` ⇔ `result ≠ null`.
 12. Grapples are consistent. A ship with `grapple ≠ null` is `active`. Every ship its grapple names is `active` and carries an identical `grapple`. `defenderId ∉ attackerIds`, `attackerIds` is non-empty, and the attackers are all the defender's enemies. No ship is in two grapples.
 13. Attack craft are consistent: every wave has ≥ 1 squadron. A wave with `cap ≠ null` is a single fighter, its ship is the owner's and `active`, and its `position` is that ship's stem.
-14. `setup.engagement` is present ⇔ `scenario.id = "fleet_engagement"`, and `scenario.deploymentZones` is present ⇔ `scenario.id = "cruiser_clash"`. `maxRounds` is 8 in Cruiser Clash and null in The Bait and Fleet Engagement; when it's set, `playerTurn ≤ 2 × maxRounds`. `scenario.attacker` is present ⇔ `scenario.id = "the_bait"`.
+14. `setup.engagement` is present ⇔ `scenario.id = "fleet_engagement"`, and `scenario.deploymentZones` is present ⇔ `scenario.id = "cruiser_clash"`. `maxRounds` is 8 in Cruiser Clash and null in The Bait and Fleet Engagement; when it's set, `playerTurn ≤ 2 × maxRounds`. `scenario.attacker` is present ⇔ `scenario.id ∈ {the_bait, raiders}`. `setup.raid` is present ⇔ `scenario.id = "raiders"`, where `maxRounds` is 8.
 15. Squadrons are consistent: every escort is in exactly one squadron and every capital ship in at most one; a squadron's members share its `owner`, and its `type` (escort squadrons hold escorts; capital squadrons ships of one `profile.type`). Every member of an escort squadron has the same `leadership`.
 16. `turnState.squadronMove` is non-null only in `movement / move_ships`. Its members are the squadron's, the active player's, and at least one hasn't `moved`. While it's set, `activation` is null or for one of its members.
-17. Ships in `reserve` exist only in The Bait and belong to the pursued player (not `scenario.attacker`). A squadron's members are all in `reserve` or none is.
+17. Ships in `reserve` exist only in The Bait, where they're the pursued player's (not `scenario.attacker`), and The Raiders, where they're the raiders' (`scenario.attacker`). A squadron's members are all in `reserve` or none is.
 
 ```ts
 type GameResult = {
@@ -1026,6 +1034,14 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N53 | **The Bait has no round limit**: "until one fleet disengages or is destroyed" (p. 130), like Fleet Engagement (N17). | §4 |
 | N54 | **The Bait's battlezone** (D6: outer reaches or deep space) needs celestial phenomena, which aren't in yet: it's fought on the plain 180 × 120 table, like Fleet Engagement (transform T55). | §4 |
 | N55 | **The Bait's set-up has no rolls but Leadership**: the bait deploys first, then the pursuers; the pursued player ("the fleeing ship") takes the first turn. | §5 |
+| N56 | **The Raiders' roles** (p. 131): the attacker raids, the defender is caught at anchor. `scenario.attacker` is the raiders. | §4 |
+| N57 | **The Raiders' forces** (p. 131): "agree a points limit" is `forces.limit`; the defender fields up to it, the raiders up to ⌊`limit`/2⌋. | §4 |
+| N58 | **"All facing the same table edge"**: the defender chooses the edge before deploying (`choose_facing`: north, east, south or west), and every ship faces it. | §5 |
+| N59 | **"Each ship/squadron ≥ 20 cm apart"**: stems of ships in different units are at least 20 cm apart (inclusive, V2). A squadron's own members keep the 15 cm formation rule instead. | §4 |
+| N60 | **"Moves on from any edge in his first turn"**: every raiding unit arrives in the raiders' first Movement Phase, each from any of the four edges; none may wait. The book doesn't say one edge for the whole fleet, so each unit chooses. | §4, §11 |
+| N61 | **The defenders' surprise**: the D6 is rolled with Leadership (`roll_leadership`), openly. "The first D6 turns" are game turns (rounds): the defenders take −1 Leadership in rounds 1 to *n*, on every Command check and Leadership test, as a change to `leadership(s)`. | §5, §11 |
+| N62 | **The Raiders' battlezone** is "mutually agreed": the plain 180 × 120 table until celestial phenomena are in (N54). | §4 |
+| N63 | **The Raiders' length**: 8 rounds (`maxRounds = 8`), or until a fleet is gone (D6). | §4 |
 | N29 | **Grand cruisers' immunity to prow criticals** (Vengeance, Exorcist, Avenger, Retaliator, Executor) isn't needed yet: the only grand cruiser on the Gothic War lists, the Repulsive, doesn't have it. It arrives as a trait with the first class that does. | §7.1 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
 
@@ -1036,7 +1052,7 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 The shapes above leave room for these without breaking changes. Each will add fields or union members, never repurpose existing ones.
 
 - **Terrain:** `table.features: Feature[]` (gas clouds, asteroid fields, planets with gravity wells), `table.sunwardEdge`.
-- **Other scenarios:** new `scenario.id`s with their own set-up blocks. Fleet Engagement, The Bait, reserves and victory points are in (§4, §5, §7, §11); attack ratings and the random scenario tables (p. 120) come with the next scenarios.
+- **Other scenarios:** new `scenario.id`s with their own set-up blocks. Fleet Engagement, The Bait, The Raiders, reserves and victory points are in (§4, §5, §7, §11); attack ratings and the random scenario tables (p. 120) come with the next scenarios.
 
 ---
 

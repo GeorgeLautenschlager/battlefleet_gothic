@@ -21,6 +21,11 @@ const FORMATIONS = ["sphere", "wedge", "cross"] as const;
 const SETUP_MAPS = ["A", "B", "C", "D"] as const;
 const COLOURS = ["white", "dark"] as const;
 
+const numOneOf =
+  (values: readonly number[]): FieldCheck =>
+  (v, path) =>
+    typeof v === "number" && values.includes(v) ? null : path;
+
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -78,6 +83,7 @@ const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>
   choose_formation: { required: { formation: oneOf(FORMATIONS) } },
   roll_setup: { required: {} },
   choose_setup: { required: { map: oneOf(SETUP_MAPS), colour: oneOf(COLOURS) } },
+  choose_facing: { required: { heading: numOneOf([0, 90, 180, 270]) } },
   drift_hulk: { required: { shipId: str } },
   declare_order: { required: { shipId: str, order: oneOf(ORDER_KINDS) }, optional: { ramTargetId: str, reroll: bool } },
   move: { required: { shipId: str, path: arrayOf(pathStep), disengage: bool }, optional: { boardTargetId: str, reroll: bool } },

@@ -26,6 +26,13 @@ const other = (p: PlayerId): PlayerId => (p === "p1" ? "p2" : "p1");
  * (pp. 142–143), deployment, and the first-turn choice.
  * `focus`: the ship picked to deploy next. `onPreview`: the set-up the chooser is looking at.
  */
+const FACINGS = [
+  { heading: 0, name: "Face the top edge" },
+  { heading: 90, name: "Face the right edge" },
+  { heading: 180, name: "Face the bottom edge" },
+  { heading: 270, name: "Face the left edge" },
+] as const;
+
 export function SetupControls({
   state,
   seat,
@@ -60,6 +67,30 @@ export function SetupControls({
           ))}
         </div>
         <p className="muted small">{FORMATIONS.map((f) => `${f.name}: ${f.blurb}`).join(". ")}.</p>
+      </>
+    );
+  }
+  if (step === "choose_facing") {
+    const who = actor(state);
+    if (who !== "p1" && who !== "p2") return null;
+    const surprise = state.setup.raid?.surpriseTurns ?? null;
+    return (
+      <>
+        <p className="hint">
+          <strong>{playerName(state, who)}</strong>, your fleet is at anchor: pick the table edge every ship faces. The raiders can come from any edge.
+        </p>
+        <div className="buttons">
+          {FACINGS.map((f) => (
+            <button key={f.heading} type="button" onClick={() => onApply({ type: "choose_facing", player: who, heading: f.heading })}>
+              {f.name}
+            </button>
+          ))}
+        </div>
+        {surprise !== null && (
+          <p className="muted small">
+            Caught napping: your ships take −1 Leadership for the first {surprise} turn{surprise === 1 ? "" : "s"}.
+          </p>
+        )}
       </>
     );
   }

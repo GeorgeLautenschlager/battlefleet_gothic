@@ -218,16 +218,23 @@ export function configProblem(options: NewGameOptions): string | null {
   }
 }
 
+/** The side's part in a scenario with an attacker and a defender (The Bait, The Raiders). */
+export type Role = { scenario: "the_bait" | "raiders"; defender: boolean };
+
+/** This seat's role, if the scenario has them: `attacker` is the attacking seat. */
+export const roleOf = (scenario: ScenarioId | undefined, attacker: PlayerId | undefined, seat: PlayerId): Role | undefined =>
+  scenario === "the_bait" || scenario === "raiders" ? { scenario, defender: (attacker ?? "p2") !== seat } : undefined;
+
 /**
  * Why one side's fleet can't play, tried against a mirror of itself (as the server checks it), or null.
- * `bait`: The Bait, the side's role; it plays against a lone cruiser of its fleet instead, as the server does (T93).
+ * `role`: The Bait or The Raiders; it plays its part against a lone cruiser of its fleet instead, as the server does (T93, T100).
  */
-export function sideProblem(side: Side, carriers: boolean, forces?: Forces, fleetLists = false, bait?: "pursued" | "pursuers"): string | null {
-  if (bait === undefined) {
+export function sideProblem(side: Side, carriers: boolean, forces?: Forces, fleetLists = false, role?: Role): string | null {
+  if (role === undefined) {
     return configProblem({ p1: side, p2: { ...side, ships: side.ships.map((_, i) => `mirror ${i}`) }, ramming: true, boarding: false, carriers, fleetLists, ...(forces ? { forces } : {}) });
   }
   const standIn: Side = { name: "Stand-in", fleet: side.fleet, ships: ["(stand-in)"], classes: [FLEETS[side.fleet].classId] };
-  return configProblem({ p1: side, p2: standIn, ramming: true, boarding: false, carriers, fleetLists, scenario: "the_bait", attacker: bait === "pursued" ? "p2" : "p1", ...(forces ? { forces } : {}) });
+  return configProblem({ p1: side, p2: standIn, ramming: true, boarding: false, carriers, fleetLists, scenario: role.scenario, attacker: role.defender ? "p2" : "p1", ...(forces ? { forces } : {}) });
 }
 
 /** The app's fleets are the boxed game's two; anything else reads as Imperial. */
@@ -246,7 +253,7 @@ export function cruiserClash(options: NewGameOptions, now = new Date()): GameCon
     ...(options.scenario !== undefined ? { scenario: options.scenario } : {}),
     ...(options.forces !== undefined ? { forces: options.forces } : {}),
     ...(options.scoring !== undefined ? { scoring: options.scoring } : {}),
-    ...(pursued !== null ? { attacker: pursued === "p1" ? "p2" : "p1" } : {}),
+    ...(options.scenario === "the_bait" || options.scenario === "raiders" ? { attacker: options.attacker ?? "p2" } : {}),
     players: {
       p1: { name: options.p1.name.trim(), faction: options.p1.fleet satisfies FactionId },
       p2: { name: options.p2.name.trim(), faction: options.p2.fleet satisfies FactionId },
