@@ -12,6 +12,9 @@ const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 const dice = (v: JsonValue | undefined): string => (Array.isArray(v) ? `[${v.join(" ")}]` : "");
 const num = (v: JsonValue | undefined): string => (typeof v === "number" ? String(Math.round(v * 10) / 10) : "?");
 const pass = (v: JsonValue | undefined): string => (v === true ? "passed" : "failed");
+/** Table edges by their inward heading. */
+const EDGES: Record<number, string> = { 0: "bottom", 90: "left", 180: "top", 270: "right" };
+const THIRDS: Record<number, string> = { 0: "left", 1: "centre", 2: "right" };
 
 export function describe(state: GameState, entry: LogEntry): string {
   const d: Data = entry.data;
@@ -78,6 +81,12 @@ export function describe(state: GameState, entry: LogEntry): string {
       const ids = Array.isArray(d["shipIds"]) ? d["shipIds"] : [];
       const who = d["squadronId"] !== undefined ? squadron("squadronId") : (state.ships.find((x) => x.id === ids[0])?.name ?? "A ship");
       return `${who} tests to go on alert ${dice(d["rolls"])} against Ld ${num(d["leadership"])}: ${d["passed"] === true ? "on alert" : "still on standby"}`;
+    }
+    case "thirds_roll": {
+      const thirds = (d["thirds"] ?? {}) as Record<string, number>;
+      const unit = (id: string): string => (state.squadrons ?? []).find((sq) => sq.id === id)?.name ?? state.ships.find((x) => x.id === id)?.name ?? id;
+      const where = Object.entries(thirds).map(([id, k]) => `${unit(id)} ${THIRDS[k] ?? "?"}`);
+      return `The blockade takes position ${dice(d["rolls"])}: ${where.join(", ")}`;
     }
     case "facing": {
       const edge: Record<number, string> = { 0: "top", 90: "right", 180: "bottom", 270: "left" };
@@ -241,7 +250,7 @@ export function describe(state: GameState, entry: LogEntry): string {
     case "planet_contact":
       return d["ordnanceId"] !== undefined ? "A torpedo salvo breaks up against the planet" : `${ship("shipId")} meets the planet`;
     case "disengaged":
-      return `${ship("shipId")} disengages${d["reason"] === "table_edge" ? " off the table edge" : ""}`;
+      return `${ship("shipId")} disengages${d["reason"] === "table_edge" ? ` off the ${EDGES[Number(d["edge"])] ?? "table"} edge` : ""}`;
     case "repair":
       return `${ship("shipId")} repairs ${dice(d["rolls"])}: ${Array.isArray(d["repaired"]) ? d["repaired"].length : 0} fixed`;
     case "fire_damage":

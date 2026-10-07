@@ -183,10 +183,12 @@ export function checkInvariants(state: GameState): Violation[] {
   const bait = id === "the_bait";
   if (engagement !== (state.setup.engagement !== undefined)) fail("I14", `setup.engagement doesn't match scenario ${id}`);
   if ((id === "cruiser_clash") !== (state.scenario.deploymentZones !== undefined)) fail("I14", `deploymentZones don't match scenario ${id}`);
-  if (state.scenario.maxRounds !== (id === "cruiser_clash" || id === "raiders" ? 8 : null)) fail("I14", `maxRounds ${state.scenario.maxRounds} for ${id}`);
+  if (state.scenario.maxRounds !== (id === "cruiser_clash" || id === "raiders" ? 8 : id === "blockade_run" ? 6 : null)) fail("I14", `maxRounds ${state.scenario.maxRounds} for ${id}`);
   const raiders = id === "raiders";
   const surprise = id === "surprise_attack";
-  if ((bait || raiders || surprise) !== (state.scenario.attacker !== undefined)) fail("I14", `attacker doesn't match scenario ${id}`);
+  const blockade = id === "blockade_run";
+  if ((bait || raiders || surprise || blockade) !== (state.scenario.attacker !== undefined)) fail("I14", `attacker doesn't match scenario ${id}`);
+  if (blockade !== (state.setup.blockade !== undefined)) fail("I14", `setup.blockade doesn't match scenario ${id}`);
   if (raiders !== (state.setup.raid !== undefined)) fail("I14", `setup.raid doesn't match scenario ${id}`);
   if (surprise !== (state.setup.surpriseAttack !== undefined)) fail("I14", `setup.surpriseAttack doesn't match scenario ${id}`);
   if (surprise && !(state.table.features ?? []).some((f) => f.kind === "planet")) fail("I14", "Surprise Attack without its planet");

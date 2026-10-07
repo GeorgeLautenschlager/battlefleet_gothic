@@ -4,8 +4,9 @@ import { MAX_NAME_LENGTH, MAX_POINTS_SHIPS, MAX_SHIPS, shipEntry, type RoomOptio
 
 export type SeatFleet = { name: string; faction: FactionId; ships: ShipEntry[] };
 
-/** The scenarios with an attacker and a defender, whose roles the host names (T93, T100, T114). */
-export const hasAttacker = (scenario: ScenarioId | undefined): boolean => scenario === "the_bait" || scenario === "raiders" || scenario === "surprise_attack";
+/** The scenarios with an attacker and a defender, whose roles the host names (T93, T100, T114, T123). */
+export const hasAttacker = (scenario: ScenarioId | undefined): boolean =>
+  scenario === "the_bait" || scenario === "raiders" || scenario === "surprise_attack" || scenario === "blockade_run";
 
 export function cruiserClash(
   seats: Record<PlayerId, SeatFleet>,

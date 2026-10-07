@@ -69,7 +69,7 @@ export type Scoring = "cruiser_clash" | "victory_points";
 
 export type Scenario = {
   id: ScenarioId;
-  /** Cruiser Clash and The Raiders 8; The Bait, Surprise Attack and Fleet Engagement null: until a fleet is destroyed or gone (state N17, N53, N79). */
+  /** Cruiser Clash and The Raiders 8; Blockade Run 6; The Bait, Surprise Attack and Fleet Engagement null: until a fleet is destroyed or gone (state N17, N53, N79). */
   maxRounds: number | null;
   /** Absent in older saves: Cruiser Clash forces. */
   forces?: Forces;
@@ -82,7 +82,7 @@ export type Scenario = {
   attacker?: PlayerId;
 };
 
-export type ScenarioId = "cruiser_clash" | "the_bait" | "raiders" | "surprise_attack" | "fleet_engagement";
+export type ScenarioId = "cruiser_clash" | "the_bait" | "raiders" | "surprise_attack" | "blockade_run" | "fleet_engagement";
 
 /** `features`: celestial phenomena (state §4); absent in older saves and on an empty table. */
 export type Table = { width: number; height: number; features?: Feature[] };
@@ -121,7 +121,12 @@ export type SetupState = {
   raid?: Raid;
   /** Surprise Attack only (p. 132): the alert roll and choice, and the attackers' edge (state §5, N76–N77). */
   surpriseAttack?: SurpriseAttack;
+  /** Blockade Run only (p. 133): the third each blockading unit deploys in, by unit id (state §5, N86). */
+  blockade?: { thirds: Record<string, Third> | null };
 };
+
+/** Blockade Run's thirds of the table's length, left to right (state N82). */
+export type Third = 0 | 1 | 2;
 
 export type Facing = 0 | 90 | 180 | 270;
 export type Raid = { facing: Facing | null; surpriseTurns: number | null };
@@ -210,6 +215,8 @@ export type Ship = {
   commander?: Commander | null;
   /** Surprise Attack: on standby until it passes a Leadership test (state N78). Absent otherwise. */
   standby?: true;
+  /** Moved off the table: the inward heading of the edge it left by (state N87). Absent otherwise. */
+  exitEdge?: Facing;
 };
 
 /** A drawn boarding action, still being fought (state §7). Every member carries an identical copy. */

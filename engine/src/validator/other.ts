@@ -34,7 +34,7 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
   // and its later members follow it instead (check 8)
   const placed = (squadronOf(state, ship)?.shipIds ?? []).flatMap((id) => state.ships.find((s) => s.id === id && s.position !== null) ?? []);
   const lead = placed[0];
-  if (lead === undefined && state.scenario.id !== "surprise_attack") {
+  if (lead === undefined && state.scenario.id !== "surprise_attack" && state.scenario.id !== "blockade_run") {
     const empty = emptyDivisions(state, t.player);
     const undeployed = deploymentUnits(state).filter((u) => u[0]?.owner === t.player && u.every((s) => s.status === "undeployed")).length;
     if (undeployed <= empty.length && !empty.includes(division)) {

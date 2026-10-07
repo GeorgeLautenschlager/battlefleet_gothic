@@ -1,6 +1,6 @@
 import { victoryPoints, type GameState, type PlayerId } from "@bfg/engine";
 
-const WHY = { destroyed: "destroyed", crippled: "crippled", disengaged: "disengaged" } as const;
+const WHY = { destroyed: "destroyed", crippled: "crippled", disengaged: "disengaged", ran_the_blockade: "ran the blockade" } as const;
 
 /** The game's result: the winner and the score, with where each side's victory points came from (pp. 122–123). */
 export function Result({ state }: { state: GameState }) {

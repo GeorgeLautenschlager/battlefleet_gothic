@@ -3,7 +3,8 @@
  * table, the four set-up maps and their divisions, and where each player deploys.
  */
 import { EPS } from "../geometry/constants";
-import { otherPlayer } from "../state/derived";
+import { otherPlayer, squadronOf } from "../state/derived";
+import { RUNNERS_ZONE, thirdRect } from "./blockade";
 import { BAIT_DIVISIONS, pursuedPlayer, RAIDERS_ZONE } from "./reserves";
 import { ALERT_ZONE } from "./surprise";
 import type { Colour, Formation, GameState, PlayerId, Point, Rect, SetupMap, Ship } from "../state/types";
@@ -88,6 +89,14 @@ export function setupBonus(state: GameState, player: PlayerId): number {
  * Surprise Attack's defender: the whole table for `ship` on standby, otherwise the alert zone, with no heading of their own.
  */
 export function deploymentDivisions(state: GameState, player: PlayerId, ship?: Ship): readonly Division[] {
+  if (state.scenario.id === "blockade_run") {
+    if (player === state.scenario.attacker) return [{ rect: { ...RUNNERS_ZONE }, heading: 0 }];
+    // The blockader: the ship's unit's third, or every third a unit rolled (state §4, N82, N84).
+    const thirds = state.setup.blockade?.thirds ?? null;
+    if (thirds === null) return [];
+    const mine = ship === undefined ? Object.values(thirds) : [thirds[squadronOf(state, ship)?.id ?? ship.id]].flatMap((k) => (k === undefined ? [] : [k]));
+    return [...new Set(mine)].sort().map((k) => ({ rect: thirdRect(k), heading: null }));
+  }
   if (state.scenario.id === "surprise_attack") {
     if (player === state.scenario.attacker) return [];
     const { width, height } = state.table;

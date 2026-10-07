@@ -36,6 +36,12 @@ const FACINGS = [
   { heading: 270, name: "Face the left edge" },
 ] as const;
 
+const THIRD_NAMES = ["left", "centre", "right"] as const;
+
+/** Blockade Run: the third a blockading ship's unit rolled. */
+const thirdOf = (state: GameState, ship: { id: string }): number | undefined =>
+  state.setup.blockade?.thirds?.[(state.squadrons ?? []).find((sq) => sq.shipIds.includes(ship.id))?.id ?? ship.id];
+
 const HEADING_NAMES: Record<number, string> = { 0: "(up)", 45: "", 90: "(right)", 135: "", 180: "(down)", 225: "", 270: "(left)", 315: "" };
 
 /** Surprise Attack (T115): the defender ticks the D3 ships or squadrons on full alert; the rest go on standby. */
@@ -182,7 +188,9 @@ export function SetupControls({
         <>
           <p className="hint">
             {playerName(state, who)}: click to deploy <strong>{ship.name}</strong>
-            {standby
+            {state.scenario.id === "blockade_run"
+              ? `, in its ${THIRD_NAMES[thirdOf(state, ship) ?? 0]} third of the table, at least 60 cm from the runners' edge, facing any way.`
+              : standby
               ? `, on standby: anywhere, broadside to the planet${first ? `, and this first one within ${surprise.STANDBY_RANGE} cm of it` : ""}.`
               : ", on full alert: anywhere at least 30 cm from the table edges, facing any way."}
           </p>
@@ -215,7 +223,11 @@ export function SetupControls({
     const where =
       e !== undefined && e.map !== null && e.colours !== null
         ? `inside one of your ${COLOUR[e.colours[who]]} divisions on map ${e.map} (each needs a ship before any gets a second)`
-        : `inside zone ${zone}`;
+        : state.scenario.id === "blockade_run"
+        ? "within 15 cm of the bottom edge (the runners' edge)"
+        : zone !== undefined
+        ? `inside zone ${zone}`
+        : "inside your deployment area";
     return (
       <>
         <p className="hint">

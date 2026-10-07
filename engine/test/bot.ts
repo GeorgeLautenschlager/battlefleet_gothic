@@ -83,10 +83,11 @@ function baseCandidates(s: GameState, n: number): Transform[] {
             }),
           );
         }
-        if (s.setup.engagement !== undefined || s.scenario.id === "the_bait" || s.scenario.id === "raiders" || s.scenario.id === "surprise_attack") {
+        if (s.setup.engagement !== undefined || s.scenario.id === "the_bait" || s.scenario.id === "raiders" || s.scenario.id === "surprise_attack" || s.scenario.id === "blockade_run") {
           // Fleet Engagement and The Bait: empty divisions first, at spots across each one.
           const divisions = deploymentDivisions(s, p, ship);
-          const empty = emptyDivisions(s, p);
+          // A ship-specific list (Surprise Attack, Blockade Run) has no divisions to fill first.
+          const empty = s.scenario.id === "blockade_run" || s.scenario.id === "surprise_attack" ? [] : emptyDivisions(s, p);
           const order = [...empty, ...divisions.map((_, i) => i).filter((i) => !empty.includes(i))];
           return order.flatMap((i) => {
             const { rect } = divisions[i]!;

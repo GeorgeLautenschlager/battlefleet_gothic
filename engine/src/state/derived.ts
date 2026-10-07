@@ -433,7 +433,8 @@ export function cruiserClashScore(state: GameState, player: PlayerId): number {
 
 // --- Victory points (pp. 122–123, state §11, N11–N12)
 
-export type ShipVP = { shipId: string; vp: number; why: "destroyed" | "crippled" | "disengaged" };
+/** `ran_the_blockade`: one of the player's own ships, off the blockader's edge (Blockade Run, state N88). */
+export type ShipVP = { shipId: string; vp: number; why: "destroyed" | "crippled" | "disengaged" | "ran_the_blockade" };
 export type SquadronVP = { squadronId: string; vp: number; why: "destroyed" | "disengaged" };
 export type VictoryPoints = { total: number; ships: ShipVP[]; squadrons: SquadronVP[]; field: number };
 
@@ -462,6 +463,13 @@ export function squadronVP(state: GameState, sq: ShipSquadron): SquadronVP | nul
   return { squadronId: sq.id, vp: percent(full, escortSquadronCrippled(state, sq) ? 25 : 10), why: "disengaged" };
 }
 
+/** Blockade Run: what a runner that moved off the blockader's edge (the top, inward 180) is worth to its own side (N88), or 0. */
+export function runVP(state: GameState, ship: Ship): number {
+  if (state.scenario.id !== "blockade_run" || ship.owner !== state.scenario.attacker) return 0;
+  if (ship.status !== "disengaged" || ship.exitEdge !== 180) return 0;
+  return percent(shipValue(ship), isCrippled(ship) ? 25 : 100);
+}
+
 /** Half of every hulk on the table, friend or foe, if `player` holds the field: no enemy active, one of theirs is (T38). */
 export function holdingTheField(state: GameState, player: PlayerId): number {
   const mine = state.ships.some((s) => s.owner === player && s.status === "active");
@@ -470,9 +478,13 @@ export function holdingTheField(state: GameState, player: PlayerId): number {
   return state.ships.filter(isHulk).reduce((n, s) => n + percent(shipValue(s), 50), 0);
 }
 
-/** Victory points for `player`: enemy ships destroyed, crippled or disengaged, plus holding the field. */
+/** Victory points for `player`: enemy ships destroyed, crippled or disengaged, plus holding the field, plus Blockade Run's runners through (N88). */
 export function victoryPoints(state: GameState, player: PlayerId): VictoryPoints {
-  const ships = state.ships.filter((s) => s.owner !== player).flatMap((s) => shipVP(s) ?? []);
+  const ran = state.ships.filter((s) => s.owner === player).flatMap((s): ShipVP[] => {
+    const vp = runVP(state, s);
+    return vp > 0 ? [{ shipId: s.id, vp, why: "ran_the_blockade" }] : [];
+  });
+  const ships = [...state.ships.filter((s) => s.owner !== player).flatMap((s) => shipVP(s) ?? []), ...ran];
   const squadrons = squadronsOf(state).filter((sq) => sq.owner !== player).flatMap((sq) => squadronVP(state, sq) ?? []);
   const field = holdingTheField(state, player);
   return { total: ships.reduce((n, s) => n + s.vp, 0) + squadrons.reduce((n, s) => n + s.vp, 0) + field, ships, squadrons, field };
@@ -490,6 +502,11 @@ export function nextDeployer(state: GameState): PlayerId | null {
   // A squadron is one placement (transform T80): its owner finishes it first.
   const partial = partlyDeployedSquadron(state);
   if (partial !== undefined) return partial.owner;
+  // Blockade Run: the blockader deploys everything, then the runners (state N85).
+  if (state.scenario.id === "blockade_run") {
+    const waiting = (p: PlayerId) => state.ships.some((s) => s.owner === p && s.status === "undeployed");
+    return waiting(first) ? first : waiting(otherPlayer(first)) ? otherPlayer(first) : null;
+  }
   const total = { p1: 0, p2: 0 };
   let deployed = 0;
   for (const unit of deploymentUnits(state)) {

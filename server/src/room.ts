@@ -122,7 +122,9 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
   if (name === null) return { error: "INVALID_NAME" };
   const forces = req.forces ?? CRUISER_CLASH;
   const scenario: ScenarioId =
-    req.scenario === "fleet_engagement" || req.scenario === "the_bait" || req.scenario === "raiders" || req.scenario === "surprise_attack" ? req.scenario : "cruiser_clash";
+    req.scenario === "fleet_engagement" || req.scenario === "the_bait" || req.scenario === "raiders" || req.scenario === "surprise_attack" || req.scenario === "blockade_run"
+      ? req.scenario
+      : "cruiser_clash";
   const fleetLists = req.fleetLists === true && forces.kind === "points"; // points battles only (T58)
   // The Bait, The Raiders and Surprise Attack: the host names the attacker (the pursuers, the raiders, the attackers: T93, T100, T114, D37).
   const attacker: PlayerId | undefined = hasAttacker(scenario) ? (req.attacker === "p1" ? "p1" : "p2") : undefined;
