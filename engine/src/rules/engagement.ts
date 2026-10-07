@@ -5,10 +5,11 @@
 import { EPS } from "../geometry/constants";
 import { otherPlayer } from "../state/derived";
 import { BAIT_DIVISIONS, pursuedPlayer, RAIDERS_ZONE } from "./reserves";
-import type { Colour, Formation, GameState, PlayerId, Point, Rect, SetupMap } from "../state/types";
+import { ALERT_ZONE } from "./surprise";
+import type { Colour, Formation, GameState, PlayerId, Point, Rect, SetupMap, Ship } from "../state/types";
 
-/** A division: a rectangle (bottom-left corner) for stems, and the heading its ships face. */
-export type Division = { rect: Rect; heading: number };
+/** A division: a rectangle (bottom-left corner) for stems, and the heading its ships face, or null when the deployer gives one (Surprise Attack, T116). */
+export type Division = { rect: Rect; heading: number | null };
 
 const div = (x: number, y: number, width: number, height: number, heading: number): Division => ({ rect: { x, y, width, height }, heading });
 
@@ -82,8 +83,16 @@ export function setupBonus(state: GameState, player: PlayerId): number {
   );
 }
 
-/** Where a player deploys (state §11): Cruiser Clash's zone, their colour's divisions on the Fleet Engagement map, or The Bait's (§4). */
-export function deploymentDivisions(state: GameState, player: PlayerId): readonly Division[] {
+/**
+ * Where a player deploys (state §11): Cruiser Clash's zone, their colour's divisions on the Fleet Engagement map, or The Bait's (§4).
+ * Surprise Attack's defender: the whole table for `ship` on standby, otherwise the alert zone, with no heading of their own.
+ */
+export function deploymentDivisions(state: GameState, player: PlayerId, ship?: Ship): readonly Division[] {
+  if (state.scenario.id === "surprise_attack") {
+    if (player === state.scenario.attacker) return [];
+    const { width, height } = state.table;
+    return [{ rect: ship?.standby === true ? { x: 0, y: 0, width, height } : { ...ALERT_ZONE }, heading: null }];
+  }
   if (state.scenario.id === "the_bait") return player === pursuedPlayer(state) ? BAIT_DIVISIONS.pursued : BAIT_DIVISIONS.pursuers;
   if (state.scenario.id === "raiders") {
     const facing = state.setup.raid?.facing ?? null;

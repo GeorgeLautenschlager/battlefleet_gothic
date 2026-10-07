@@ -1,4 +1,7 @@
-import { actor, engagement, type Formation, type GameState, type PlayerId, type Transform } from "@bfg/engine";
+import { useState } from "react";
+import { actor, engagement, getSquadron, surprise, type Formation, type GameState, type PlayerId, type Transform } from "@bfg/engine";
+import { Act } from "../controls/Act";
+import { freeHeading, type DeployAim } from "../game/deploy";
 import type { SetupPreview } from "../table/Zones";
 import { sendAs, type Seat } from "../game/source";
 import { pick, undeployed } from "../game/pick";
@@ -33,6 +36,39 @@ const FACINGS = [
   { heading: 270, name: "Face the left edge" },
 ] as const;
 
+const HEADING_NAMES: Record<number, string> = { 0: "(up)", 45: "", 90: "(right)", 135: "", 180: "(down)", 225: "", 270: "(left)", 315: "" };
+
+/** Surprise Attack (T115): the defender ticks the D3 ships or squadrons on full alert; the rest go on standby. */
+function AlertChoice({ state, player, onApply }: { state: GameState; player: PlayerId; onApply: (t: Transform) => void }) {
+  const units = surprise.unitIds(state, player);
+  const want = surprise.alertCount(state, player);
+  const [chosen, setChosen] = useState<string[]>(units.slice(0, want));
+  const name = (id: string) => getSquadron(state, id)?.name ?? state.ships.find((s) => s.id === id)?.name ?? id;
+  return (
+    <>
+      <p className="hint">
+        <strong>{playerName(state, player)}</strong>, you're caught at anchor round the planet. Put {want} ship{want === 1 ? "" : "s"} or squadron{want === 1 ? "" : "s"} on full alert; the
+        rest are on standby until they pass a Leadership test.
+      </p>
+      <div className="alert-units">
+        {units.map((id) => (
+          <label key={id}>
+            <input
+              type="checkbox"
+              checked={chosen.includes(id)}
+              onChange={(e) => setChosen(e.target.checked ? [...chosen, id] : chosen.filter((c) => c !== id))}
+            />{" "}
+            {name(id)}
+          </label>
+        ))}
+      </div>
+      <Act state={state} transform={{ type: "choose_alert", player, units: units.filter((u) => chosen.includes(u)) }} onApply={onApply} primary showReason>
+        Full alert
+      </Act>
+    </>
+  );
+}
+
 export function SetupControls({
   state,
   seat,
@@ -40,6 +76,8 @@ export function SetupControls({
   focus,
   onFocus,
   onPreview = () => {},
+  aim,
+  onAim = () => {},
 }: {
   state: GameState;
   seat: Seat;
@@ -47,6 +85,9 @@ export function SetupControls({
   focus: string | null;
   onFocus: (id: string) => void;
   onPreview?: (preview: SetupPreview | null) => void;
+  /** Surprise Attack's defender: the heading or the planet's side for the next ship (T116). */
+  aim?: DeployAim;
+  onAim?: (aim: DeployAim) => void;
 }) {
   const step = state.clock.setupStep;
   if (step === null) return null;
@@ -124,11 +165,51 @@ export function SetupControls({
       </>
     );
   }
+  if (step === "choose_alert") {
+    const who = actor(state);
+    if (who !== "p1" && who !== "p2") return null;
+    return <AlertChoice state={state} player={who} onApply={onApply} />;
+  }
   if (step === "deploy") {
     const who = actor(state);
     if (who !== "p1" && who !== "p2") return null;
     const waiting = undeployed(state, who);
     const ship = pick(waiting, focus);
+    if (ship !== undefined && aim !== undefined && freeHeading(state, who, ship)) {
+      const standby = ship.standby === true;
+      const first = standby && !state.ships.some((s) => s.owner === who && s.standby === true && s.status !== "undeployed");
+      return (
+        <>
+          <p className="hint">
+            {playerName(state, who)}: click to deploy <strong>{ship.name}</strong>
+            {standby
+              ? `, on standby: anywhere, broadside to the planet${first ? `, and this first one within ${surprise.STANDBY_RANGE} cm of it` : ""}.`
+              : ", on full alert: anywhere at least 30 cm from the table edges, facing any way."}
+          </p>
+          {standby ? (
+            <div className="buttons" role="group" aria-label="Planet side">
+              {(["starboard", "port"] as const).map((side) => (
+                <button key={side} type="button" aria-pressed={aim.planetTo === side} onClick={() => onAim({ ...aim, planetTo: side })}>
+                  Planet to {side}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <label>
+              Facing{" "}
+              <select value={String(aim.facing)} onChange={(e) => onAim({ ...aim, facing: Number(e.target.value) })}>
+                {[0, 45, 90, 135, 180, 225, 270, 315].map((h) => (
+                  <option key={h} value={h}>
+                    {h}° {HEADING_NAMES[h]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <ShipPicker ships={waiting} current={ship.id} verb="Deploy" onPick={onFocus} />
+        </>
+      );
+    }
     const zone = state.setup.zones?.[who];
     const e = state.setup.engagement;
     const where =

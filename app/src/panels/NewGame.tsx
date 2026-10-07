@@ -64,7 +64,7 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
           setO(toClash ? { ...o, ...patch, p1: { ...o.p1, ships: resize(o.p1.ships, o.p1.fleet, n, o.p2.ships) }, p2: { ...o.p2, ships: resize(o.p2.ships, o.p2.fleet, n, o.p1.ships) } } : { ...o, ...patch });
         }}
       />
-      <PlanetField value={o.planet} onChange={(planet) => setO(planet === undefined ? withoutPlanet(o) : { ...o, planet })} />
+      {o.scenario !== "surprise_attack" && <PlanetField value={o.planet} onChange={(planet) => setO(planet === undefined ? withoutPlanet(o) : { ...o, planet })} />}
       {points === null && <CountSelect value={count} onChange={setCount} />}
       {PLAYERS.map((p) => (
         <FleetFields

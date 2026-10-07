@@ -30,7 +30,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         setBusy(true);
         setError(null);
         const name = side.name.trim();
-        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists, reinforcements), ...rules, fleetLists: lists, ...battle, ...(planet !== undefined ? { planet } : {}) })
+        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists, reinforcements), ...rules, fleetLists: lists, ...battle, ...(planet !== undefined && battle.scenario !== "surprise_attack" ? { planet } : {}) })
           .then((g) => onCreated({ gameId: g.gameId, token: g.token, seat: g.seat, name, joinedAt: new Date().toISOString(), inviteToken: g.inviteToken }))
           .catch((err: unknown) => setError((err as Error).message))
           .finally(() => setBusy(false));
@@ -47,7 +47,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
           if (patch.forces?.kind !== "points" && side.ships.length > MAX_SHIPS) setSide({ ...side, ships: side.ships.slice(0, MAX_SHIPS) });
         }}
       />
-      <PlanetField value={planet} onChange={setPlanet} />
+      {battle.scenario !== "surprise_attack" && <PlanetField value={planet} onChange={setPlanet} />}
       {points === null && <CountSelect value={side.ships.length} onChange={(n) => setSide({ ...side, ships: resize(side.ships, side.fleet, n) })} />}
       <FleetFields
         legend="You"

@@ -6,7 +6,7 @@
  */
 import { bmTouchesBase } from "../geometry/basic";
 import { emptyTurnState } from "../state/newGame";
-import { activePlayer, isHulk, novaCannonBarred, onTable, otherPlayer, score, victoryPoints, weaponDisabled } from "../state/derived";
+import { activePlayer, getShip, isHulk, leadership, novaCannonBarred, onStandby, onTable, otherPlayer, score, squadronLd, squadronOf, victoryPoints, weaponDisabled } from "../state/derived";
 import type { GameState, Ordnance, Phase, PlayerId, SetupStep, Step } from "../state/types";
 import type { Ctx } from "./context";
 import { anyTeleport, boardingsToFight } from "../rules/boarding";
@@ -29,6 +29,9 @@ const BAIT_SETUP_ORDER: readonly SetupStep[] = ["roll_leadership", "deploy"];
 /** The Raiders: Leadership with the surprise roll, the defender's facing, then the defender deploys; the raiders go first. */
 const RAIDERS_SETUP_ORDER: readonly SetupStep[] = ["roll_leadership", "choose_facing", "deploy"];
 
+/** Surprise Attack: Leadership with the alert roll, the defender's units on alert, then the defender deploys; the attackers go first. */
+const SURPRISE_SETUP_ORDER: readonly SetupStep[] = ["roll_leadership", "choose_alert", "deploy"];
+
 /** Fleet Engagement replaces roll_zones with the formations and the set-up roll-off (transform §2.3). */
 const ENGAGEMENT_SETUP_ORDER: readonly SetupStep[] = [
   "roll_leadership",
@@ -45,6 +48,7 @@ const SETUP_ORDERS: Readonly<Record<GameState["scenario"]["id"], readonly SetupS
   cruiser_clash: SETUP_ORDER,
   the_bait: BAIT_SETUP_ORDER,
   raiders: RAIDERS_SETUP_ORDER,
+  surprise_attack: SURPRISE_SETUP_ORDER,
   fleet_engagement: ENGAGEMENT_SETUP_ORDER,
 };
 
@@ -90,6 +94,8 @@ export function stepComplete(state: GameState): boolean {
         return (setup.engagement?.map ?? null) !== null;
       case "choose_facing":
         return (setup.raid?.facing ?? null) !== null;
+      case "choose_alert":
+        return setup.surpriseAttack?.alertChosen === true;
       case "roll_deploy_order":
         return setup.firstDeployer !== null;
       case "deploy":
@@ -123,6 +129,7 @@ export function stepComplete(state: GameState): boolean {
       return !mine.some(
         (s) =>
           s.status === "active" &&
+          !onStandby(s) &&
           canAct(s.id) &&
           s.profile.weapons.some(
             (w) =>
@@ -135,6 +142,7 @@ export function stepComplete(state: GameState): boolean {
       return !mine.some(
         (s) =>
           s.status === "active" &&
+          !onStandby(s) &&
           canAct(s.id) &&
           ((s.loaded.torpedoes === true &&
             s.profile.weapons.some(
@@ -191,7 +199,9 @@ function enterStep(ctx: Ctx, phase: Phase, step: Step): void {
   ctx.log("step", { phase, step });
   switch (step) {
     case "move_ships":
+      alertTests(ctx);
       grappledStayPut(ctx);
+      standbyStayPut(ctx);
       break;
     case "direct_fire":
       reservesGivenUp(ctx);
@@ -213,6 +223,43 @@ function enterStep(ctx: Ctx, phase: Phase, step: Step): void {
       break;
     default:
       break;
+  }
+}
+
+/**
+ * Surprise Attack: each of the active player's units on standby takes a Leadership test to go on alert
+ * (state N78, transform T118, reducer R51), in ships order, a squadron once at its first member.
+ */
+function alertTests(ctx: Ctx): void {
+  const { state } = ctx;
+  const player = activePlayer(state);
+  const tested = new Set<string>();
+  for (const ship of state.ships) {
+    if (ship.owner !== player || !onStandby(ship) || tested.has(ship.id)) continue;
+    const sq = squadronOf(state, ship);
+    const unit = (sq?.shipIds ?? [ship.id]).map((id) => getShip(state, id));
+    for (const s of unit) tested.add(s.id);
+    const ld = sq !== undefined ? squadronLd(state, sq) : leadership(state, ship);
+    const { rolls, passed } = ctx.test(2, ld);
+    if (passed) {
+      for (const s of unit) {
+        delete s.standby;
+        const turn = state.turnState.ships[s.id];
+        if (turn !== undefined) turn.alerted = true;
+      }
+    }
+    ctx.log("alert_test", { shipIds: unit.map((s) => s.id), ...(sq !== undefined ? { squadronId: sq.id } : {}), rolls, leadership: ld, passed });
+  }
+}
+
+/** Ships still on standby stay put this Movement Phase, as grappled ones do (transform T117). */
+function standbyStayPut(ctx: Ctx): void {
+  const { state } = ctx;
+  for (const ship of state.ships) {
+    if (ship.owner !== activePlayer(state) || !onStandby(ship)) continue;
+    const turn = state.turnState.ships[ship.id];
+    if (turn !== undefined) turn.moved = true;
+    ship.lastMove = { playerTurn: state.clock.playerTurn, distance: 0 };
   }
 }
 

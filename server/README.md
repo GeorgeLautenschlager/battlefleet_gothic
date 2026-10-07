@@ -17,6 +17,7 @@ Network play's server side ([network/SPEC.md](../network/SPEC.md), [ADR 0003](..
 | The Bait: the host names the pursuers (`attacker`); ship entries carry `reserve`; each seat's fleet is checked in its own role, against a lone cruiser | ✅ |
 | The Raiders: the host names the raiders (`attacker`); each seat checked in its role, the raiders at half the points | ✅ |
 | Planets: the host's `planet` choice rides in the room options and the game config | ✅ |
+| Surprise Attack: the host names the attackers; both seats checked at the full points; the planet comes from the limit, not the host | ✅ |
 
 ## Layout
 

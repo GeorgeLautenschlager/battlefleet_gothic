@@ -220,12 +220,16 @@ export function configProblem(options: NewGameOptions): string | null {
   }
 }
 
-/** The side's part in a scenario with an attacker and a defender (The Bait, The Raiders). */
-export type Role = { scenario: "the_bait" | "raiders"; defender: boolean };
+/** The side's part in a scenario with an attacker and a defender (The Bait, The Raiders, Surprise Attack). */
+export type Role = { scenario: "the_bait" | "raiders" | "surprise_attack"; defender: boolean };
+
+/** The scenarios with an attacker and a defender. */
+export const hasRoles = (scenario: ScenarioId | undefined): scenario is Role["scenario"] =>
+  scenario === "the_bait" || scenario === "raiders" || scenario === "surprise_attack";
 
 /** This seat's role, if the scenario has them: `attacker` is the attacking seat. */
 export const roleOf = (scenario: ScenarioId | undefined, attacker: PlayerId | undefined, seat: PlayerId): Role | undefined =>
-  scenario === "the_bait" || scenario === "raiders" ? { scenario, defender: (attacker ?? "p2") !== seat } : undefined;
+  hasRoles(scenario) ? { scenario, defender: (attacker ?? "p2") !== seat } : undefined;
 
 /**
  * Why one side's fleet can't play, tried against a mirror of itself (as the server checks it), or null.
@@ -255,8 +259,9 @@ export function cruiserClash(options: NewGameOptions, now = new Date()): GameCon
     ...(options.scenario !== undefined ? { scenario: options.scenario } : {}),
     ...(options.forces !== undefined ? { forces: options.forces } : {}),
     ...(options.scoring !== undefined ? { scoring: options.scoring } : {}),
-    ...(options.scenario === "the_bait" || options.scenario === "raiders" ? { attacker: options.attacker ?? "p2" } : {}),
-    ...(options.planet !== undefined ? { planet: options.planet } : {}),
+    ...(hasRoles(options.scenario) ? { attacker: options.attacker ?? "p2" } : {}),
+    // Surprise Attack's planet comes from the points limit (T114).
+    ...(options.planet !== undefined && options.scenario !== "surprise_attack" ? { planet: options.planet } : {}),
     players: {
       p1: { name: options.p1.name.trim(), faction: options.p1.fleet satisfies FactionId },
       p2: { name: options.p2.name.trim(), faction: options.p2.fleet satisfies FactionId },

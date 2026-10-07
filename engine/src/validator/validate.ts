@@ -11,7 +11,7 @@ import { malformedField } from "./schema";
 import { OK, reject, type ValidationResult } from "./reasons";
 import { checkDeclareOrder, checkDriftHulk, checkMove } from "./movement";
 import { checkFire, checkFireNovaCannon, checkLaunchTorpedoes } from "./shooting";
-import { checkAnswerBrace, checkChooseSetup, checkDeployShip, checkRemoveBlastMarkers, checkRepair } from "./other";
+import { checkAnswerBrace, checkChooseAlert, checkChooseSetup, checkDeployShip, checkRemoveBlastMarkers, checkRepair } from "./other";
 import { checkLaunchAttackCraft, checkMoveOrdnance, checkReleaseCap } from "./craft";
 import { checkBoard, checkEndStep, checkTeleport } from "./boarding";
 import { checkArrive, checkEndMovement } from "./reserves";
@@ -28,6 +28,7 @@ const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" |
   roll_setup: { stage: "setup", when: ["roll_setup"] },
   choose_setup: { stage: "setup", when: ["choose_setup"] },
   choose_facing: { stage: "setup", when: ["choose_facing"] },
+  choose_alert: { stage: "setup", when: ["choose_alert"] },
   drift_hulk: { stage: "battle", when: ["hulks_drift"] },
   declare_order: { stage: "battle", when: ["move_ships"] },
   move: { stage: "battle", when: ["move_ships"] },
@@ -95,6 +96,8 @@ export function validate(state: GameState, input: unknown): ValidationResult {
       return OK;
     case "choose_setup":
       return checkChooseSetup(state, t);
+    case "choose_alert":
+      return checkChooseAlert(state, t);
     case "end_step":
       return state.clock.step === "move_ships" ? checkEndMovement(state, t) : checkEndStep(state);
     case "arrive":

@@ -66,6 +66,19 @@ export function describe(state: GameState, entry: LogEntry): string {
       return `${ship("shipId")} deploys at (${num((d["position"] as { x: number })?.x)}, ${num((d["position"] as { y: number })?.y)})`;
     case "surprise_roll":
       return `The defenders are caught napping ${dice(d["rolls"])}: −1 Leadership for the first ${num(d["turns"])} turn${d["turns"] === 1 ? "" : "s"}`;
+    case "alert_roll":
+      return `The defender's fleet is caught at anchor ${dice(d["rolls"])}: ${num(d["units"])} ship${d["units"] === 1 ? "" : "s"} or squadron${d["units"] === 1 ? "" : "s"} on full alert`;
+    case "alert_choice": {
+      const unit = (id: JsonValue): string => (state.squadrons ?? []).find((sq) => sq.id === id)?.name ?? state.ships.find((x) => x.id === id)?.name ?? String(id);
+      const alert = Array.isArray(d["units"]) ? d["units"].map(unit) : [];
+      const standby = Array.isArray(d["standby"]) ? d["standby"].length : 0;
+      return `${player("player")} puts ${alert.length > 0 ? alert.join(", ") : "nothing"} on full alert; ${standby === 0 ? "nothing is" : `${standby} ship${standby === 1 ? " is" : "s are"}`} on standby`;
+    }
+    case "alert_test": {
+      const ids = Array.isArray(d["shipIds"]) ? d["shipIds"] : [];
+      const who = d["squadronId"] !== undefined ? squadron("squadronId") : (state.ships.find((x) => x.id === ids[0])?.name ?? "A ship");
+      return `${who} tests to go on alert ${dice(d["rolls"])} against Ld ${num(d["leadership"])}: ${d["passed"] === true ? "on alert" : "still on standby"}`;
+    }
     case "facing": {
       const edge: Record<number, string> = { 0: "top", 90: "right", 180: "bottom", 270: "left" };
       return `${player("player")}'s fleet faces the ${edge[Number(d["heading"])] ?? "?"} edge`;

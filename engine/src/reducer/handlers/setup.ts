@@ -1,7 +1,8 @@
 /** Setup transforms (transform spec §4.1). */
 import { otherPlayer, squadronOf } from "../../state/derived";
 import { deploymentDivisions, divisionAt, isSplit, setupBonus, setupOptions } from "../../rules/engagement";
-import type { ChooseFacing, ChooseFirstTurn, ChooseFormation, ChooseSetup, DeployShip } from "../../transforms/types";
+import type { ChooseAlert, ChooseFacing, ChooseFirstTurn, ChooseFormation, ChooseSetup, DeployShip } from "../../transforms/types";
+import { unitShips } from "../../rules/surprise";
 import type { Ctx } from "../context";
 import { getShip } from "../work";
 
@@ -28,6 +29,13 @@ export function rollLeadership(ctx: Ctx): void {
     raid.surpriseTurns = roll;
     ctx.log("surprise_roll", { rolls: [roll], turns: roll });
   }
+  // Surprise Attack: one more D6, halved rounding up, for the units on full alert (state N77, reducer R50).
+  const surprise = ctx.state.setup.surpriseAttack;
+  if (surprise !== undefined) {
+    const roll = ctx.d6();
+    surprise.alertUnits = Math.ceil(roll / 2);
+    ctx.log("alert_roll", { rolls: [roll], units: surprise.alertUnits });
+  }
   ctx.state.setup.leadershipRolled = true;
 }
 
@@ -37,6 +45,22 @@ export function chooseFacing(ctx: Ctx, t: ChooseFacing): void {
   if (raid === undefined) return; // unreachable after validation
   raid.facing = t.heading;
   ctx.log("facing", { player: t.player, heading: t.heading });
+}
+
+/** Surprise Attack: the units named are on full alert; every other ship of the defender's is on standby (T115). */
+export function chooseAlert(ctx: Ctx, t: ChooseAlert): void {
+  const { state } = ctx;
+  const surprise = state.setup.surpriseAttack;
+  if (surprise === undefined) return; // unreachable after validation
+  const alert = new Set(t.units.flatMap((u) => unitShips(state, u)));
+  const standby: string[] = [];
+  for (const ship of state.ships) {
+    if (ship.owner !== t.player || alert.has(ship.id)) continue;
+    ship.standby = true;
+    standby.push(ship.id);
+  }
+  surprise.alertChosen = true;
+  ctx.log("alert_choice", { player: t.player, units: [...t.units], standby });
 }
 
 export function rollZones(ctx: Ctx): void {
@@ -66,11 +90,11 @@ export function rollDeployOrder(ctx: Ctx): void {
 export function deployShip(ctx: Ctx, t: DeployShip): void {
   const { state } = ctx;
   const ship = getShip(state, t.shipId);
-  const divisions = deploymentDivisions(state, t.player);
+  const divisions = deploymentDivisions(state, t.player, ship);
   ship.status = "active";
   ship.position = { ...t.position };
-  // The division's heading: Cruiser Clash's zone facing, or the map's arrow (p. 142).
-  ship.heading = divisions[divisionAt(divisions, t.position)]?.heading ?? 0;
+  // The division's heading: Cruiser Clash's zone facing, or the map's arrow (p. 142); Surprise Attack's defender gives one (T116).
+  ship.heading = divisions[divisionAt(divisions, t.position)]?.heading ?? t.heading ?? 0;
   ctx.log("deploy", { shipId: ship.id, position: { ...t.position }, heading: ship.heading });
 }
 

@@ -1,4 +1,4 @@
-import { engagement, geometry, reserves, type GameState, type PlayerId } from "@bfg/engine";
+import { engagement, geometry, reserves, surprise, type GameState, type PlayerId } from "@bfg/engine";
 import { playerName } from "../players";
 import { toSvg, type View } from "./view";
 
@@ -14,7 +14,8 @@ export function Zones({ state, preview = null }: { state: GameState; preview?: S
   const view: View = state.table;
   const bait = state.scenario.id === "the_bait";
   const raiders = state.scenario.id === "raiders";
-  if (state.setup.engagement === undefined && !bait && !raiders) {
+  const surpriseAttack = state.scenario.id === "surprise_attack";
+  if (state.setup.engagement === undefined && !bait && !raiders && !surpriseAttack) {
     return (
       <>
         {(["A", "B"] as const).map((zone) => {
@@ -37,10 +38,19 @@ export function Zones({ state, preview = null }: { state: GameState; preview?: S
   const map = preview?.map ?? state.setup.engagement?.map ?? null;
   const pursued = reserves.pursuedPlayer(state);
   const label = (p: PlayerId) =>
-    bait ? `${p === pursued ? "The bait" : "Pursuers"} · ${playerName(state, p)}` : raiders ? `At anchor · ${playerName(state, p)}` : `Map ${map} · ${playerName(state, p)}`;
+    bait
+      ? `${p === pursued ? "The bait" : "Pursuers"} · ${playerName(state, p)}`
+      : raiders
+      ? `At anchor · ${playerName(state, p)}`
+      : surpriseAttack
+      ? `Full alert · ${playerName(state, p)}`
+      : `Map ${map} · ${playerName(state, p)}`;
   const divisionsOf = (p: PlayerId): readonly Division[] =>
     preview !== null ? engagement.SETUP_MAPS[preview.map][preview.colours[p]] : engagement.deploymentDivisions(state, p);
-  if (map === null && !bait && !raiders) return null;
+  if (map === null && !bait && !raiders && !surpriseAttack) return null;
+  // Surprise Attack: ships on standby go broadside to the planet, the first within 15 cm of it (state N74–N75).
+  const planet = surpriseAttack ? state.table.features?.[0] : undefined;
+  const standbyRing = planet !== undefined && state.ships.some((s) => s.standby === true && s.status === "undeployed") ? planet : undefined;
   return (
     <g className={preview !== null ? "zones preview" : "zones"}>
       {(["p1", "p2"] as const).flatMap((p) =>
@@ -48,12 +58,12 @@ export function Zones({ state, preview = null }: { state: GameState; preview?: S
           const r = d.rect;
           const top = toSvg(view, { x: r.x, y: r.y + r.height });
           const c = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-          const v = geometry.headingVector(d.heading);
+          const v = geometry.headingVector(d.heading ?? 0);
           const [from, to] = [toSvg(view, c), toSvg(view, { x: c.x + 6 * v.x, y: c.y + 6 * v.y })];
           return (
             <g key={`${p}-${i}`} className={`zone ${p}`}>
               <rect x={top.x} y={top.y} width={r.width} height={r.height} />
-              <line className="facing" x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd="url(#zone-arrow)" />
+              {d.heading !== null && <line className="facing" x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd="url(#zone-arrow)" />}
               {i === 0 && (
                 <text x={top.x + 1.5} y={top.y + 4}>
                   {label(p)}
@@ -62,6 +72,9 @@ export function Zones({ state, preview = null }: { state: GameState; preview?: S
             </g>
           );
         }),
+      )}
+      {standbyRing !== undefined && (
+        <circle className="standby-ring" cx={toSvg(view, standbyRing.position).x} cy={toSvg(view, standbyRing.position).y} r={standbyRing.diameter / 2 + surprise.STANDBY_RANGE} />
       )}
     </g>
   );

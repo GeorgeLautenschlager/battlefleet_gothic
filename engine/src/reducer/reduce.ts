@@ -9,7 +9,7 @@ import { cloneJson } from "../state/json";
 import type { GameState } from "../state/types";
 import type { Transform } from "../transforms/types";
 import { Ctx } from "./context";
-import { chooseFacing, chooseFirstTurn, chooseFormation, chooseSetup, deployShip, rollDeployOrder, rollFirstTurn, rollLeadership, rollSetup, rollZones } from "./handlers/setup";
+import { chooseAlert, chooseFacing, chooseFirstTurn, chooseFormation, chooseSetup, deployShip, rollDeployOrder, rollFirstTurn, rollLeadership, rollSetup, rollZones } from "./handlers/setup";
 import { answerBrace, declareOrder } from "./handlers/orders";
 import { removeBlastMarkers, repair } from "./handlers/end";
 import { fire } from "./handlers/fire";
@@ -60,6 +60,8 @@ function handle(ctx: Ctx, t: Transform): void {
       return chooseSetup(ctx, t);
     case "choose_facing":
       return chooseFacing(ctx, t);
+    case "choose_alert":
+      return chooseAlert(ctx, t);
     case "roll_deploy_order":
       return rollDeployOrder(ctx);
     case "deploy_ship":

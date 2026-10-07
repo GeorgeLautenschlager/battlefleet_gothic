@@ -10,7 +10,8 @@ type Base<T extends string> = { type: T; player: PlayerId };
 export type RollLeadership = Base<"roll_leadership">;
 export type RollZones = Base<"roll_zones">;
 export type RollDeployOrder = Base<"roll_deploy_order">;
-export type DeployShip = Base<"deploy_ship"> & { shipId: string; position: Point };
+/** `heading`: Surprise Attack's defender only, where the division sets none (T116). */
+export type DeployShip = Base<"deploy_ship"> & { shipId: string; position: Point; heading?: number };
 export type RollFirstTurn = Base<"roll_first_turn">;
 export type ChooseFirstTurn = Base<"choose_first_turn"> & { goFirst: boolean };
 // Fleet Engagement's set-up (§4.1)
@@ -20,6 +21,8 @@ export type RollSetup = Base<"roll_setup">;
 export type ChooseSetup = Base<"choose_setup"> & { map: SetupMap; colour: Colour };
 /** The Raiders: the table edge the defender's fleet faces (T103). */
 export type ChooseFacing = Base<"choose_facing"> & { heading: Facing };
+/** Surprise Attack: the defender's units on full alert, by ship id (a ship in no squadron) or squadron id (T115). */
+export type ChooseAlert = Base<"choose_alert"> & { units: string[] };
 
 // Movement (§4.2)
 export type DriftHulk = Base<"drift_hulk"> & { shipId: string };
@@ -87,6 +90,7 @@ export type Transform =
   | RollSetup
   | ChooseSetup
   | ChooseFacing
+  | ChooseAlert
   | DriftHulk
   | DeclareOrder
   | Move

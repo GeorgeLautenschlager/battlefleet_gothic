@@ -70,6 +70,12 @@ export const hasCritical = (ship: Ship, kind: CriticalKind): boolean =>
 
 export const isBraced = (ship: Ship): boolean => ship.specialOrder?.kind === "brace_for_impact";
 
+/** Surprise Attack: an active ship still on standby (state §11, N78). */
+export const onStandby = (ship: Ship): boolean => ship.status === "active" && ship.standby === true;
+
+/** Surprise Attack: it went on alert this player turn, so it takes no special orders (state N78). */
+export const wentOnAlert = (state: GameState, ship: Ship): boolean => state.turnState.ships[ship.id]?.alerted === true;
+
 /** A commander aboard, if any (state §7.4); older saves have none. */
 export const commanderOf = (ship: Ship): Commander | null => ship.commander ?? null;
 
@@ -539,6 +545,7 @@ export function actor(state: GameState): Actor {
       case "choose_setup":
         return state.setup.engagement?.setupChooser ?? null;
       case "choose_facing":
+      case "choose_alert":
         return state.scenario.attacker === undefined ? null : otherPlayer(state.scenario.attacker); // the defender
       case null:
         return null;

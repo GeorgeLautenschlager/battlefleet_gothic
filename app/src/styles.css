@@ -285,3 +285,5 @@ strong.p2 { color: var(--p2); }
 
 .planet .template { fill: rgba(120, 150, 190, 0.28); stroke: rgba(160, 190, 230, 0.7); stroke-width: 0.4; }
 .planet .well { fill: rgba(120, 150, 190, 0.05); stroke: rgba(160, 190, 230, 0.35); stroke-width: 0.3; stroke-dasharray: 1.5 1; }
+.standby-ring { fill: none; stroke: rgba(230, 200, 120, 0.55); stroke-width: 0.3; stroke-dasharray: 0.8 0.8; pointer-events: none; }
+.alert-units { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.5rem 0; }

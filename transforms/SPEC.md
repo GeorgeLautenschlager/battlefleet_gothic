@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.17, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.19](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16). v0.9 adds the nova cannon (pp. 63–64): `fire_nova_cannon` and the ship options that carry one (§2.3, §2.6, §4.3, §5, T40–T48, D17–D19). v0.10 adds the Fleet Engagement scenario (pp. 142–143): `choose_formation`, `roll_setup`, `choose_setup`, divisions at deployment, and no round limit (§2.3, §2.5, §3, §4.1, §5, T49–T55, D20–D23). v0.11 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders, re-rolls (`reroll` on four transforms) and the Marks of Chaos (§2.7, §3, §4.2–4.3, §4.5, §5, T56–T66, D24–D27). v0.12 adds the Gothic War lists' grand and light cruisers, the Repulsive and the Dauntless, with their options and the grand cruisers' ratio (§5, T67–T70, D28–D29). v0.13 adds the Gothic War lists' battleships, their options (some exclusive), the battleship ratio, and the ban on Come to New Heading (§4.2, §5, T71–T74, D30–D31). v0.14 adds escorts and squadrons, escort and capital: squadron Leadership, deployment, orders, moves, brace, disengaging, shooting by and at squadrons (`fire.withShips`, `fire.targetAspect`), escorts in boarding and teleport attacks, and the six Gothic War escorts (§2.6, §4.1–4.3, §4.5–4.6, §5, T75–T92, D32–D35). v0.15 adds The Bait (p. 130) and reserves: `arrive`, `end_step` in `move_ships` while reserves wait, and a game that isn't over while they do (§2.3, §2.5, §3, §4.1, §4.2, §5, T93–T99, D36–D37). v0.16 adds The Raiders (p. 131): `choose_facing`, the surprise roll, spacing at deployment, and raiders who must all arrive in their first turn (§2.3, §3, §4.1, §4.2, §5, T100–T106, D38). v0.17 adds a planet (pp. 112–113): `planet` in the config, `gravity_turn` path steps and high orbit in `move`, planets blocking fire, destroying torpedoes and drifting hulks (§4.2–4.4, §5, T107–T113, D39).
+**Status:** draft v0.18, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.20](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16). v0.9 adds the nova cannon (pp. 63–64): `fire_nova_cannon` and the ship options that carry one (§2.3, §2.6, §4.3, §5, T40–T48, D17–D19). v0.10 adds the Fleet Engagement scenario (pp. 142–143): `choose_formation`, `roll_setup`, `choose_setup`, divisions at deployment, and no round limit (§2.3, §2.5, §3, §4.1, §5, T49–T55, D20–D23). v0.11 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders, re-rolls (`reroll` on four transforms) and the Marks of Chaos (§2.7, §3, §4.2–4.3, §4.5, §5, T56–T66, D24–D27). v0.12 adds the Gothic War lists' grand and light cruisers, the Repulsive and the Dauntless, with their options and the grand cruisers' ratio (§5, T67–T70, D28–D29). v0.13 adds the Gothic War lists' battleships, their options (some exclusive), the battleship ratio, and the ban on Come to New Heading (§4.2, §5, T71–T74, D30–D31). v0.14 adds escorts and squadrons, escort and capital: squadron Leadership, deployment, orders, moves, brace, disengaging, shooting by and at squadrons (`fire.withShips`, `fire.targetAspect`), escorts in boarding and teleport attacks, and the six Gothic War escorts (§2.6, §4.1–4.3, §4.5–4.6, §5, T75–T92, D32–D35). v0.15 adds The Bait (p. 130) and reserves: `arrive`, `end_step` in `move_ships` while reserves wait, and a game that isn't over while they do (§2.3, §2.5, §3, §4.1, §4.2, §5, T93–T99, D36–D37). v0.16 adds The Raiders (p. 131): `choose_facing`, the surprise roll, spacing at deployment, and raiders who must all arrive in their first turn (§2.3, §3, §4.1, §4.2, §5, T100–T106, D38). v0.17 adds a planet (pp. 112–113): `planet` in the config, `gravity_turn` path steps and high orbit in `move`, planets blocking fire, destroying torpedoes and drifting hulks (§4.2–4.4, §5, T107–T113, D39). v0.18 adds Surprise Attack (p. 132): the alert roll, `choose_alert`, a heading in `deploy_ship`, standby and the Leadership tests to go on alert, and attackers who all arrive from one edge (§2.3, §2.5, §3, §4.1–4.3, §5, T114–T122, D40).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -62,12 +62,13 @@ check for game end
 | setup / `roll_setup` | either | `roll_setup` | no | `setupChooser` set | — |
 | setup / `choose_setup` | set-up chooser | `choose_setup` | no | `map` set | — |
 | setup / `choose_facing` | the defender | `choose_facing` | no | `raid.facing` set | — |
+| setup / `choose_alert` | the defender | `choose_alert` | no | `surpriseAttack.alertChosen` | — |
 | setup / `roll_deploy_order` | either | `roll_deploy_order` | no | `firstDeployer` set | — |
 | setup / `deploy` | next deployer | `deploy_ship` | no | no `undeployed` ships (reserves aren't deployed) | — |
 | setup / `roll_first_turn` | either | `roll_first_turn` | no | `firstTurnChooser` set | — |
 | setup / `choose_first_turn` | chooser | `choose_first_turn` | no | `firstPlayer` set | on leaving the last setup step: start the battle (§2.5) |
 | movement / `hulks_drift` | active | `drift_hulk` | no | every active-player hulk has `drifted` | — |
-| movement / `move_ships` | active | `declare_order`, `move`, `release_cap`, `arrive` | **while reserves can arrive** | every active-player `active` ship has `moved`, and the player can't bring reserves on (`canArrive`, state §11); else on `end_step`, where reserves may wait (T95, T104) | grappled ships stay put (state §6) |
+| movement / `move_ships` | active | `declare_order`, `move`, `release_cap`, `arrive` | **while reserves can arrive** | every active-player `active` ship has `moved`, and the player can't bring reserves on (`canArrive`, state §11); else on `end_step`, where reserves may wait (T95, T104) | Surprise Attack: units on standby test to go on alert (T118); then grappled ships, and ships still on standby, stay put (state §6, N78) |
 | shooting / `direct_fire` | active | `fire`, `fire_nova_cannon` | **yes** | no active-player ship has an unfired, undisabled battery, lance or nova cannon it could fire (a nova cannon can't while `novaCannonBarred`, state §11) | a player with nothing `active` gives up their waiting reserves (state N52) |
 | shooting / `launch_ordnance` | active | `launch_torpedoes`, `launch_attack_craft` | **yes** | no active-player ship can launch torpedoes or attack craft (§4.3) | — |
 | ordnance / `active_ordnance` | active | `move_ordnance` | no | every active-player salvo and wave (CAP aside) moved this step | reset `ordnanceMoved` |
@@ -77,7 +78,7 @@ check for game end
 | end / `blast_marker_removal` | active | `remove_blast_markers` | no | `blastMarkersRemoved`, or nothing is removable | **fires burn** (§4.6) |
 | leaving `blast_marker_removal` | | | | | end the player turn (§2.5) |
 
-Cruiser Clash goes `roll_leadership` → `roll_zones` → `roll_deploy_order`. Fleet Engagement replaces `roll_zones` with `choose_formation` → `roll_setup` → `choose_setup`; the rest is the same (p. 142: lowest roll deploys first, alternating; first turn by roll-off). The Bait goes `roll_leadership` → `deploy`, then the battle: the bait deploys first and the pursued player goes first, so nothing else is rolled (state N55). The Raiders go `roll_leadership` (with the surprise roll) → `choose_facing` → `deploy`, then the battle, the raiders first.
+Cruiser Clash goes `roll_leadership` → `roll_zones` → `roll_deploy_order`. Fleet Engagement replaces `roll_zones` with `choose_formation` → `roll_setup` → `choose_setup`; the rest is the same (p. 142: lowest roll deploys first, alternating; first turn by roll-off). The Bait goes `roll_leadership` → `deploy`, then the battle: the bait deploys first and the pursued player goes first, so nothing else is rolled (state N55). The Raiders go `roll_leadership` (with the surprise roll) → `choose_facing` → `deploy`, then the battle, the raiders first. Surprise Attack goes `roll_leadership` (with the alert roll) → `choose_alert` → `deploy`, then the battle, the attackers first.
 
 Movement and Ordnance steps have no `end_step`, save `move_ships` while reserves wait (T95): every ship must move (p. 53), torpedoes must move their full speed (p. 201), and an attack craft wave that stays put still sends a `move_ordnance` with an empty path. CAP fighters don't count: they stay with their ship unless their owner moves them off CAP (§4.4).
 
@@ -87,7 +88,7 @@ Movement and Ordnance steps have no `end_step`, save `move_ships` while reserves
 
 ### 2.5 Turn boundaries
 
-**Start the battle** (leaving the last setup step: `choose_first_turn`, or The Bait's and The Raiders' `deploy`): `stage = "battle"`, `playerTurn = 1`, then *start a player turn*.
+**Start the battle** (leaving the last setup step: `choose_first_turn`, or The Bait's, The Raiders' and Surprise Attack's `deploy`): `stage = "battle"`, `playerTurn = 1`, then *start a player turn*.
 
 **Start a player turn**: reset `turnState` for the new `playerTurn` (state §8), remove the active player's orders whose `expires = { playerTurn ≤ now, at: "movement_start" }`, enter `movement / hulks_drift`.
 
@@ -128,6 +129,7 @@ Each failed test of the transform uses one re-roll, from `rerollFor(ship)` (stat
 | `roll_setup` | — | setup / `roll_setup` |
 | `choose_setup` | `map`, `colour` | setup / `choose_setup` |
 | `choose_facing` | `heading` | setup / `choose_facing` |
+| `choose_alert` | `units` | setup / `choose_alert` |
 | `roll_deploy_order` | — | setup / `roll_deploy_order` |
 | `deploy_ship` | `shipId`, `position` | setup / `deploy` |
 | `roll_first_turn` | — | setup / `roll_first_turn` |
@@ -162,6 +164,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 - **Reducer:** for each ship in `ships` order, draw 1D6 and set `leadership` from the table (1 → 6, 2–3 → 7, 4–5 → 8, 6 → 9). An escort whose squadron has already rolled takes that value without a draw: escort squadrons roll once (p. 45). Sets `setup.leadershipRolled`.
 
 - **The Raiders:** after every ship's roll, one more D6 for the defenders' surprise: `raid.surpriseTurns` (state N61). Logged `surprise_roll { rolls, turns }`.
+- **Surprise Attack:** after every ship's roll, one more D6, halved rounding up, for the units on full alert: `surpriseAttack.alertUnits` (state N77). Logged `alert_roll { rolls, units }`.
 
 #### `roll_zones`
 - **Reducer:** draw 1D6 for p1 → `zoneRoll`. 1–3: p1 in A, p2 in B; 4–6: the reverse.
@@ -190,17 +193,25 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 - **Legal when:** The Raiders, and `player` is the defender (state §12). Chosen once (state N58).
 - **Reducer:** `raid.facing = heading`. No dice.
 
+#### `choose_alert`
+```ts
+{ type: "choose_alert", player, units: string[] }   // ship ids (ships in no squadron) and squadron ids
+```
+- **Legal when:** Surprise Attack, and `player` is the defender (state §12). `units` names distinct units of the player's, as many as `min(alertUnits, the player's units)` (state N77, T115).
+- **Reducer:** every ship of the player's in a unit not named gets `standby`. Sets `alertChosen`. Logged `alert_choice { player, units, standby }`, `standby` the ship ids on standby. No dice.
+
 #### `roll_deploy_order`
 - **Reducer:** draw 1D6 for p1, then 1D6 for p2; append to `deployOrderRolls`. If they differ, the **lower** roller is `firstDeployer`. A tie leaves the step open for another `roll_deploy_order`.
 
 #### `deploy_ship`
 ```ts
-{ type: "deploy_ship", player, shipId: string, position: Point }
+{ type: "deploy_ship", player, shipId: string, position: Point, heading?: number }   // heading: Surprise Attack's defender only
 ```
 - **Legal when:** the ship belongs to `player` and is `undeployed`; `player` is the next deployer (state §5); `position` (the stem) lies inside one of `deploymentDivisions(player)` (state §11); while the player has no more undeployed ships than empty divisions, that division is an empty one (state N18); and its base doesn't overlap any already-deployed base (validator V5).
   - **The Raiders** (T102): the stem is at least 20 cm from the stem of every deployed ship of another unit (a ship in no squadron, or another squadron).
+  - **Surprise Attack** (T116): `deploymentDivisions(player, ship)` gives the ship on alert the division `30, 30, 120, 60` and the ship on standby the whole table, neither with a heading, so `heading` (0 ≤ h < 360) is required; everywhere else it's refused. A ship on standby has the planet's centre in its port or starboard arc at that heading (state N74), and the player's first ship placed on standby has its stem within 15 cm of the template's edge (N75). There's only one division to fill, so N18 doesn't apply.
   - **Squadrons** (T80): while the player has a squadron partly deployed, the ship must be one of its members; it goes in the same division as the squadron's first member, with its stem within 15 cm of an already-deployed member's. For filling divisions (N18), a squadron counts as one.
-- **Reducer:** `status = "active"`, `position` as given, `heading` = the division's heading. There's no heading in the payload: Cruiser Clash ships face the opposite long edge, Fleet Engagement ships their division's arrow (p. 142), and The Bait's ships the east short edge (state N49–N50).
+- **Reducer:** `status = "active"`, `position` as given, `heading` = the division's heading, or the payload's where the division has none (Surprise Attack's defender). Elsewhere there's no heading in the payload: Cruiser Clash ships face the opposite long edge, Fleet Engagement ships their division's arrow (p. 142), and The Bait's ships the east short edge (state N49–N50).
 - Ships in `reserve` aren't deployed: they `arrive` during the battle (§4.2).
 
 #### `roll_first_turn`
@@ -233,6 +244,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 ```
 - **Legal when:**
   - `activation` is null, and the ship is the active player's, `active`, not grappled, and hasn't `moved`;
+  - Surprise Attack: the ship isn't on standby and didn't go on alert this turn (T117, T120);
   - `turnState.commandCheckFailed` is false (p. 48);
   - the ship has no live `specialOrder` (in practice, a Brace carried over from last turn blocks it, p. 66);
   - `ramTargetId` only with `all_ahead_full` and `options.ramming`, and it names an enemy ship on the table.
@@ -260,7 +272,8 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 { type: "arrive", player, placements: { shipId: string, position: Point, heading: number }[] }
 ```
 - **Legal when:** `canArrive(player)` (state §11), no `activation` is open and no squadron is part-way through its move. The placements bring on **one unit**: a ship in no squadron, or every member of one squadron (a squadron arrives whole, T94). Each ship is the player's and in `reserve`. Each `position` (the stem) lies on one of `entryEdges(player)`, and each `heading` faces into the table: within 90° (exclusive) of the inward heading of every table edge the stem is on (T96). A squadron's stems form one chain, each within 15 cm of another's, and no new base overlaps another new one or any base on the table (validator V5).
-- **Reducer:** each ship: `status = "active"`, `position` and `heading` as given. No dice. The ships haven't moved: like any other `active` ship, each must now move this Movement Phase, its move measured from the edge (state N51).
+  - **Surprise Attack** (T119): the first unit to arrive picks the attackers' edge (`arrivalEdge` of its first ship, state N76), and all its stems are on that edge; after that `entryEdges` offers only that edge.
+- **Reducer:** each ship: `status = "active"`, `position` and `heading` as given. No dice. Surprise Attack: the first arrival sets `surpriseAttack.entryEdge` to the inward heading of its edge. The ships haven't moved: like any other `active` ship, each must now move this Movement Phase, its move measured from the edge (state N51).
 
 #### `move`
 ```ts
@@ -274,7 +287,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 }
 ```
 - **Legal when:**
-  - the ship is the active player's, `active`, and hasn't `moved`;
+  - the ship is the active player's, `active`, not on standby (T117), and hasn't `moved`;
   - `activation` is null (no order), or is `stage: "ordered"` **for this ship**.
   - **Squadron moves** (state N37): while `squadronMove` is set, only its members that haven't `moved` may move (`SQUADRON_MOVING`). A member's limits use the squadron's order and `aafExtra` with its own speed.
   - **Disengaging escorts** (state N41): a member of a `disengaging` squadron must leave the table or have `disengage` true (`MUST_DISENGAGE`). In an escort squadron's move, every member's `disengage` is the same (`SQUADRON_DISENGAGE`).
@@ -406,7 +419,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 ```ts
 { type: "end_step", player }
 ```
-- **Legal when:** the step is `direct_fire`, `launch_ordnance` or `boarding`, and `activation` is null. In `boarding`, only once no boarding action is left to fight: declared boardings must be fought (§4.6). In `move_ships`, only while reserves can arrive (`canArrive`) and may wait (`reservesMayWait`, so never for The Raiders, T104), once every `active` ship of the player's has moved and no squadron is part-way through its move: the player is leaving the rest of the reserves for later (T95).
+- **Legal when:** the step is `direct_fire`, `launch_ordnance` or `boarding`, and `activation` is null. In `boarding`, only once no boarding action is left to fight: declared boardings must be fought (§4.6). In `move_ships`, only while reserves can arrive (`canArrive`) and may wait (`reservesMayWait`, so never for The Raiders or Surprise Attack, T104), once every `active` ship of the player's has moved and no squadron is part-way through its move: the player is leaving the rest of the reserves for later (T95).
 - **Reducer:** advance (§2.3).
 
 ### 4.4 Ordnance
@@ -587,9 +600,9 @@ type GameConfig = {
   createdAt: string
   options?: { ramming?: boolean, boarding?: boolean, carriers?: boolean, fleetLists?: boolean }
                                              // defaults: true, false, false, false (false keeps older saves replaying unchanged)
-  scenario?: "cruiser_clash" | "the_bait" | "raiders" | "fleet_engagement"   // default "cruiser_clash"
-  attacker?: PlayerId                        // The Bait: the pursuers (state N47); The Raiders: the raiders (N56). Required there, refused elsewhere
-  planet?: "small" | "medium" | "large"     // a planet in the table centre (T107); default none
+  scenario?: "cruiser_clash" | "the_bait" | "raiders" | "surprise_attack" | "fleet_engagement"   // default "cruiser_clash"
+  attacker?: PlayerId                        // The Bait: the pursuers (state N47); The Raiders: the raiders (N56); Surprise Attack: the attackers (N72). Required there, refused elsewhere
+  planet?: "small" | "medium" | "large"     // a planet in the table centre (T107); default none. Surprise Attack sets its own (T114)
   forces?: Forces                            // default { kind: "cruiser_clash" } (state §4)
   scoring?: "cruiser_clash" | "victory_points"   // default "cruiser_clash"
   players: {
@@ -656,8 +669,9 @@ type CommanderConfig =
 
   `maxRounds` is null, `deploymentZones` and `deploymentFacing` are absent, `setup.firstDeployer` and `setup.firstPlayer` are the pursued player, and reserve ships start `reserve`. Fleet lists, rarity and ratios count each side's whole fleet, reinforcements included. The battlezone is the plain table (state N54).
 - **The Raiders** (`scenario: "raiders"`, p. 131, T100): forces must be `points`, scoring `victory_points` (the default; anything else throws), and `attacker` names the raiders. With `L = forces.limit`, the defender fields up to `L` points and the raiders up to ⌊`L`/2⌋, at least one ship each. No ship config carries `reserve`: every raider starts `reserve` (they all move on, N60). `maxRounds` is 8, `setup.raid` starts `{ facing: null, surpriseTurns: null }`, `setup.firstDeployer` is the defender and `setup.firstPlayer` the raiders. The battlezone is the plain table (state N62).
+- **Surprise Attack** (`scenario: "surprise_attack"`, p. 132, T114): forces must be `points`, scoring `victory_points` (the default; anything else throws), and `attacker` names the attackers. Both fleets field up to `L = forces.limit`, at least one ship each. No ship config carries `reserve`: every attacker starts `reserve` (they all move on, N76). The table gets the planet the limit sets (state N73): `small` up to 500, `medium` up to 1,500, `large` above; a `planet` in the config must be that size or absent, or it throws. `maxRounds` is null, `setup.surpriseAttack` starts `{ alertUnits: null, alertChosen: false, entryEdge: null }`, `setup.firstDeployer` is the defender and `setup.firstPlayer` the attackers.
 - **A planet** (`planet: "small" | "medium" | "large"`, pp. 112–113, T107): any scenario may put one planet in the table centre, `(90, 60)`, at the size's diameter and gravity well (state N64). It's `table.features[0]`, with the next id from the shared counter after the ships and squadrons.
-- The result is at `stage: "setup"`, `setupStep: "roll_leadership"`, `playerTurn: 0`. Ships are `undeployed` (The Bait's reinforcements and The Raiders' raiders `reserve`), with ids `ship-1 … ship-n` in config order, then the squadrons'. `rng.state = seed`.
+- The result is at `stage: "setup"`, `setupStep: "roll_leadership"`, `playerTurn: 0`. Ships are `undeployed` (The Bait's reinforcements, The Raiders' raiders and Surprise Attack's attackers `reserve`), with ids `ship-1 … ship-n` in config order, then the squadrons'. `rng.state = seed`.
 
 ---
 
@@ -766,6 +780,15 @@ type CommanderConfig =
 | T111 | **Planets block fire at ships, ordnance and nova cannon aim points** alike (state N65), including the target priority test: a ship behind a planet isn't a target, so it isn't the nearest one either. |
 | T112 | **Torpedoes meet a planet** in their move order like any other contact: a salvo destroyed at a planet's edge attacks nothing beyond it. |
 | T113 | **Attack craft fly over planets**, and ships move over or under them (p. 112); only torpedoes and drifting hulks are stopped. |
+| T114 | **Surprise Attack's forces** (state N72–N73): equal points, the host names the attackers (D37), and the planet comes from the limit, so the host doesn't pick one. |
+| T115 | **Choosing the alert** comes after the D3 and before deploying, so the defender knows which ships go where. A defender with no more units than the D3 names them all, and has nothing on standby. |
+| T116 | **The defender's headings are free**: the book gives the alert ships no facing and the standby ships only "abeam", so `deploy_ship` carries one there, and only there. |
+| T117 | **Standby ships stay put** like grappled ones: on entering `move_ships` they're marked `moved` with a move of 0 cm, so the step closes without them. `declare_order`, `move`, `fire`, `fire_nova_cannon`, `launch_torpedoes` and `launch_attack_craft` refuse them (`ON_STANDBY`), and `direct_fire` and `launch_ordnance` don't wait for them. They may still Brace, teleport and repair. |
+| T118 | **The alert tests are automatic**: on entering the defender's `move_ships`, each unit on standby, in `ships` order (a squadron at its first member), rolls 2D6 against its Leadership; a pass clears `standby` from its ships and sets their `alerted`. Nobody would decline a test that can only help, so there's no transform, and fleet commander re-rolls aren't spent on them (they're for tests a player takes, §2.7). |
+| T119 | **One entry edge** (state N76): the attackers' first arrival sets it, from where its first ship's stem stands. A ship at a corner is on two edges; it counts as coming in from the one it faces more squarely. |
+| T120 | **No special orders on the turn a ship goes on alert** (state N78) covers Brace for Impact too: `declare_order` refuses it (`JUST_ALERTED`) and no brace is offered, until the defender's player turn ends. |
+| T121 | **A ship on standby can still be boarded and rammed**, and teleport attacks from it are allowed: the book only stops it moving, firing and launching ordnance. |
+| T122 | **Surprise Attack has no round limit** (state N79), and is scored by victory points. |
 | T70 | **The Dauntless's torpedoes** are an option at 0 points (p. 77, like the Vigilant and Havock), so it's offered in Cruiser Clash too. |
 | T35 | **Rarity limits** count the side's whole fleet: "two per 750 points or part" allows two in any Cruiser Clash fleet (4 × 185 = 740). |
 | T31 | **Launch bays** are weapons at a location (port, starboard): that side's armament critical disables them (p. 67), which lowers the fleet's limit too. |
@@ -820,6 +843,7 @@ type CommanderConfig =
 | D37 | Who chooses The Bait's roles? | The host, in the new-game form or the lobby (T93). The book leaves it to the players (p. 121). |
 | D38 | The Raiders next? | Yes (George's call), on the reserves The Bait brought in. |
 | D39 | Planets before Surprise Attack? | Yes (George's call): planets first, then the scenario; planetary defences later, before Planetary Assault. |
+| D40 | Surprise Attack without planetary defences? | Yes, for now (state N80): the defences come in their own slice, before Planetary Assault, and Surprise Attack picks them up then. |
 | D29 | Light cruisers in Cruiser Clash? | Yes (state N27): the Dauntless is sold as a cruiser and costs 110 points. Fielding four against four Lunars is the player's own lookout. |
 | D12 | One wave entity, or one entity per marker? | One wave with a footprint (T17, state N8). Turrets fire once at a wave and a hit kills it all (p. 85), so the wave is the unit the rules care about. |
 

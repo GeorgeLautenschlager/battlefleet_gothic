@@ -1,14 +1,14 @@
 /** Shooting checks (validator spec §4.3): fire, fire_nova_cannon and launch_torpedoes. */
 import { approxGe, approxLe, distance, quadrantsOf, quadrantsOfPoint } from "../geometry/basic";
 import { easiestAspect, isNearest, lineOfFireBlocked, novaLineBlocked, novaRange, shootableOrdnance, squadronTarget, tookFire, type Target } from "../geometry/targeting";
-import { formation, inFormation, novaCannonBarred, onTable, squadronOf, weaponDisabled } from "../state/derived";
+import { formation, inFormation, novaCannonBarred, onStandby, onTable, squadronOf, weaponDisabled } from "../state/derived";
 import type { GameState, Point, Ship, Weapon } from "../state/types";
 import type { Fire, FireNovaCannon, LaunchTorpedoes } from "../transforms/types";
 import { isResult, ownActiveShip, rerollCheck } from "./movement";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
 import { planetBlocks } from "../rules/planets";
 
-/** Shared checks 1–6: own active ship whose disengage test didn't fail, not grappled and not boarding. */
+/** Shared checks 1–6a: own active ship whose disengage test didn't fail, not grappled, not boarding and not on standby. */
 export function shooter(state: GameState, shipId: string, player: string): Ship | ValidationResult {
   const ship = ownActiveShip(state, shipId, player);
   if (isResult(ship)) return ship;
@@ -23,6 +23,8 @@ export function shooter(state: GameState, shipId: string, player: string): Ship 
   if ((state.turnState.ships[ship.id]?.boardingDeclared ?? null) !== null) {
     return reject("BOARDING_SHIP", `${ship.name} is boarding this turn: it can't fire or launch`, { shipId: ship.id });
   }
+  // 6a: Surprise Attack's standby (T117)
+  if (onStandby(ship)) return reject("ON_STANDBY", `${ship.name} is on standby: it can't fire or launch`, { shipId: ship.id });
   return ship;
 }
 

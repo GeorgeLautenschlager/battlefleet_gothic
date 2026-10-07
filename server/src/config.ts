@@ -4,6 +4,9 @@ import { MAX_NAME_LENGTH, MAX_POINTS_SHIPS, MAX_SHIPS, shipEntry, type RoomOptio
 
 export type SeatFleet = { name: string; faction: FactionId; ships: ShipEntry[] };
 
+/** The scenarios with an attacker and a defender, whose roles the host names (T93, T100, T114). */
+export const hasAttacker = (scenario: ScenarioId | undefined): boolean => scenario === "the_bait" || scenario === "raiders" || scenario === "surprise_attack";
+
 export function cruiserClash(
   seats: Record<PlayerId, SeatFleet>,
   seed: number,
@@ -18,8 +21,9 @@ export function cruiserClash(
     scenario: options.scenario,
     forces: options.forces,
     scoring: options.scoring,
-    ...((options.scenario === "the_bait" || options.scenario === "raiders") && options.attacker !== undefined ? { attacker: options.attacker } : {}),
-    ...(options.planet !== undefined ? { planet: options.planet } : {}),
+    ...(hasAttacker(options.scenario) && options.attacker !== undefined ? { attacker: options.attacker } : {}),
+    // Surprise Attack sets its own planet by points (T114).
+    ...(options.planet !== undefined && options.scenario !== "surprise_attack" ? { planet: options.planet } : {}),
     players: {
       p1: { name: seats.p1.name, faction: seats.p1.faction },
       p2: { name: seats.p2.name, faction: seats.p2.faction },
@@ -69,7 +73,7 @@ export function fleetProblem(
   if (new Set(names).size !== names.length) return "Every ship needs its own name";
   const side = (owner: PlayerId) => ships.map((s) => ({ owner, ...shipEntry(s) }));
   // The Bait's and The Raiders' sides differ, so the fleet plays its own role against a lone cruiser of its faction (T93, T100).
-  const roles = scenario === "the_bait" || scenario === "raiders";
+  const roles = hasAttacker(scenario);
   const opponent = roles ? [{ owner: "p2" as const, ...loneCruiser(faction, fleetLists) }] : side("p2");
   try {
     newGame({

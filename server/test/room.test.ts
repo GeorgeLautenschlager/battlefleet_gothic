@@ -211,6 +211,21 @@ describe("lobby and start", () => {
     expect(h.stateOf("b")!.table.features).toMatchObject([{ kind: "planet", size: "large", diameter: 35, well: 30 }]);
   });
 
+  test("Surprise Attack: the host names the attackers, equal points, and the planet comes from the limit", async () => {
+    const ann: Fleet = { faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }, { name: "Invincible", classId: "gothic" }] };
+    // The host defends; p2 attacks at up to 500 points too. A host's planet choice gives way to the scenario's.
+    const h = await Harness.create({ fleet: ann, scenario: "surprise_attack", forces: { kind: "points", limit: 500 }, attacker: "p2", planet: "large" });
+    const [welcome] = await h.hello("a", "p1");
+    expect(welcome).toMatchObject({ lobby: { options: { scenario: "surprise_attack", attacker: "p2", scoring: "victory_points" } } });
+    expect((welcome as { lobby: { options: object } }).lobby.options).not.toHaveProperty("planet");
+    await h.hello("b", "p2");
+    await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }, { name: "Despair", classId: "carnage" }] });
+    const state = h.stateOf("b")!;
+    expect(state.scenario).toMatchObject({ id: "surprise_attack", attacker: "p2", maxRounds: null });
+    expect(state.table.features?.[0]).toMatchObject({ kind: "planet", size: "small" });
+    expect(state.ships.map((s) => s.status)).toEqual(["undeployed", "undeployed", "reserve", "reserve"]);
+  });
+
   test("fleet lists: commanders ride on the ship entries and the engine checks the list", async () => {
     const ann: Fleet = {
       faction: "imperial_navy",

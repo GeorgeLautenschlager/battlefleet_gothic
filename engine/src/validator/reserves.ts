@@ -2,7 +2,7 @@
 import { EPS, FORMATION_RANGE } from "../geometry/constants";
 import { approxLe, baseRadius, distance } from "../geometry/basic";
 import { onTable, squadronOf } from "../state/derived";
-import { angleBetween, canArrive, entryEdges, inwardHeadings, onEntryEdge, reservesMayWait } from "../rules/reserves";
+import { angleBetween, arrivalEdge, canArrive, entryEdges, inwardHeadings, onEntryEdge, reservesMayWait } from "../rules/reserves";
 import type { GameState, Point, Ship } from "../state/types";
 import type { Arrive, EndStep } from "../transforms/types";
 import { OK, reject, type ValidationResult } from "./reasons";
@@ -51,6 +51,14 @@ export function checkArrive(state: GameState, t: Arrive): ValidationResult {
     }
   }
 
+  // 10a: Surprise Attack's attackers come in from one edge, the first arrival's (T119)
+  if (state.scenario.id === "surprise_attack" && (state.setup.surpriseAttack?.entryEdge ?? null) === null) {
+    const edge = arrivalEdge(state, t.placements[0] as Arrive["placements"][number]);
+    if (t.placements.some((p) => !inwardHeadings(state, p.position).includes(edge))) {
+      return reject("ONE_ENTRY_EDGE", "The attackers move on from one table edge", { entryEdge: null });
+    }
+  }
+
   // 11: a squadron's stems form one chain
   if (!oneChain(t.placements.map((p) => p.position))) {
     return reject("NOT_IN_FORMATION", `Each ship must be within ${FORMATION_RANGE} cm of another`, { shipIds: ids });
@@ -73,7 +81,7 @@ export function checkArrive(state: GameState, t: Arrive): ValidationResult {
 /** end_step in move_ships: only to leave reserves waiting, once every ship on the table has moved (T95). */
 export function checkEndMovement(state: GameState, t: EndStep): ValidationResult {
   if (!canArrive(state, t.player)) return reject("NO_ENTRY_EDGE", "Every ship must move: there are no reserves to wait for", { edges: [] });
-  if (!reservesMayWait(state)) return reject("RESERVES_MUST_ARRIVE", "Every raider moves on this turn (p. 131)");
+  if (!reservesMayWait(state)) return reject("RESERVES_MUST_ARRIVE", `Every ${state.scenario.id === "raiders" ? "raider moves on this turn (p. 131)" : "attacker moves on this turn (p. 132)"}`);
   if (state.activation !== null) return reject("ACTIVATION_OPEN", "A ship is part-way through its move", { shipId: state.activation.shipId });
   const moving = state.turnState.squadronMove ?? null;
   if (moving !== null) return reject("SQUADRON_MOVING", "A squadron is part-way through its move", { squadronId: moving.squadronId });
