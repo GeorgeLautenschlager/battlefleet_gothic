@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.17, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.22](../game_state/SPEC.md) and [Transforms v0.20](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21). v0.13 adds The Raiders: `choose_facing`, spacing at deployment (`deploy_ship` 6a), and raiders who can't wait (`end_step` in `move_ships`, check 1a) (V22–V23). v0.14 adds planets: blocked lines of fire (§2.7), gravity turns (`move` 6a) and high orbit (`move` 13) (V24–V27). v0.15 adds Surprise Attack: `choose_alert`, headings, standby and the first ship near the planet in `deploy_ship` (3b, 6b–6d), standby and the turn a ship goes on alert in `declare_order`, `move` and shooting, and one entry edge in `arrive` (10a) (V28–V31). v0.16 adds Blockade Run's deployment: the blockaders' thirds and headings through `deploymentDivisions(player, ship)` (V32). v0.17 adds planetary defences: deploying in the gravity well (`deploy_ship` 4a), their orders (`declare_order` 3c), and stationary ones that never move (`move` 3b, `drift_hulk` 3a) (V33–V36).
+**Status:** draft v0.18, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.23](../game_state/SPEC.md) and [Transforms v0.21](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21). v0.13 adds The Raiders: `choose_facing`, spacing at deployment (`deploy_ship` 6a), and raiders who can't wait (`end_step` in `move_ships`, check 1a) (V22–V23). v0.14 adds planets: blocked lines of fire (§2.7), gravity turns (`move` 6a) and high orbit (`move` 13) (V24–V27). v0.15 adds Surprise Attack: `choose_alert`, headings, standby and the first ship near the planet in `deploy_ship` (3b, 6b–6d), standby and the turn a ship goes on alert in `declare_order`, `move` and shooting, and one entry edge in `arrive` (10a) (V28–V31). v0.16 adds Blockade Run's deployment: the blockaders' thirds and headings through `deploymentDivisions(player, ship)` (V32). v0.17 adds planetary defences: deploying in the gravity well (`deploy_ship` 4a), their orders (`declare_order` 3c), and stationary ones that never move (`move` 3b, `drift_hulk` 3a) (V33–V36). v0.18 adds orbital mines, minefields and fire ships: `place_defence`, `detonate`, minefields in lines of fire and as targets, mines in `move_ordnance`, and the rectangle geometry they need (§2.1, §2.4, §2.5, §2.7, §4.1–4.4, V37–V44).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -49,6 +49,10 @@ Shared by validator and reducer: one module, one definition. Everything is 2D, i
 | `CRAFT_RADIUS` | 1 cm | one attack craft marker's footprint (state N8) |
 | `NOVA_RADIUS` / `NOVA_HOLE_RADIUS` | 2.5 / 0.6 cm | the nova cannon template and its centre hole (state N13) |
 | `FORMATION_RANGE` | 15 cm | squadron formation, stem to stem (p. 96, state N35) |
+| `MINE_RADIUS` | 1 cm | an orbital mine marker (state N109) |
+| `MINE_SPEED` | 10 cm | an orbital mine's move (fleets book p. 512) |
+| `MINEFIELD_REACH` | 15 cm | a minefield's nearest point from the planet's edge (state N108) |
+| `DETECTION_RANGE` | 30 cm | a minefield's reach for detecting ships (state N118) |
 
 ### 2.2 Tolerant comparison
 
@@ -105,6 +109,19 @@ templateTouchesShip(c, ship, r) = approxLe(distance(c, ship.position), r + baseR
 
 Contact is **inclusive**: touching counts.
 
+**Rectangles** (minefields, state §4). `rect` is axis-aligned, `x, y` its bottom-left corner:
+
+```
+pointRectDistance(p, rect)    = distance(p, nearestPoint(rect, p)); 0 inside or on the edge
+nearestPoint(rect, p)         = (clamp(p.x, x, x + width), clamp(p.y, y, y + height))
+edgePoint(rect, p)            = nearestPoint(rect, p) when p is outside; when inside, p moved straight to the nearest side
+                                (ties: left, right, bottom, top)
+circleTouchesRect(c, r, rect) = approxLe(pointRectDistance(c, rect), r)
+segmentTouchesRect(a, b, rect) = a or b inside (inclusive), or ab crosses or touches one of the four sides
+rectsOverlap(a, b)            = a.x < b.x + b.width − EPS and b.x < a.x + a.width − EPS, and the same in y: touching isn't overlapping
+rectOnTable(rect)             = x ≥ −EPS, y ≥ −EPS, x + width ≤ W + EPS, y + height ≤ H + EPS
+```
+
 ### 2.5 Swept contact
 
 Movement is checked by sweeping a shape along a straight line and asking where it **first** touches something. Every sweep works in the mover's local frame: `u` along the direction of travel, `v` across it.
@@ -129,6 +146,10 @@ then as above with cv := dv
 ```
 
 **Swept segment vs segment** (salvo meets salvo). Moving the salvo `L` cm sweeps a rectangle. Contact is the smallest `t ∈ [0, L]` at which the moving segment, translated by `t`, touches the stationary salvo's segment, computed exactly. Equivalently, it's the first point at which the stationary segment enters the swept rectangle, measured along the direction of travel.
+
+**Swept shape vs rectangle** (a base, wave, mine or salvo meeting a minefield). Put the rectangle's corners in the mover's frame; it's a convex polygon there.
+- A **segment** `w` wide (a salvo; `w = 0` for a point): clip the polygon to the band `|v| ≤ w/2 + EPS`. If nothing's left, no contact. Otherwise let `uMin`, `uMax` be the least and greatest `u` of the clipped polygon (its vertices are the polygon's vertices in the band and its edges' crossings of `v = ±(w/2 + EPS)`). No contact if `uMax < −EPS`; else `t* = max(0, uMin)`, contact if `t* ≤ L + EPS`.
+- A **circle** of radius `r`: the least `t*` of the point (`w = 0`) against the rectangle grown by `r` in x, the same grown by `r` in y, and swept circle vs circle against each of the four corners (radius 0). That's the Minkowski sum: the rectangle with rounded corners.
 
 **Table exit.** `exitT(start, dir, L)` is the smallest `t ∈ (0, L]` at which the point `start + t·dir` leaves the table rectangle `[0, W] × [0, H]` (strictly outside by more than `EPS`). If there's none, it's `null`.
 
@@ -170,21 +191,27 @@ Path queries built on it:
 lineOfFireBlocked(shooter, target) =
   some hulk H ≠ shooter, H ≠ target has segmentTouchesCircle(shooter.position, target.position, H.position, baseRadius(H))
   or planetBlocks(shooter.position, target.position)                          // state §11, N65
+  or minefieldBlocks(shooter.position, target.position)                       // state §11, N114
+
+minefieldBlocks(from, to, except?) = some minefield M ≠ except has segmentTouchesRect(from, to, M.rect)
 ```
 
 `canEngage(ship, weapon, target)` is true when **all** of:
 
 1. `distance ≤ weapon.range`;
 2. `quadrantsOfPoint(ship, target.position)` intersects `weapon.arcs`;
-3. the line of fire isn't blocked: for a ship target, `lineOfFireBlocked`; for ordnance, only `planetBlocks(ship.position, ordnance.position)` (hulks don't block shots at ordnance, planets do: transform T111).
+3. the line of fire isn't blocked: for a ship target, `lineOfFireBlocked`; for ordnance, only `planetBlocks` and `minefieldBlocks` (hulks don't block shots at ordnance, planets and minefields do: transform T111, state N114); for a minefield, `planetBlocks` and `minefieldBlocks(…, except: the target)`.
+
+A **minefield target's position** is `nearestPoint(rect, ship.position)` (transform T154): range, arc and line of fire are all measured to it.
 
 **Nearest target, per weapon** (ruling V1):
 
 ```
 nearestShipTargets(ship, weapon)     = among enemy ships with status "active" for which canEngage holds,
                                        those within EPS of the minimum distance
-nearestOrdnanceTargets(ship, weapon) = the same over enemy torpedo salvoes and enemy attack craft waves not on CAP
-                                       (distance to a wave is to its centre)
+nearestOrdnanceTargets(ship, weapon) = the same over enemy torpedo salvoes, enemy attack craft waves not on CAP,
+                                       enemy orbital mines and enemy minefields (state N119)
+                                       (distance to a wave or mine is to its centre, to a minefield to its nearest point)
 isNearest(ship, weapon, target)      = target ∈ the matching set above
 ```
 
@@ -204,6 +231,7 @@ isNearest(ship, weapon, target)      = for a squadron target: some member of for
 novaLineBlocked(ship, aim) =
   some hulk H ≠ ship, !templateTouchesShip(aim, H, NOVA_RADIUS), has segmentTouchesCircle(ship.position, aim, H.position, baseRadius(H))
   or planetBlocks(ship.position, aim)
+  or minefieldBlocks(ship.position, aim)
 ```
 
 ### 2.8 Deterministic maths
@@ -274,6 +302,19 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 
 `INVALID_SETUP.details` is `{ options: { map, colour }[] }`.
 
+**`place_defence`** (G5–G6 make it `place_defences` and the planet holder's)
+
+| # | Check | Code |
+|---|---|---|
+| 1 | One of `kind` is still unplaced: `unplaced.orbitalMines > 0`, or `unplaced.minefields` is non-empty | `NOTHING_TO_PLACE` |
+| 2 | A mine: no `turned` | `CANT_TURN_MINE` |
+| 3 | A mine: `gravityWellAt(position)` and not `onPlanet(position)` (state N108, T145) | `NOT_IN_GRAVITY_WELL` |
+| 4 | A minefield: its rectangle (`unplaced.minefields[0]`, turned if `turned`, centred on `position`) is `rectOnTable` | `OFF_TABLE` |
+| 5 | … `pointRectDistance(planet.position, rect) ≤ diameter / 2 + MINEFIELD_REACH` (`approxLe`, T146) | `MINEFIELD_TOO_FAR` |
+| 6 | … it doesn't `rectsOverlap` any placed minefield | `MINEFIELDS_OVERLAP` |
+
+`NOTHING_TO_PLACE.details` is `{ kind }`; `MINEFIELD_TOO_FAR.details` `{ distance, limit }`, `distance` from the template's edge.
+
 **`deploy_ship`**
 
 | # | Check | Code |
@@ -332,6 +373,16 @@ Check 5 doesn't apply in Surprise Attack or Blockade Run (transform T116, T124):
 | 13 | If `squadronMove` is set for another squadron: refused until that squadron has moved | `SQUADRON_MOVING` |
 
 A ship in formation in a squadron declares for the squadron (transform T81): checks 6–7 and 11 apply to it, and the reducer applies the order to every member in formation.
+
+**`detonate`**
+
+| # | Check | Code |
+|---|---|---|
+| 1 | Ship exists | `UNKNOWN_SHIP` |
+| 2 | `ship.owner = player` | `NOT_YOUR_SHIP` |
+| 3 | `ship.status = "active"` | `SHIP_NOT_ACTIVE` |
+| 4 | `profile.traits.fireShip` | `NOT_A_FIRE_SHIP` |
+| 5 | `activation = null`: before its move or after it (transform T153) | `ACTIVATION_OPEN` |
 
 **`release_cap`**
 
@@ -460,15 +511,15 @@ Grappled ships never reach the `declare_order` or `move` checks: they're marked 
 | 8 | `weapon.kind ∈ {battery, lance}` | `WRONG_WEAPON_KIND` |
 | 9 | Weapon not in `weaponsFired` | `WEAPON_ALREADY_FIRED` |
 | 10 | Weapon not disabled (state §11 `weaponDisabled`) | `WEAPON_DISABLED` |
-| 11 | Target exists: a ship id for `kind: "ship"`, a salvo id for `kind: "ordnance"` | `UNKNOWN_TARGET` |
+| 11 | Target exists: a ship id for `kind: "ship"`, a salvo, wave or mine id for `kind: "ordnance"`, a minefield's id for `kind: "minefield"` | `UNKNOWN_TARGET` |
 | 12 | Target is the enemy's. A ship target must be `onTable` (so friendly hulks are out). An attack craft target must not be on CAP (T27). | `INVALID_TARGET` |
 | 13 | `distance(ship, target) ≤ weapon.range` | `OUT_OF_RANGE` |
 | 14 | Let `Q = quadrantsOfPoint(ship, target.position) ∩ weapon.arcs`. `Q` is non-empty. | `OUT_OF_ARC` |
 | 15 | If `|quadrantsOfPoint(ship, target.position)| > 1` and `|Q| > 1`, `arc` is supplied | `ARC_CHOICE_REQUIRED` |
 | 16 | If `arc` is supplied, `arc ∈ Q` | `INVALID_ARC_CHOICE` |
 | 17 | Ship targets only: if `|quadrantsOfPoint(target, ship.position)| > 1`, `aspect` is supplied | `ASPECT_CHOICE_REQUIRED` |
-| 18 | If `aspect` is supplied, it's in `quadrantsOfPoint(target, ship.position)`. Ordnance targets must not supply it. | `INVALID_ASPECT_CHOICE` |
-| 19 | Ship targets only: `!lineOfFireBlocked(ship, target)` | `LINE_OF_FIRE_BLOCKED` |
+| 18 | If `aspect` is supplied, it's in `quadrantsOfPoint(target, ship.position)`. Ordnance and minefield targets must not supply it. | `INVALID_ASPECT_CHOICE` |
+| 19 | The line of fire isn't blocked (§2.7): `lineOfFireBlocked` for a ship; `planetBlocks` or `minefieldBlocks` for ordnance; the same, the target excepted, for a minefield (V40) | `LINE_OF_FIRE_BLOCKED` |
 | 20 | If `priorityTest = "failed"`: `isNearest(ship, weapon, target)` | `MUST_TARGET_NEAREST` |
 | 21 | If `combineWith` is given: `weapon.kind = "battery"`, and its ids are distinct and don't include `weaponId` | `INVALID_VOLLEY` |
 | 22 | … each id names a weapon on the profile, of kind `battery` | `UNKNOWN_WEAPON` / `WRONG_WEAPON_KIND` |
@@ -562,7 +613,7 @@ In `move_ships` (transform T95):
 | 1 | The ordnance exists | `UNKNOWN_ORDNANCE` |
 | 2 | `owner = player` | `NOT_YOUR_ORDNANCE` |
 | 3 | Not in `turnState.ordnanceMoved` | `ORDNANCE_ALREADY_MOVED` |
-| 4 | A torpedo salvo has no `path` and no `cap`; an attack craft wave has a `path` | `WRONG_ORDNANCE_MOVE` |
+| 4 | A torpedo salvo or orbital mine has no `path` and no `cap`; an attack craft wave has a `path` | `WRONG_ORDNANCE_MOVE` |
 | 5 | A CAP fighter moves only in `inactive_ordnance` (transform §4.4) | `ON_CAP` |
 | 6 | The path's total length (from the wave's position through every waypoint) ≤ the wave's speed | `PATH_TOO_LONG` |
 | 7 | Every waypoint is on the table | `PATH_OFF_TABLE` |
@@ -656,6 +707,12 @@ In `move_ships` (transform T95):
 | `SHIPS_TO_MOVE` | `end_step` in `move_ships` before every ship on the table has moved |
 | `INVALID_GRAVITY_TURN` | A gravity turn that isn't first or last, isn't in a gravity well, turns away from the planet or past it, or turns more than 45° |
 | `TOO_CLOSE` | The Raiders: a deployed ship within 20 cm of a ship of another unit |
+| `NOTHING_TO_PLACE` | `place_defence` of a kind with none left to place |
+| `CANT_TURN_MINE` | `place_defence` of a mine with `turned` |
+| `OFF_TABLE` | A minefield that isn't wholly on the table |
+| `MINEFIELD_TOO_FAR` | A minefield whose nearest point is more than 15 cm from the planet's edge |
+| `MINEFIELDS_OVERLAP` | A minefield overlapping another |
+| `NOT_A_FIRE_SHIP` | `detonate` with a ship that isn't a fire ship |
 | `INVALID_ALERT` | Surprise Attack: `choose_alert` names the wrong units, or the wrong number |
 | `HEADING_REQUIRED` | Surprise Attack: the defender's `deploy_ship` without a heading |
 | `HEADING_NOT_ALLOWED` | `deploy_ship` with a heading where the division sets it |
@@ -796,6 +853,14 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V34 | **`DEFENCE_ORDERS` comes after `ON_STANDBY` and `JUST_ALERTED`**, before `ALREADY_MOVED`: a stationary defence that has reloaded is `moved`, and a second order is refused as `ALREADY_ON_ORDERS` or `ALREADY_MOVED` as usual. |
 | V35 | **`STATIONARY` comes before `ALREADY_MOVED`** in `move`, so a reloaded platform still says why it can't move. |
 | V36 | **A stationary defence's heading** is checked like any deploy heading (`[0, 360)`); it changes nothing in play. |
+| V37 | **`place_defence` checks the kind first** (`NOTHING_TO_PLACE`), then where it goes, so a holder with only mines left is told that, not where a minefield can't go. |
+| V38 | **A minefield touching the table edge is on the table**, and two minefields sharing an edge don't overlap: both inclusive within `EPS` (V2). |
+| V39 | **Ordnance and minefield targets skip `aspect`**: check 17 is for ships, and 18 refuses an `aspect` for anything else. |
+| V40 | **A minefield doesn't block shots at itself**: its nearest point is on its own edge, so `minefieldBlocks` excepts it. Other minefields and planets do block. |
+| V41 | **Squadron volleys at a minefield** are refused by the existing check 27 (`withShips` needs a ship target), and `targetAspect` by check 34. |
+| V42 | **`detonate` needs no check on `moved`**: a fire ship may go off before or after its move (transform T153), and stationary defences, which can't move, aren't fire ships. |
+| V43 | **A mine's `move_ordnance`** takes no path: the reducer steers it (transform T148), so `PATH_TOO_LONG` and the CAP checks never reach it. |
+| V44 | **Lines of fire touching a minefield's corner are blocked** (inclusive, V2), as a base touching a hulk's blocks. |
 | V32 | **Blockade Run needs no codes of its own**: a blockader outside its third, or within 60 cm of the runners' edge, is `NOT_IN_ZONE`; a missing heading `HEADING_REQUIRED`, a runner's heading `HEADING_NOT_ALLOWED`; and the order of deployment is `NOT_YOUR_TURN` (G5). |
 | V31 | **`ONE_ENTRY_EDGE.details`** is `{ entryEdge: null }`: it's only checked on the first arrival. With `entryEdge` set, check 9 already holds the stems to that edge. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |

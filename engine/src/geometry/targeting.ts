@@ -4,16 +4,32 @@
 import { EPS, NOVA_RADIUS } from "./constants";
 import { approxLe, baseRadius, distance, quadrantsOfPoint, segmentTouchesCircle } from "./basic";
 import { EngineError, formation, gunneryColumn, inFormation, isHulk, squadronOf } from "../state/derived";
-import type { GameState, Ordnance, Point, Quadrant, Ship, Weapon } from "../state/types";
+import type { GameState, Minefield, Ordnance, Point, Quadrant, Ship, Weapon } from "../state/types";
 import { planetBlocks } from "../rules/planets";
+import { minefieldBlocks, minefields } from "../rules/minefields";
+import { nearestPoint } from "./rect";
 
-/** `salvo` is any ordnance: a torpedo salvo or an attack craft wave. */
-export type Target = { kind: "ship"; ship: Ship } | { kind: "ordnance"; salvo: Ordnance };
+/** `salvo` is any ordnance: a torpedo salvo, an attack craft wave or an orbital mine. A minefield is a target too (state N119). */
+export type Target = { kind: "ship"; ship: Ship } | { kind: "ordnance"; salvo: Ordnance } | { kind: "minefield"; field: Minefield };
 
-export function targetPosition(target: Target): Point {
+/** Where a shot at the target goes from `from`: a minefield's nearest point (transform T154). */
+export function targetPosition(target: Target, from: Point): Point {
   if (target.kind === "ordnance") return target.salvo.position;
+  if (target.kind === "minefield") return nearestPoint(target.field.rect, from);
   if (target.ship.position === null) throw new EngineError(`${target.ship.id} is not on the table`);
   return target.ship.position;
+}
+
+/**
+ * The line of fire to the target is blocked (validator §2.7): for a ship, `lineOfFireBlocked`;
+ * for ordnance, a planet or a minefield; for a minefield, a planet or another minefield (V40).
+ */
+export function targetBlocked(state: GameState, ship: Ship, target: Target): boolean {
+  if (target.kind === "ship") return lineOfFireBlocked(state, ship, target.ship);
+  const from = pose(ship).position;
+  const to = targetPosition(target, from);
+  const except = target.kind === "minefield" ? target.field.id : undefined;
+  return planetBlocks(state, from, to) || minefieldBlocks(state, from, to, except);
 }
 
 function pose(ship: Ship): { position: Point; heading: number } {
@@ -21,11 +37,11 @@ function pose(ship: Ship): { position: Point; heading: number } {
   return { position: ship.position, heading: ship.heading };
 }
 
-/** A hulk other than the shooter and the target (p. 71), or a planet (state N65), lies across the stem-to-stem line. */
+/** A hulk other than the shooter and the target (p. 71), a planet (state N65) or a minefield (N114) lies across the stem-to-stem line. */
 export function lineOfFireBlocked(state: GameState, shooter: Ship, target: Ship): boolean {
   const from = pose(shooter).position;
   const to = pose(target).position;
-  if (planetBlocks(state, from, to)) return true;
+  if (planetBlocks(state, from, to) || minefieldBlocks(state, from, to)) return true;
   return state.ships.some((hulk) => {
     if (!isHulk(hulk) || hulk.id === shooter.id || hulk.id === target.id || hulk.position === null) return false;
     return segmentTouchesCircle(from, to, hulk.position, baseRadius(hulk.profile.baseSize));
@@ -41,11 +57,11 @@ export function arcsBearing(ship: Ship, weapon: Weapon, point: Point): Quadrant[
 /** In range, in arc, and (for ships) with a clear line of fire. */
 export function canEngage(state: GameState, ship: Ship, weapon: Weapon, target: Target): boolean {
   if (weapon.range === null) return false;
-  const point = targetPosition(target);
+  const point = targetPosition(target, pose(ship).position);
   if (!approxLe(distance(pose(ship).position, point), weapon.range)) return false;
   if (arcsBearing(ship, weapon, point).length === 0) return false;
-  // Hulks don't block shots at ordnance; planets do (transform T111).
-  return target.kind === "ordnance" ? !planetBlocks(state, pose(ship).position, point) : !lineOfFireBlocked(state, ship, target.ship);
+  // Hulks don't block shots at ordnance; planets and minefields do (transform T111, state N114).
+  return !targetBlocked(state, ship, target);
 }
 
 /** Of `candidates`, those within EPS of the minimum distance from `from`. */
@@ -72,14 +88,17 @@ export function nearestShipTargets(state: GameState, ship: Ship, weapon: Weapon)
 export const shootableOrdnance = (o: Ordnance, ship: Ship): boolean =>
   o.owner !== ship.owner && !(o.kind === "attack_craft" && o.cap !== null);
 
-/** The nearest enemy torpedo salvoes and attack craft waves (not on CAP) this weapon could engage. */
-export function nearestOrdnanceTargets(state: GameState, ship: Ship, weapon: Weapon): Ordnance[] {
+/** The nearest enemy ordnance (salvoes, waves not on CAP, mines) and minefields this weapon could engage (state N119). */
+export function nearestOrdnanceTargets(state: GameState, ship: Ship, weapon: Weapon): Target[] {
   const from = pose(ship).position;
-  const candidates = state.ordnance.filter(
-    (o) => shootableOrdnance(o, ship) && canEngage(state, ship, weapon, { kind: "ordnance", salvo: o }),
-  );
-  return nearestOf(from, candidates, (o) => o.position);
+  const candidates: Target[] = [
+    ...state.ordnance.filter((o) => shootableOrdnance(o, ship)).map((o): Target => ({ kind: "ordnance", salvo: o })),
+    ...minefields(state).filter((f) => f.owner !== ship.owner).map((f): Target => ({ kind: "minefield", field: f })),
+  ].filter((t) => canEngage(state, ship, weapon, t));
+  return nearestOf(from, candidates, (t) => targetPosition(t, from));
 }
+
+const targetId = (t: Target): string => (t.kind === "ship" ? t.ship.id : t.kind === "ordnance" ? t.salvo.id : t.field.id);
 
 /** The target is (one of) the nearest for this weapon, so no priority test is needed. A squadron is nearest if any member in formation is (V15). */
 export function isNearest(state: GameState, ship: Ship, weapon: Weapon, target: Target): boolean {
@@ -87,7 +106,7 @@ export function isNearest(state: GameState, ship: Ship, weapon: Weapon, target: 
     const ids = (squadronTarget(state, target.ship) ?? [target.ship]).map((s) => s.id);
     return nearestShipTargets(state, ship, weapon).some((s) => ids.includes(s.id));
   }
-  return nearestOrdnanceTargets(state, ship, weapon).some((o) => o.id === target.salvo.id);
+  return nearestOrdnanceTargets(state, ship, weapon).some((o) => targetId(o) === targetId(target));
 }
 
 // --- Squadrons (validator §2.7, V15–V17; transform T83–T85)
@@ -146,7 +165,7 @@ export function templateTouchesShip(centre: Point, ship: Ship, r: number): boole
 /** A hulk lies across the line from the stem to the aim point, other than one the template touches there (T44). */
 export function novaLineBlocked(state: GameState, ship: Ship, aim: Point): boolean {
   const from = pose(ship).position;
-  if (planetBlocks(state, from, aim)) return true;
+  if (planetBlocks(state, from, aim) || minefieldBlocks(state, from, aim)) return true;
   return state.ships.some((hulk) => {
     if (!isHulk(hulk) || hulk.id === ship.id || hulk.position === null) return false;
     if (templateTouchesShip(aim, hulk, NOVA_RADIUS)) return false;

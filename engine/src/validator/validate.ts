@@ -15,6 +15,7 @@ import { checkAnswerBrace, checkChooseAlert, checkChooseSetup, checkDeployShip, 
 import { checkLaunchAttackCraft, checkMoveOrdnance, checkReleaseCap } from "./craft";
 import { checkBoard, checkEndStep, checkTeleport } from "./boarding";
 import { checkArrive, checkEndMovement } from "./reserves";
+import { checkDetonate, checkPlaceDefence } from "./defences";
 
 /** Where each transform is allowed (transform spec §3). answer_brace is gated by G3/G4 instead. */
 const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" | "battle"; when: readonly string[] }> = {
@@ -22,6 +23,7 @@ const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" |
   roll_zones: { stage: "setup", when: ["roll_zones"] },
   roll_deploy_order: { stage: "setup", when: ["roll_deploy_order"] },
   deploy_ship: { stage: "setup", when: ["deploy"] },
+  place_defence: { stage: "setup", when: ["place_defences"] },
   roll_first_turn: { stage: "setup", when: ["roll_first_turn"] },
   choose_first_turn: { stage: "setup", when: ["choose_first_turn"] },
   choose_formation: { stage: "setup", when: ["choose_formation"] },
@@ -34,6 +36,7 @@ const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" |
   move: { stage: "battle", when: ["move_ships"] },
   release_cap: { stage: "battle", when: ["move_ships"] },
   arrive: { stage: "battle", when: ["move_ships"] },
+  detonate: { stage: "battle", when: ["move_ships"] },
   fire: { stage: "battle", when: ["direct_fire"] },
   fire_nova_cannon: { stage: "battle", when: ["direct_fire"] },
   launch_torpedoes: { stage: "battle", when: ["launch_ordnance"] },
@@ -104,6 +107,10 @@ export function validate(state: GameState, input: unknown): ValidationResult {
       return checkArrive(state, t);
     case "deploy_ship":
       return checkDeployShip(state, t);
+    case "place_defence":
+      return checkPlaceDefence(state, t);
+    case "detonate":
+      return checkDetonate(state, t);
     case "drift_hulk":
       return checkDriftHulk(state, t);
     case "declare_order":

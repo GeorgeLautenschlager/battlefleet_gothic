@@ -19,3 +19,7 @@ export const NOVA_RADIUS = 2.5; // the nova cannon template: 5 cm across (state 
 export const NOVA_HOLE_RADIUS = 0.6; // its centre hole: 1.2 cm across (state N13)
 export const FORMATION_RANGE = 15; // squadron formation, stem to stem (p. 96, state N35)
 export const SLAANESH_RANGE = 15; // the Mark of Slaanesh, stem to stem (p. 232, state N26)
+export const MINE_RADIUS = 1; // an orbital mine marker (state N109)
+export const MINE_SPEED = 10; // an orbital mine's move (fleets book p. 512)
+export const MINEFIELD_REACH = 15; // a minefield's nearest point from the planet's edge (state N108)
+export const DETECTION_RANGE = 30; // a minefield's reach for detecting ships (state N118)

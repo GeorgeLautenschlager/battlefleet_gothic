@@ -3,6 +3,8 @@
  * rams, the 0-shield Blast Marker roll, finishing a move, and drifting hulks.
  */
 import { gravityTurnProblem, gravityWellAt, stemPlanetContact } from "../rules/planets";
+import { minefields } from "../rules/minefields";
+import { sweptCircleVsRect, sweptSegmentVsRect } from "../geometry/rect";
 import { arrivalEdge } from "../rules/reserves";
 import { BM_RADIUS, BM_SLOWDOWN, EPS } from "../geometry/constants";
 import { approxGe, approxLe, baseRadius, basesTouch, distance, headingVector, norm } from "../geometry/basic";
@@ -87,9 +89,10 @@ type Event =
   | { kind: "ram"; t: number; targetId: string }
   | { kind: "salvo"; t: number; ordnanceId: string }
   | { kind: "wave"; t: number; ordnanceId: string }
-  | { kind: "blast_marker"; t: number };
+  | { kind: "blast_marker"; t: number }
+  | { kind: "minefield"; t: number; minefieldId: string };
 
-const EVENT_ORDER: Record<Event["kind"], number> = { exit: 0, ram: 1, salvo: 2, wave: 2, blast_marker: 3 };
+const EVENT_ORDER: Record<Event["kind"], number> = { exit: 0, ram: 1, salvo: 2, wave: 2, blast_marker: 3, minefield: 4 };
 
 /** The earliest event; ties (within EPS) go by kind in spec order, then by creation order. */
 function earliest(events: Event[]): Event | null {
@@ -150,6 +153,7 @@ function ordnanceEvents(state: GameState, ship: Ship, position: Point, heading: 
       out.push(...salvoes.filter((e) => e.kind === "salvo" && e.ordnanceId === o.id));
       continue;
     }
+    if (o.kind === "orbital_mine") continue; // a ship passes a mine by: it strikes when it moves (state N112)
     if (o.owner === ship.owner || o.cap !== null || (strikers(o) === 0 && !hasCap)) continue;
     const t = sweptCircleVsCircle(position, heading, length, radius, o.position, waveRadius(o));
     if (t !== null) out.push({ kind: "wave", t, ordnanceId: o.id });
@@ -180,6 +184,13 @@ function shipEvents(state: GameState, ship: Ship, a: Activation, length: number)
     for (const bm of state.blastMarkers) {
       const t = sweptCircleVsCircle(position, heading, length, radius, bm.position, BM_RADIUS);
       if (t !== null) events.push({ kind: "blast_marker", t });
+    }
+  }
+  // The first minefield it touches this move, where it takes its test (state N115, reducer R66).
+  if (a.minefieldTested !== true) {
+    for (const f of minefields(state)) {
+      const t = sweptCircleVsRect(position, heading, length, radius, f.rect);
+      if (t !== null) events.push({ kind: "minefield", t, minefieldId: f.id });
     }
   }
   return events;
@@ -301,6 +312,9 @@ function handleEvent(ctx: Ctx, ship: Ship, a: Activation, event: Event): WorkIte
       ];
     case "salvo":
       return [{ kind: "torpedo_attack", ordnanceId: event.ordnanceId, targetId: ship.id, bmTested: false }];
+    case "minefield":
+      a.minefieldTested = true;
+      return [{ kind: "minefield_test", shipId: ship.id, minefieldId: event.minefieldId }];
     case "wave":
       return [{ kind: "craft_meets_ship", ordnanceId: event.ordnanceId, targetId: ship.id, bmTested: false }];
     case "blast_marker": {
@@ -472,10 +486,12 @@ export function hulkDrift(ctx: Ctx, shipId: string, distanceTotal: number, trave
     const events: Event[] = [];
     const exit = exitT(position, heading, remaining, state.table);
     if (exit !== null) events.push({ kind: "exit", t: exit });
-    // A hulk drifting into a planet is destroyed there (state N70, R49).
+    // A hulk drifting into a planet or a minefield is destroyed there (state N70, N116; R49, R73).
     const planet = stemPlanetContact(state, position, heading, remaining);
-    if (planet !== null && (exit === null || planet.t < exit - EPS)) {
-      events.push({ kind: "exit", t: planet.t });
+    const field = stemMinefieldContact(state, position, heading, remaining);
+    const lost = [planet, field].filter((c) => c !== null).sort((x, y) => x.t - y.t)[0];
+    if (lost !== undefined && (exit === null || lost.t < exit - EPS)) {
+      events.push({ kind: "exit", t: lost.t });
     }
     events.push(...salvoEvents(state, hulk, position, heading, remaining));
     const event = earliest(events);
@@ -487,12 +503,13 @@ export function hulkDrift(ctx: Ctx, shipId: string, distanceTotal: number, trave
     advance(hulk, event.t);
     travelled += event.t;
     if (event.kind === "exit") {
-      const intoPlanet = planet !== null && Math.abs(event.t - planet.t) <= EPS && (exit === null || planet.t < exit - EPS);
+      const hit = lost !== undefined && Math.abs(event.t - lost.t) <= EPS && (exit === null || lost.t < exit - EPS) ? lost : null;
       hulk.status = "destroyed";
       hulk.position = null;
       hulk.heading = null;
-      if (intoPlanet) ctx.log("planet_contact", { planetId: planet.planetId, shipId });
-      ctx.log("hulk_lost", { shipId, reason: intoPlanet ? "planet" : "table_edge" });
+      if (hit !== null && "planetId" in hit) ctx.log("planet_contact", { planetId: hit.planetId, shipId });
+      if (hit !== null && "minefieldId" in hit) ctx.log("minefield_contact", { minefieldId: hit.minefieldId, shipId });
+      ctx.log("hulk_lost", { shipId, reason: hit === null ? "table_edge" : "planetId" in hit ? "planet" : "minefield" });
       break;
     }
     if (event.kind === "salvo") {
@@ -508,4 +525,14 @@ export function hulkDrift(ctx: Ctx, shipId: string, distanceTotal: number, trave
     if (hulk.status === "blazing_hulk") rerollHulk(ctx, hulk);
   }
   if (entry !== undefined) entry.drifted = true;
+}
+
+/** Where a drifting hulk's stem reaches a minefield (state N116, reducer R73), or null. */
+function stemMinefieldContact(state: GameState, start: Point, heading: number, length: number): { t: number; minefieldId: string } | null {
+  let best: { t: number; minefieldId: string } | null = null;
+  for (const f of minefields(state)) {
+    const t = sweptSegmentVsRect(start, heading, length, 0, f.rect);
+    if (t !== null && (best === null || t < best.t)) best = { t, minefieldId: f.id };
+  }
+  return best;
 }

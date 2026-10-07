@@ -3,7 +3,7 @@
  * ship the worst scatter could reach, then the scatter, then the hits.
  */
 import { approxLe, distance, headingVector, segmentTouchesCircle } from "../geometry/basic";
-import { NOVA_HOLE_RADIUS, NOVA_RADIUS } from "../geometry/constants";
+import { MINE_RADIUS, NOVA_HOLE_RADIUS, NOVA_RADIUS } from "../geometry/constants";
 import { novaRange, templateTouchesShip } from "../geometry/targeting";
 import { baseRadius } from "../geometry/basic";
 import { getShip, isSalvo, onTable } from "../state/derived";
@@ -39,7 +39,7 @@ export function novaTouchesOrdnance(o: Ordnance, centre: Point): boolean {
     const b = { x: o.position.x + w * half.x, y: o.position.y + w * half.y };
     return segmentTouchesCircle(a, b, centre, NOVA_RADIUS);
   }
-  return approxLe(distance(centre, o.position), NOVA_RADIUS + waveRadius(o));
+  return approxLe(distance(centre, o.position), NOVA_RADIUS + (o.kind === "orbital_mine" ? MINE_RADIUS : waveRadius(o)));
 }
 
 export function fireNovaCannon(ctx: Ctx, t: FireNovaCannon): void {

@@ -6,6 +6,9 @@ import { armourFacing, bmsInContact, effectiveStrength, gunneryColumn, halveUp, 
 import type { GameState, Point, Quadrant, Ship, Weapon, WorkItem } from "../state/types";
 import type { Ctx } from "./context";
 import { inflict } from "./damage";
+import { placeMinefieldBlastMarkers } from "./blast";
+import { minefields } from "../rules/minefields";
+import { nearestPoint } from "../geometry/rect";
 
 /** Gunnery Table (p. 62): dice by firepower 1–20, columns A–E. */
 const GUNNERY: readonly (readonly [number, number, number, number, number])[] = [
@@ -54,7 +57,8 @@ export function resolveDirectFire(ctx: Ctx, item: DirectFire): void {
   const weapon = shooter?.profile.weapons.find((w) => w.id === item.weaponId);
   const targetShip = item.target.kind === "ship" ? state.ships.find((s) => s.id === item.target.id) : undefined;
   const targetSalvo = item.target.kind === "ordnance" ? state.ordnance.find((o) => o.id === item.target.id) : undefined;
-  const live = targetShip !== undefined ? onTable(targetShip) : targetSalvo !== undefined;
+  const targetField = item.target.kind === "minefield" ? minefields(state).find((f) => f.id === item.target.id) : undefined;
+  const live = targetShip !== undefined ? onTable(targetShip) : targetSalvo !== undefined || targetField !== undefined;
   if (shooter === undefined || weapon === undefined || shooter.status !== "active" || !live) {
     ctx.log("skipped", { item: "direct_fire", shooterId: item.shooterId, targetId: item.target.id });
     return;
@@ -65,7 +69,12 @@ export function resolveDirectFire(ctx: Ctx, item: DirectFire): void {
     resolveVolley(ctx, item, shooter, weapon, members ?? [targetShip]);
     return;
   }
-  const at = targetShip !== undefined ? (targetShip.position as Point) : (targetSalvo?.position as Point);
+  const at =
+    targetShip !== undefined
+      ? (targetShip.position as Point)
+      : targetField !== undefined
+        ? nearestPoint(targetField.rect, shooter.position as Point)
+        : (targetSalvo?.position as Point);
   const lockOn = shooter.specialOrder?.kind === "lock_on";
   const source = { kind: "ship" as const, id: shooter.id };
 
@@ -85,6 +94,14 @@ export function resolveDirectFire(ctx: Ctx, item: DirectFire): void {
     hits,
   });
 
+  if (targetField !== undefined) {
+    // Each hit on a minefield places a Blast Marker at its edge facing the shooter (state N119, reducer §5.4).
+    if (hits > 0) {
+      const blastMarkerIds = placeMinefieldBlastMarkers(ctx, targetField, hits, shooter.position as Point);
+      ctx.log("minefield_hit", { minefieldId: targetField.id, hits, blastMarkerIds });
+    }
+    return;
+  }
   if (targetSalvo !== undefined) {
     if (hits > 0) {
       state.ordnance = state.ordnance.filter((o) => o.id !== targetSalvo.id);

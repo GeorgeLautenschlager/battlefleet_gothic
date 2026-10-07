@@ -1,5 +1,7 @@
 /** Torpedoes (reducer spec §9): launch, moving a salvo, and torpedo attacks. */
 import { salvoPlanetContact } from "../rules/planets";
+import { minefields } from "../rules/minefields";
+import { sweptSegmentVsRect } from "../geometry/rect";
 import { BM_RADIUS, EPS, TORPEDO_WIDTH } from "../geometry/constants";
 import { baseRadius, headingVector, norm } from "../geometry/basic";
 import { exitT, sweptSegmentVsCircle, sweptSegmentVsSegment } from "../geometry/sweep";
@@ -64,12 +66,13 @@ function markMoved(state: GameState, id: string): void {
 type SalvoEvent =
   | { kind: "exit"; t: number }
   | { kind: "planet"; t: number; planetId: string }
+  | { kind: "minefield"; t: number; minefieldId: string }
   | { kind: "salvo"; t: number; otherId: string }
   | { kind: "wave"; t: number; waveId: string }
   | { kind: "ship"; t: number; shipId: string }
   | { kind: "blast_marker"; t: number };
 
-const ORDER: Record<SalvoEvent["kind"], number> = { exit: 0, planet: 0, salvo: 1, wave: 1, ship: 2, blast_marker: 3 };
+const ORDER: Record<SalvoEvent["kind"], number> = { exit: 0, planet: 0, minefield: 0, salvo: 1, wave: 1, ship: 2, blast_marker: 3 };
 
 function earliest(events: SalvoEvent[]): SalvoEvent | null {
   let best: SalvoEvent | null = null;
@@ -86,8 +89,13 @@ function salvoEvents(state: GameState, salvo: TorpedoSalvo, length: number, bmTe
   if (exit !== null) events.push({ kind: "exit", t: exit });
   const planet = salvoPlanetContact(state, position, heading, length, width);
   if (planet !== null) events.push({ kind: "planet", ...planet });
+  // Torpedoes touching a minefield are destroyed (state N117, reducer R68).
+  for (const f of minefields(state)) {
+    const t = sweptSegmentVsRect(position, heading, length, width, f.rect);
+    if (t !== null) events.push({ kind: "minefield", t, minefieldId: f.id });
+  }
   for (const other of state.ordnance) {
-    if (other.id === salvo.id) continue;
+    if (other.id === salvo.id || other.kind === "orbital_mine") continue; // mines and torpedoes pass each other by (N110)
     if (other.kind === "torpedo_salvo") {
       const t = sweptSegmentVsSegment(position, heading, length, width, other.position, other.heading, other.width);
       if (t !== null) events.push({ kind: "salvo", t, otherId: other.id });
@@ -141,6 +149,11 @@ export function ordnanceMove(ctx: Ctx, ordnanceId: string, travelledSoFar: numbe
       // Torpedoes are destroyed at a planet's edge (state N66, R48).
       ctx.log("planet_contact", { planetId: event.planetId, ordnanceId: salvo.id });
       removeSalvo(ctx, salvo.id, "planet");
+      break;
+    }
+    if (event.kind === "minefield") {
+      ctx.log("minefield_contact", { minefieldId: event.minefieldId, ordnanceId: salvo.id });
+      removeSalvo(ctx, salvo.id, "minefield");
       break;
     }
     if (event.kind === "salvo") {

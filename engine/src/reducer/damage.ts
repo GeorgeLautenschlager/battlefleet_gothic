@@ -21,6 +21,8 @@ export type DamageSource = {
   braceable: boolean;
   /** For the log: "battery", "lance", "torpedo", "ram", "explosion"… */
   cause: string;
+  /** false: shield hits place no Blast Markers (a minefield's, reducer R67). Default true. */
+  markers?: boolean;
 };
 
 /** Every way of hurting a ship ends here (§3). */
@@ -34,7 +36,7 @@ export function inflict(ctx: Ctx, target: Ship, hits: number, src: DamageSource)
   if (src.shieldable) {
     const absorbed = Math.min(remaining, shieldCapacity(ctx.state, target));
     if (absorbed > 0) {
-      const blastMarkerIds = placeShieldBlastMarkers(ctx, target, absorbed, src.origin);
+      const blastMarkerIds = src.markers === false ? [] : placeShieldBlastMarkers(ctx, target, absorbed, src.origin);
       ctx.log("shields", { shipId: target.id, absorbed, blastMarkerIds });
       remaining -= absorbed;
     }
@@ -65,10 +67,10 @@ export function damagePoint(ctx: Ctx, ship: Ship, critCheck: boolean, cause: str
 }
 
 /** Escorts, and Defence/1 platforms (state N97, reducer R58): lost at 0 hits or on any critical. */
-const lostLikeAnEscort = (ship: Ship): boolean => ship.profile.type === "escort" || (ship.profile.type === "defence" && ship.profile.hits === 1);
+export const lostLikeAnEscort = (ship: Ship): boolean => ship.profile.type === "escort" || (ship.profile.type === "defence" && ship.profile.hits === 1);
 
 /** An escort reduced to 0 hits, or suffering a critical (state N34, reducer R33): destroyed, leaving a BM at its stem. */
-export function escortLost(ctx: Ctx, ship: Ship, cause: "damage" | "critical" | "hit_and_run" | "boarding"): void {
+export function escortLost(ctx: Ctx, ship: Ship, cause: "damage" | "critical" | "hit_and_run" | "boarding" | "fire_ship"): void {
   if (ship.status !== "active") return;
   const blastMarkerId = placeAtStem(ctx, ship, "escort_lost");
   releaseCap(ctx, ship);

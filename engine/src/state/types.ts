@@ -88,12 +88,15 @@ export type ScenarioId = "cruiser_clash" | "the_bait" | "raiders" | "surprise_at
 export type Table = { width: number; height: number; features?: Feature[] };
 
 /** More kinds (gas clouds, asteroid fields, moons…) to come. */
-export type Feature = Planet;
+export type Feature = Planet | Minefield;
 
 export type PlanetSize = "small" | "medium" | "large";
 
 /** A planet's template (pp. 112–113): its centre, size, diameter and gravity well beyond the edge (state N64). */
 export type Planet = { kind: "planet"; id: string; position: Point; size: PlanetSize; diameter: number; well: number };
+
+/** A minefield (fleets book p. 513, state §4): the planet holder's, an axis-aligned rectangle placed before deployment (N108). */
+export type Minefield = { kind: "minefield"; id: string; owner: PlayerId; rect: Rect };
 
 export type Player = {
   id: PlayerId;
@@ -123,6 +126,19 @@ export type SetupState = {
   surpriseAttack?: SurpriseAttack;
   /** Blockade Run only (p. 133): the third each blockading unit deploys in, by unit id (state §5, N86). */
   blockade?: { thirds: Record<string, Third> | null };
+  /** The planet holder's orbital mines and minefields, bought by number (state §5, N107). Absent when there are none. */
+  emplacements?: Emplacements;
+};
+
+export type MinefieldSize = { width: number; height: number };
+
+/** Orbital mines and minefields bought, and those still to place in `place_defences` (state §5, N108). */
+export type Emplacements = {
+  owner: PlayerId;
+  orbitalMines: number;
+  minefields: number;
+  /** `minefields`: the sizes still to place, rolled on entering place_defences; null before. */
+  unplaced: { orbitalMines: number; minefields: MinefieldSize[] | null };
 };
 
 /** Blockade Run's thirds of the table's length, left to right (state N82). */
@@ -159,6 +175,7 @@ export type SetupStep =
   | "choose_setup"
   | "choose_facing"
   | "choose_alert"
+  | "place_defences"
   | "deploy"
   | "roll_first_turn"
   | "choose_first_turn";
@@ -264,6 +281,8 @@ export type ShipTraits = {
   noLongRangeShift?: boolean;
   /** A system defence ship (defence monitor, system ship): Ld 7, Reload Ordnance and Brace only (state §7.6). */
   planetaryDefence?: boolean;
+  /** A fire ship: it can detonate in its Movement Phase (state N121). */
+  fireShip?: boolean;
 };
 
 export type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship" | "escort" | "defence";
@@ -437,6 +456,8 @@ export type Activation = {
   remainingPath: PathStep[];
   slowedByBlastMarkers: boolean;
   zeroShieldBMTestDone: boolean;
+  /** It has taken this move's minefield test (state N115). Absent: false. */
+  minefieldTested?: boolean;
   disengage: boolean;
   /** The move asked to re-roll a failed disengage test (transform §2.7). Absent in older saves. */
   reroll?: boolean;
@@ -462,7 +483,7 @@ export type WorkItem =
       weaponId: string;
       /** More batteries in the same volley (T32). Absent in older saves: none. */
       combineWith?: string[];
-      target: { kind: "ship" | "ordnance"; id: string };
+      target: { kind: "ship" | "ordnance" | "minefield"; id: string };
       arc: Quadrant;
       aspect: Quadrant | null;
       /** Squadron-mates' weapons in the volley (reducer §4.5). Absent: none. */
@@ -486,7 +507,10 @@ export type WorkItem =
   | { kind: "craft_attack"; ordnanceId: string; targetId: string }
   | { kind: "hit_and_run"; ordnanceId: string; targetId: string }
   | { kind: "nova_cannon"; shooterId: string; weaponId: string; aim: Point; dice: number }
-  | { kind: "nova_hit"; shooterId: string; shipId: string; hits: number; origin: Point };
+  | { kind: "nova_hit"; shooterId: string; shipId: string; hits: number; origin: Point }
+  | { kind: "minefield_test"; shipId: string; minefieldId: string }
+  | { kind: "mine_attack"; ordnanceId: string; targetId: string; bmTested: boolean }
+  | { kind: "mine_hit"; ordnanceId: string; targetId: string };
 
 // --- Blast markers, ordnance, RNG, log (§10)
 
@@ -494,7 +518,7 @@ export type BlastMarker = {
   id: string;
   position: Point;
   placed: number;
-  cause: "shield_hit" | "hulk" | "explosion" | "nova_miss" | "escort_lost";
+  cause: "shield_hit" | "hulk" | "explosion" | "nova_miss" | "escort_lost" | "minefield" | "fire_ship";
 };
 
 export type TorpedoSalvo = {
@@ -529,7 +553,17 @@ export type AttackCraftWave = {
   cap: string | null;
 };
 
-export type Ordnance = TorpedoSalvo | AttackCraftWave;
+/** An orbital mine (fleets book p. 512, state §10.2): bought, or activated by a minefield (N109, N118). */
+export type OrbitalMine = {
+  id: string;
+  kind: "orbital_mine";
+  owner: PlayerId;
+  /** Centre of the marker, radius MINE_RADIUS. */
+  position: Point;
+  source: "bought" | "minefield";
+};
+
+export type Ordnance = TorpedoSalvo | AttackCraftWave | OrbitalMine;
 
 export type RngState = {
   algorithm: "mulberry32";

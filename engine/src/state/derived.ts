@@ -459,7 +459,20 @@ export function cruiserClashScore(state: GameState, player: PlayerId): number {
 /** `ran_the_blockade`: one of the player's own ships, off the blockader's edge (Blockade Run, state N88). */
 export type ShipVP = { shipId: string; vp: number; why: "destroyed" | "crippled" | "disengaged" | "ran_the_blockade" };
 export type SquadronVP = { squadronId: string; vp: number; why: "destroyed" | "disengaged" };
-export type VictoryPoints = { total: number; ships: ShipVP[]; squadrons: SquadronVP[]; field: number };
+/** `mines`: the enemy's bought orbital mines no longer in play, 5 each (state N113). */
+export type VictoryPoints = { total: number; ships: ShipVP[]; squadrons: SquadronVP[]; field: number; mines: number };
+
+/** An orbital mine's points (fleets book p. 512). */
+export const MINE_POINTS = 5;
+
+/** The player's bought mines that are no longer in play (state §11, N113): each scores 5 for the enemy. */
+export function minesLost(state: GameState, player: PlayerId): number {
+  const e = state.setup.emplacements;
+  if (e === undefined || e.owner !== player) return 0;
+  const placed = e.orbitalMines - e.unplaced.orbitalMines;
+  const live = state.ordnance.filter((o) => o.kind === "orbital_mine" && o.source === "bought").length;
+  return Math.max(0, placed - live);
+}
 
 const percent = (points: number, pct: number): number => Math.ceil((points * pct) / 100); // per ship, rounded up (N12)
 
@@ -512,7 +525,8 @@ export function victoryPoints(state: GameState, player: PlayerId): VictoryPoints
   const ships = [...state.ships.filter((s) => s.owner !== player).flatMap((s) => shipVP(s) ?? []), ...ran];
   const squadrons = squadronsOf(state).filter((sq) => sq.owner !== player).flatMap((sq) => squadronVP(state, sq) ?? []);
   const field = holdingTheField(state, player);
-  return { total: ships.reduce((n, s) => n + s.vp, 0) + squadrons.reduce((n, s) => n + s.vp, 0) + field, ships, squadrons, field };
+  const mines = MINE_POINTS * minesLost(state, otherPlayer(player));
+  return { total: ships.reduce((n, s) => n + s.vp, 0) + squadrons.reduce((n, s) => n + s.vp, 0) + field + mines, ships, squadrons, field, mines };
 }
 
 // --- Whose move is it? (§5, §12)
@@ -589,6 +603,8 @@ export function actor(state: GameState): Actor {
       case "choose_facing":
       case "choose_alert":
         return state.scenario.attacker === undefined ? null : otherPlayer(state.scenario.attacker); // the defender
+      case "place_defences":
+        return state.setup.emplacements?.owner ?? null;
       case null:
         return null;
       default:
