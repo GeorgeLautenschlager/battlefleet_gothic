@@ -43,14 +43,11 @@ test("Player 1 lays a minefield and two mines round the planet, then detonates a
   await expect(page.locator(".mine")).toHaveCount(2);
 
   // Four placements: the cruisers in their zones, the fire ships side by side in the gravity well.
-  const torches = [[75, 75], [80, 78]] as const;
-  let torch = 0;
+  const torches = [{ x: 75, y: 75 }, { x: 80, y: 78 }];
   for (let i = 0; i < 4; i++) {
     const hint = (await page.locator(".hint").first().textContent()) ?? "";
-    if (hint.includes("planetary defence")) {
-      const [x, y] = torches[torch++]!;
-      await clickTable(page, x, y);
-    }
+    const torch = hint.includes("planetary defence") ? torches.shift() : undefined;
+    if (torch !== undefined) await clickTable(page, torch.x, torch.y);
     else if (hint.includes("zone A")) await clickTable(page, 90, 105);
     else await clickTable(page, 90, 15);
     await expect(page.locator(".log li").filter({ hasText: "deploys at" })).toHaveCount(i + 1);
