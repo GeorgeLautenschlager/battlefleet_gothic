@@ -69,7 +69,7 @@ export type Scoring = "cruiser_clash" | "victory_points";
 
 export type Scenario = {
   id: ScenarioId;
-  /** Cruiser Clash and The Raiders 8; The Bait and Fleet Engagement null: until a fleet is destroyed or gone (state N17, N53). */
+  /** Cruiser Clash and The Raiders 8; The Bait, Surprise Attack and Fleet Engagement null: until a fleet is destroyed or gone (state N17, N53, N79). */
   maxRounds: number | null;
   /** Absent in older saves: Cruiser Clash forces. */
   forces?: Forces;
@@ -78,11 +78,11 @@ export type Scenario = {
   deploymentZones?: { A: Rect; B: Rect };
   /** Cruiser Clash only. */
   deploymentFacing?: { A: number; B: number };
-  /** Scenarios with an attacker and a defender. The Bait: the pursuers (state N47). */
+  /** Scenarios with an attacker and a defender. The Bait: the pursuers (state N47); The Raiders: the raiders (N56); Surprise Attack: the attackers (N72). */
   attacker?: PlayerId;
 };
 
-export type ScenarioId = "cruiser_clash" | "the_bait" | "raiders" | "fleet_engagement";
+export type ScenarioId = "cruiser_clash" | "the_bait" | "raiders" | "surprise_attack" | "fleet_engagement";
 
 /** `features`: celestial phenomena (state §4); absent in older saves and on an empty table. */
 export type Table = { width: number; height: number; features?: Feature[] };
@@ -119,10 +119,14 @@ export type SetupState = {
   engagement?: Engagement;
   /** The Raiders only (p. 131): the defender's facing and the rounds of surprise (state §5, N58, N61). */
   raid?: Raid;
+  /** Surprise Attack only (p. 132): the alert roll and choice, and the attackers' edge (state §5, N76–N77). */
+  surpriseAttack?: SurpriseAttack;
 };
 
 export type Facing = 0 | 90 | 180 | 270;
 export type Raid = { facing: Facing | null; surpriseTurns: number | null };
+/** `alertUnits`: the D3 of units on full alert; `entryEdge`: the inward heading of the attackers' edge, once one has arrived. */
+export type SurpriseAttack = { alertUnits: number | null; alertChosen: boolean; entryEdge: Facing | null };
 
 export type Formation = "sphere" | "wedge" | "cross";
 export type SetupMap = "A" | "B" | "C" | "D";
@@ -149,6 +153,7 @@ export type SetupStep =
   | "roll_setup"
   | "choose_setup"
   | "choose_facing"
+  | "choose_alert"
   | "deploy"
   | "roll_first_turn"
   | "choose_first_turn";
@@ -203,6 +208,8 @@ export type Ship = {
   grapple: Grapple | null;
   /** An Admiral, Warmaster or Chaos Lord aboard (state §7.4). Absent in older saves: none. */
   commander?: Commander | null;
+  /** Surprise Attack: on standby until it passes a Leadership test (state N78). Absent otherwise. */
+  standby?: true;
 };
 
 /** A drawn boarding action, still being fought (state §7). Every member carries an identical copy. */
@@ -371,6 +378,8 @@ export type ShipTurnState = {
    * or attack craft, never both (p. 80). Absent in older saves: read as null.
    */
   turrets?: { phase: Phase; against: TurretTarget } | null;
+  /** Surprise Attack: went on alert this player turn, so no special orders (state N78). Absent otherwise. */
+  alerted?: true;
 };
 
 export type TurretTarget = "torpedoes" | "attack_craft";

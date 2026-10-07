@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.14, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.19](../game_state/SPEC.md) and [Transforms v0.17](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21). v0.13 adds The Raiders: `choose_facing`, spacing at deployment (`deploy_ship` 6a), and raiders who can't wait (`end_step` in `move_ships`, check 1a) (V22–V23). v0.14 adds planets: blocked lines of fire (§2.7), gravity turns (`move` 6a) and high orbit (`move` 13) (V24–V27).
+**Status:** draft v0.15, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.20](../game_state/SPEC.md) and [Transforms v0.18](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21). v0.13 adds The Raiders: `choose_facing`, spacing at deployment (`deploy_ship` 6a), and raiders who can't wait (`end_step` in `move_ships`, check 1a) (V22–V23). v0.14 adds planets: blocked lines of fire (§2.7), gravity turns (`move` 6a) and high orbit (`move` 13) (V24–V27). v0.15 adds Surprise Attack: `choose_alert`, headings, standby and the first ship near the planet in `deploy_ship` (3b, 6b–6d), standby and the turn a ship goes on alert in `declare_order`, `move` and shooting, and one entry edge in `arrive` (10a) (V28–V31).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -257,6 +257,15 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 
 `roll_leadership`, `roll_zones`, `roll_setup`, `roll_deploy_order` and `roll_first_turn` have no checks beyond the gates. `choose_formation` has none either: G5 and G6 already make it Fleet Engagement and the right player's pick. Nor has `choose_facing`: G1 limits `heading` to 0, 90, 180 or 270, and G5–G6 make it The Raiders and the defender's choice.
 
+**`choose_alert`** (G5–G6 make it Surprise Attack and the defender's)
+
+| # | Check | Code |
+|---|---|---|
+| 1 | Each id names a unit of `player`'s (a ship in no squadron, or a squadron), none twice | `INVALID_ALERT` |
+| 2 | `units.length = min(alertUnits, the player's units)` (state N77) | `INVALID_ALERT` |
+
+`INVALID_ALERT.details` is `{ expected, units }`, `units` the ids the player could name.
+
 **`choose_setup`**
 
 | # | Check | Code |
@@ -273,15 +282,18 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 | 2 | `ship.owner = player` | `NOT_YOUR_SHIP` |
 | 3 | `ship.status ≠ "reserve"`: reinforcements arrive during the battle (transform §4.2) | `IN_RESERVE` |
 | 3a | `ship.status = "undeployed"` | `ALREADY_DEPLOYED` |
-| 4 | `position` lies in one of `deploymentDivisions(player)` (inclusive, `EPS`); the first in list order that holds it is the ship's division | `NOT_IN_ZONE` |
+| 3b | `heading` is given exactly when the ship's divisions have no heading of their own (Surprise Attack's defender, transform T116), (a heading outside `[0, 360)` is `MALFORMED`) | `HEADING_REQUIRED`, `HEADING_NOT_ALLOWED` |
+| 4 | `position` lies in one of `deploymentDivisions(player, ship)` (inclusive, `EPS`); the first in list order that holds it is the ship's division | `NOT_IN_ZONE` |
 | 5 | If the player's undeployed ships (this one included) are no more than their empty divisions, this ship's division is empty (state N18) | `FILL_DIVISIONS_FIRST` |
 | 6 | The new base doesn't overlap any deployed ship's base: `distance > r1 + r2 − EPS`. Touching is allowed. | `BASES_OVERLAP` |
 | 6a | The Raiders: the stem is at least 20 cm (`approxGe`) from the stem of every deployed ship in another unit (state N59) | `TOO_CLOSE` |
+| 6b | Surprise Attack, a ship on standby: `quadrantsOfPoint(position, heading, planet.position)` includes `left` or `right` (state N74) | `NOT_ABEAM` |
+| 6c | Surprise Attack, a ship on standby when none of the player's is deployed yet: `distance(position, planet.position) ≤ diameter / 2 + 15` (`approxLe`, state N75) | `STANDBY_TOO_FAR` |
 | 7 | If the player has a squadron with some members deployed and some not, the ship is one of its undeployed members (transform T80) | `SQUADRON_DEPLOYING` |
 | 8 | A squadron member after the first goes in the first member's division | `SQUADRON_DIVISION` |
 | 9 | … with its stem within `FORMATION_RANGE` (15 cm, inclusive) of a deployed member's stem | `NOT_IN_FORMATION` |
 
-For check 5, a squadron counts as one: "undeployed ships" counts single ships and squadrons with no member down, and a squadron's later members skip the check (they follow check 8).
+Check 5 doesn't apply in Surprise Attack (transform T116). For check 5, a squadron counts as one: "undeployed ships" counts single ships and squadrons with no member down, and a squadron's later members skip the check (they follow check 8).
 
 **`choose_first_turn`**: gates only.
 
@@ -303,6 +315,8 @@ For check 5, a squadron counts as one: "undeployed ships" counts single ships an
 | 1 | Ship exists | `UNKNOWN_SHIP` |
 | 2 | `ship.owner = player` | `NOT_YOUR_SHIP` |
 | 3 | `ship.status = "active"` | `SHIP_NOT_ACTIVE` |
+| 3a | `!onStandby(ship)` (transform T117) | `ON_STANDBY` |
+| 3b | `!wentOnAlert(ship)` (transform T120) | `JUST_ALERTED` |
 | 4 | `turnState.ships[id].moved = false` | `ALREADY_MOVED` |
 | 5 | `activation = null` | `ACTIVATION_OPEN` |
 | 6 | `turnState.commandCheckFailed = false` | `ORDERS_LOCKED` |
@@ -339,6 +353,7 @@ A ship in formation in a squadron declares for the squadron (transform T81): che
 | 8 | `canArrive(player)` (state §11) | `NO_ENTRY_EDGE` |
 | 9 | Each `position` lies on a segment of `entryEdges(player)`: within `EPS` of the segment (V2) | `NOT_ON_ENTRY_EDGE` |
 | 10 | Each `heading` is in `[0, 360)` and faces into the table: `angleBetween(heading, inward) < 90 − EPS` for the inward heading of every table edge the stem is within `EPS` of (transform T96) | `NOT_FACING_IN` |
+| 10a | Surprise Attack, the first arrival (`entryEdge` null): every stem is on the edge `arrivalEdge(placements[0])` (state N76, transform T119) | `ONE_ENTRY_EDGE` |
 | 11 | A squadron's stems form one chain: each within `FORMATION_RANGE` (inclusive) of another's | `NOT_IN_FORMATION` |
 | 12 | No new base overlaps another new base or any base on the table: `distance > r1 + r2 − EPS` (V5) | `BASES_OVERLAP` |
 
@@ -353,6 +368,7 @@ First, identify the move:
 | 1 | Ship exists | `UNKNOWN_SHIP` |
 | 2 | `ship.owner = player` | `NOT_YOUR_SHIP` |
 | 3 | `ship.status = "active"` | `SHIP_NOT_ACTIVE` |
+| 3a | `!onStandby(ship)` (transform T117) | `ON_STANDBY` |
 | 4 | `turnState.ships[id].moved = false` | `ALREADY_MOVED` |
 | 5 | `activation = null`, or `activation.stage = "ordered"` with `activation.shipId = shipId` | `ACTIVATION_OPEN` |
 | 5a | If `squadronMove` is set: the ship is one of its `members` | `SQUADRON_MOVING` |
@@ -435,6 +451,7 @@ Grappled ships never reach the `declare_order` or `move` checks: they're marked 
 | 4 | `turnState.ships[id].disengage ≠ "failed"` | `DISENGAGE_FAILED` |
 | 5 | `ship.grapple = null` (drawn combats, pp. 90–91) | `GRAPPLED` |
 | 6 | `turnState.ships[id].boardingDeclared = null` (p. 89) | `BOARDING_SHIP` |
+| 6a | `!onStandby(ship)` (transform T117) | `ON_STANDBY` |
 | 7 | Weapon exists on the profile | `UNKNOWN_WEAPON` |
 | 8 | `weapon.kind ∈ {battery, lance}` | `WRONG_WEAPON_KIND` |
 | 9 | Weapon not in `weaponsFired` | `WEAPON_ALREADY_FIRED` |
@@ -473,7 +490,7 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 
 | # | Check | Code |
 |---|---|---|
-| 1–6 | As `fire` 1–6 | as `fire` |
+| 1–6a | As `fire` 1–6a | as `fire` |
 | 7 | Weapon exists on the profile | `UNKNOWN_WEAPON` |
 | 8 | `weapon.kind = "nova_cannon"` | `WRONG_WEAPON_KIND` |
 | 9 | Weapon not in `weaponsFired` | `WEAPON_ALREADY_FIRED` |
@@ -490,7 +507,7 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 
 | # | Check | Code |
 |---|---|---|
-| 1–6 | As `fire` 1–6 | as `fire` |
+| 1–6a | As `fire` 1–6a | as `fire` |
 | 7 | Weapon exists | `UNKNOWN_WEAPON` |
 | 8 | `weapon.kind = "torpedoes"` | `WRONG_WEAPON_KIND` |
 | 9 | Weapon not in `weaponsFired` | `WEAPON_ALREADY_FIRED` |
@@ -502,7 +519,7 @@ Check 15 only demands a choice when it makes a difference. A target on the front
 
 | # | Check | Code |
 |---|---|---|
-| 1–6 | As `fire` 1–6 | as `fire` |
+| 1–6a | As `fire` 1–6a | as `fire` |
 | 7 | The ship has at least one `launch_bay` weapon | `NO_LAUNCH_BAYS` |
 | 8 | `ship.loaded.launchBays = true` | `NOT_LOADED` |
 | 9 | `waves` is non-empty, and no wave is empty | `EMPTY_WAVE` |
@@ -635,6 +652,14 @@ In `move_ships` (transform T95):
 | `SHIPS_TO_MOVE` | `end_step` in `move_ships` before every ship on the table has moved |
 | `INVALID_GRAVITY_TURN` | A gravity turn that isn't first or last, isn't in a gravity well, turns away from the planet or past it, or turns more than 45° |
 | `TOO_CLOSE` | The Raiders: a deployed ship within 20 cm of a ship of another unit |
+| `INVALID_ALERT` | Surprise Attack: `choose_alert` names the wrong units, or the wrong number |
+| `HEADING_REQUIRED` | Surprise Attack: the defender's `deploy_ship` without a heading |
+| `HEADING_NOT_ALLOWED` | `deploy_ship` with a heading where the division sets it |
+| `NOT_ABEAM` | Surprise Attack: a ship on standby without the planet in its port or starboard arc |
+| `STANDBY_TOO_FAR` | Surprise Attack: the first ship on standby more than 15 cm from the planet |
+| `ON_STANDBY` | Surprise Attack: a ship on standby can't move, fire, launch or take a special order |
+| `JUST_ALERTED` | Surprise Attack: no special orders the turn a ship goes on alert |
+| `ONE_ENTRY_EDGE` | Surprise Attack: an arriving unit facing in from a different edge |
 | `RESERVES_MUST_ARRIVE` | The Raiders: `end_step` while raiders are still off the table |
 | `FILL_DIVISIONS_FIRST` | Fleet Engagement: a division still needs a ship before this one gets another (p. 142) |
 | `INVALID_SETUP` | `choose_setup` with a set-up the formations don't offer |
@@ -757,6 +782,10 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V25 | **`INVALID_GRAVITY_TURN.details`** is `{ stepIndex, reason }`, with `reason` one of `"position"`, `"not_in_well"`, `"direction"`, `"too_sharp"`. |
 | V26 | **A gravity turn's legality uses the planned pose**: the stem and heading where the path puts it. The reducer re-checks it when the step is reached and skips it if a contact stopped the ship short (transform §4.2). |
 | V27 | **High orbit waives the minimum only** (state N69): a ship in a well still can't exceed its maximum, and All Ahead Full still moves its full distance. |
+| V28 | **`ON_STANDBY` comes before `ALREADY_MOVED`**: a standby ship is marked `moved` (transform T117), and "on standby" is the reason. |
+| V29 | **Abeam is inclusive**: a planet's centre exactly on the boundary between the front and starboard arcs is abeam, as it would be in both arcs for firing (V2). |
+| V30 | **`STANDBY_TOO_FAR` only binds the first ship on standby** (state N75): once one is down, the rest go anywhere abeam. |
+| V31 | **`ONE_ENTRY_EDGE.details`** is `{ entryEdge: null }`: it's only checked on the first arrival. With `entryEdge` set, check 9 already holds the stems to that edge. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |
 
 ## 8. Decisions

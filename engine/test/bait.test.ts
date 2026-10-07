@@ -92,7 +92,7 @@ describe("a game of The Bait (transform §5, T93)", () => {
     const unnamed = cloneJson(BAIT);
     delete unnamed.attacker;
     expect(() => newGame(unnamed)).toThrow(/attacker/);
-    expect(() => newGame({ ...cloneJson(LUNAR_VS_MURDER), attacker: "p1" })).toThrow(/only The Bait and The Raiders have an attacker/);
+    expect(() => newGame({ ...cloneJson(LUNAR_VS_MURDER), attacker: "p1" })).toThrow(/only The Bait, The Raiders and Surprise Attack have an attacker/);
     expect(() => newGame({ ...cloneJson(LUNAR_VS_MURDER), forces: { kind: "points", limit: 500 }, ships: [{ owner: "p1", name: "A", classId: "lunar", reserve: true }, { owner: "p2", name: "U", classId: "murder" }] })).toThrow(/reinforcements in reserve/);
     expect(() => newGame({ ...cloneJson(BAIT), scoring: "cruiser_clash" })).toThrow(/victory points/);
   });

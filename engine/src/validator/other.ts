@@ -2,10 +2,11 @@
 import { EPS, FORMATION_RANGE } from "../geometry/constants";
 import { approxGe, approxLe, baseRadius, bmTouchesBase, distance } from "../geometry/basic";
 import { RAIDERS_SPACING } from "../rules/reserves";
+import { abeamOfPlanet, alertCount, nearPlanet, STANDBY_RANGE, unitIds } from "../rules/surprise";
 import { deploymentUnits, onTable, partlyDeployedSquadron, squadronOf } from "../state/derived";
 import { deploymentDivisions, divisionAt, emptyDivisions, setupOptions } from "../rules/engagement";
 import type { GameState, Point } from "../state/types";
-import type { AnswerBrace, ChooseSetup, DeployShip, RemoveBlastMarkers, Repair } from "../transforms/types";
+import type { AnswerBrace, ChooseAlert, ChooseSetup, DeployShip, RemoveBlastMarkers, Repair } from "../transforms/types";
 import { isResult, ownActiveShip, ownShip, rerollCheck } from "./movement";
 import { OK, reject, type ValidationResult } from "./reasons";
 
@@ -17,9 +18,15 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
   if (ship.status === "reserve") return reject("IN_RESERVE", `${ship.name} is a reinforcement: it arrives during the battle`);
   if (ship.status !== "undeployed") return reject("ALREADY_DEPLOYED", `${ship.name} is already deployed`);
 
+  // 3b: a heading exactly where the division sets none (Surprise Attack's defender, T116)
+  const divisions = deploymentDivisions(state, t.player, ship);
+  const free = divisions.some((d) => d.heading === null);
+  if (free && t.heading === undefined) return reject("HEADING_REQUIRED", `Give ${ship.name} a heading`);
+  if (!free && t.heading !== undefined) return reject("HEADING_NOT_ALLOWED", `${ship.name} faces its division's way: no heading to give`);
+  if (t.heading !== undefined && !(t.heading >= 0 && t.heading < 360)) return reject("MALFORMED", "A heading is from 0 up to 360", { field: "heading" });
+
   // 4: in one of the player's divisions (Cruiser Clash: its one zone)
   const zoneId = state.setup.zones?.[t.player] ?? null;
-  const divisions = deploymentDivisions(state, t.player);
   const division = divisionAt(divisions, t.position);
   if (division < 0) return reject("NOT_IN_ZONE", `That isn't in your deployment zone${zoneId === null ? "" : ` (${zoneId})`}`, { zone: zoneId });
 
@@ -27,7 +34,7 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
   // and its later members follow it instead (check 8)
   const placed = (squadronOf(state, ship)?.shipIds ?? []).flatMap((id) => state.ships.find((s) => s.id === id && s.position !== null) ?? []);
   const lead = placed[0];
-  if (lead === undefined) {
+  if (lead === undefined && state.scenario.id !== "surprise_attack") {
     const empty = emptyDivisions(state, t.player);
     const undeployed = deploymentUnits(state).filter((u) => u[0]?.owner === t.player && u.every((s) => s.status === "undeployed")).length;
     if (undeployed <= empty.length && !empty.includes(division)) {
@@ -57,6 +64,15 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
     if (near !== undefined) return reject("TOO_CLOSE", `${ship.name} must be at least ${RAIDERS_SPACING} cm from ${near.name}`, { shipId: near.id });
   }
 
+  // 6b–6c: Surprise Attack's standby ships lie abeam of the planet, the first within 15 cm of it (state N74–N75)
+  if (ship.standby === true && t.heading !== undefined) {
+    if (!abeamOfPlanet(state, t.position, t.heading)) return reject("NOT_ABEAM", `${ship.name} is on standby: the planet must be off its port or starboard side`);
+    const first = !state.ships.some((s) => s.owner === t.player && s.standby === true && s.status !== "undeployed");
+    if (first && !nearPlanet(state, t.position)) {
+      return reject("STANDBY_TOO_FAR", `The first ship on standby goes within ${STANDBY_RANGE} cm of the planet`);
+    }
+  }
+
   // 7–9: a part-deployed squadron goes first, in its division, in formation (T80)
   const partial = partlyDeployedSquadron(state, t.player);
   if (partial !== undefined && !partial.shipIds.includes(ship.id)) {
@@ -69,6 +85,18 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
       return reject("NOT_IN_FORMATION", `${ship.name} must be within ${FORMATION_RANGE} cm of its squadron`);
     }
   }
+  return OK;
+}
+
+/** choose_alert: as many of the player's units as the D3 says, or all of them, each once (validator §4.1, state N77). */
+export function checkChooseAlert(state: GameState, t: ChooseAlert): ValidationResult {
+  const units = unitIds(state, t.player);
+  const expected = alertCount(state, t.player);
+  const details = { expected, units };
+  if (new Set(t.units).size !== t.units.length || t.units.some((u) => !units.includes(u))) {
+    return reject("INVALID_ALERT", "Name each unit on full alert once: a ship in no squadron, or a squadron", details);
+  }
+  if (t.units.length !== expected) return reject("INVALID_ALERT", `Put ${expected} unit${expected === 1 ? "" : "s"} on full alert`, details);
   return OK;
 }
 

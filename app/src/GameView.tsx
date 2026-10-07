@@ -16,6 +16,7 @@ import { TurnBanner } from "./controls/TurnBanner";
 import { Waiting } from "./controls/Waiting";
 import { movableShips, usePlot } from "./plot/usePlot";
 import { pick, undeployed } from "./game/pick";
+import { DEFAULT_AIM, deployAt, deployHeading as headingAt, type DeployAim } from "./game/deploy";
 import { PlotOverlay } from "./plot/PlotOverlay";
 import { FireControls } from "./fire/FireControls";
 import { FireOverlay } from "./fire/FireOverlay";
@@ -99,15 +100,13 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
     const who = actor(state);
     if ((who !== "p1" && who !== "p2") || !controls(seat, who)) return null;
     const ship = pick(undeployed(state, who), focus);
-    const divisions = engagement.deploymentDivisions(state, who);
-    if (ship === undefined || divisions.length === 0) return null;
-    return { player: who, ship, divisions };
+    if (ship === undefined || engagement.deploymentDivisions(state, who, ship).length === 0) return null;
+    return { player: who, ship };
   }, [state, seat, focus]);
-  // The ghost faces the arrow of the division under the pointer (Fleet Engagement), or the zone's facing.
-  const deployHeading = (p: Point): number => {
-    const ds = deploy?.divisions ?? [];
-    return (ds[engagement.divisionAt(ds, p)] ?? ds[0])?.heading ?? 0;
-  };
+  /** Surprise Attack's defender: the heading for ships on alert, the planet's side for ships on standby (T116). */
+  const [deployAim, setDeployAim] = useState<DeployAim>(DEFAULT_AIM);
+  // The ghost faces the arrow of the division under the pointer (Fleet Engagement), the zone's facing, or the defender's choice.
+  const deployHeading = (p: Point): number => (deploy === null ? 0 : headingAt(state, deploy.player, deploy.ship, p, deployAim));
   // The Bait's reinforcements (transform §4.2): the unit picked to arrive and its facing; a table click brings it on.
   const [arrivalShip, setArrivalShip] = useState<string | null>(null);
   const [arrivalTurn, setArrivalTurn] = useState(0);
@@ -143,7 +142,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
     const status = validate(state, arrival).ok ? "ok" : "bad";
     ghosts = arrival.placements.map((p) => ({ shipId: p.shipId, position: p.position, heading: p.heading, status }));
   } else if (deploy !== null && pointer !== null) {
-    const t: Transform = { type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(pointer) };
+    const t = deployAt(state, deploy.player, deploy.ship, mm(pointer), deployAim);
     ghost = { shipId: deploy.ship.id, position: pointer, heading: deployHeading(pointer), status: validate(state, t).ok ? "ok" : "bad" };
   } else if (plot !== null && (plot.path.length > 0 || plot.preview.length > 0)) {
     const v = plot.preview.length > 0 ? plot.previewVerdict : plot.verdict;
@@ -199,7 +198,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
             if (p !== null && nova) setNovaPoint(p);
           }}
           onTableClick={(p, s) => {
-            if (deploy !== null) act({ type: "deploy_ship", player: deploy.player, shipId: deploy.ship.id, position: mm(p) });
+            if (deploy !== null) act(deployAt(state, deploy.player, deploy.ship, mm(p), deployAim));
             else if (arrivingUnit !== undefined && arrivals !== null) {
               const t = arrivalAt(state, arrivals, arrivingUnit, p, arrivalTurn);
               if (t !== null) void run(t).then((ok) => ok && setArrivalShip(null));
@@ -227,7 +226,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           ) : state.pending.length > 0 ? (
             <BracePrompt state={state} onApply={act} />
           ) : state.clock.stage === "setup" ? (
-            <SetupControls state={state} seat={seat} onApply={act} focus={focus} onFocus={setFocus} onPreview={setSetupPreview} />
+            <SetupControls state={state} seat={seat} onApply={act} focus={focus} onFocus={setFocus} onPreview={setSetupPreview} aim={deployAim} onAim={setDeployAim} />
           ) : shooting ? (
             <FireControls state={state} aimed={aimed} onAim={setAim} onApply={act} bearing={bearing} novaAim={novaAim} />
           ) : state.clock.stage === "battle" ? (

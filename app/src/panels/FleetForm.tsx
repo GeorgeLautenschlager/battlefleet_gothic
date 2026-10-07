@@ -1,5 +1,5 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
-import { CATALOGUE, type CommanderConfig, type Mark, type PlanetSize, type PlayerId } from "@bfg/engine";
+import { CATALOGUE, surprise, type CommanderConfig, type Mark, type PlanetSize, type PlayerId } from "@bfg/engine";
 import { classChoices, classIds, commandPoints, DEFAULT_ESCORT_SQUADRON, defaultCommand, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, mostExpensive, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, withOption, type Command, type Fleet, type NewGameOptions, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
@@ -68,6 +68,8 @@ export function BattleFields({ value, onChange, players = PLAYER_LABELS }: { val
               ? { scenario: "the_bait", forces: { kind: "points", limit: 500 }, scoring: "victory_points", attacker: "p2" }
               : e.target.value === "raiders"
               ? { scenario: "raiders", forces: { kind: "points", limit: 500 }, scoring: "victory_points", attacker: "p2" }
+              : e.target.value === "surprise_attack"
+              ? { scenario: "surprise_attack", forces: { kind: "points", limit: limit ?? 750 }, scoring: "victory_points", attacker: "p2" }
               : { scenario: "cruiser_clash", forces: { kind: "cruiser_clash" }, scoring: "cruiser_clash" },
           )
         }
@@ -75,6 +77,7 @@ export function BattleFields({ value, onChange, players = PLAYER_LABELS }: { val
         <option value="cruiser_clash">Cruiser Clash (p. 128)</option>
         <option value="the_bait">The Bait (p. 130)</option>
         <option value="raiders">The Raiders (p. 131)</option>
+        <option value="surprise_attack">Surprise Attack (p. 132)</option>
         <option value="fleet_engagement">Fleet Engagement (pp. 142–143)</option>
       </select>
     </label>
@@ -108,6 +111,40 @@ export function BattleFields({ value, onChange, players = PLAYER_LABELS }: { val
         <p className="muted small">
           The defender fields up to {l} points, at anchor in the middle of the table and caught napping: −1 Leadership for the first D6 turns. The raiders field
           up to {Math.floor(l / 2)} points and all move on from any table edge in their first turn, which they take. Victory points, 8 turns.
+        </p>
+      </div>
+    );
+  }
+  if (value.scenario === "surprise_attack") {
+    const attackers = value.attacker ?? "p2";
+    const l = limit ?? 750;
+    return (
+      <div className="battle-fields">
+        {scenario}
+        <label>
+          Attacker
+          <select value={attackers} onChange={(e) => onChange({ ...value, attacker: e.target.value === "p1" ? "p1" : "p2" })}>
+            {(["p1", "p2"] as const).map((p) => (
+              <option key={p} value={p}>
+                {players[p]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Points a side
+          <select value={String(l)} onChange={(e) => onChange({ ...value, forces: { kind: "points", limit: Number(e.target.value) } })}>
+            {POINTS_LIMITS.map((p) => (
+              <option key={p} value={p}>
+                {p} points
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="muted small">
+          The defender is caught round a {surprise.planetForLimit(l)} planet in the table centre: D3 ships or squadrons on full alert, the rest on standby
+          until they pass a Leadership test. The attacker moves on from one table edge in the first turn, which they take. Victory points, until one fleet is
+          gone. No planetary defences yet.
         </p>
       </div>
     );

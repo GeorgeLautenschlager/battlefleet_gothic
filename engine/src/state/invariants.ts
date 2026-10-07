@@ -4,7 +4,7 @@
  * violation it finds, so tests and debugging tools can show them all at once.
  */
 import { EPS } from "../geometry/constants";
-import { activePlayer, isHulk, onTable } from "./derived";
+import { activePlayer, isHulk, onTable, otherPlayer } from "./derived";
 import { nonJsonPaths } from "./json";
 import type { GameState, Phase, Ship, Step } from "./types";
 
@@ -185,18 +185,34 @@ export function checkInvariants(state: GameState): Violation[] {
   if ((id === "cruiser_clash") !== (state.scenario.deploymentZones !== undefined)) fail("I14", `deploymentZones don't match scenario ${id}`);
   if (state.scenario.maxRounds !== (id === "cruiser_clash" || id === "raiders" ? 8 : null)) fail("I14", `maxRounds ${state.scenario.maxRounds} for ${id}`);
   const raiders = id === "raiders";
-  if ((bait || raiders) !== (state.scenario.attacker !== undefined)) fail("I14", `attacker doesn't match scenario ${id}`);
+  const surprise = id === "surprise_attack";
+  if ((bait || raiders || surprise) !== (state.scenario.attacker !== undefined)) fail("I14", `attacker doesn't match scenario ${id}`);
   if (raiders !== (state.setup.raid !== undefined)) fail("I14", `setup.raid doesn't match scenario ${id}`);
+  if (surprise !== (state.setup.surpriseAttack !== undefined)) fail("I14", `setup.surpriseAttack doesn't match scenario ${id}`);
+  if (surprise && !(state.table.features ?? []).some((f) => f.kind === "planet")) fail("I14", "Surprise Attack without its planet");
 
-  // I17: reserves are The Bait's pursued player's or The Raiders' raiders, and a squadron is all in reserve or none of it
+  // I17: reserves are The Bait's pursued player's or the attackers' in The Raiders and Surprise Attack, and a squadron is all in reserve or none of it
   for (const ship of state.ships) {
     if (ship.status !== "reserve") continue;
-    const ok = (bait && ship.owner !== state.scenario.attacker) || (raiders && ship.owner === state.scenario.attacker);
+    const ok = (bait && ship.owner !== state.scenario.attacker) || ((raiders || surprise) && ship.owner === state.scenario.attacker);
     if (!ok) fail("I17", `${ship.id} is in reserve in ${id}`);
   }
   for (const sq of state.squadrons ?? []) {
     const reserve = sq.shipIds.filter((sid) => state.ships.find((s) => s.id === sid)?.status === "reserve").length;
     if (reserve !== 0 && reserve !== sq.shipIds.length) fail("I17", `${sq.id} is partly in reserve`);
+  }
+
+  // I18: standby is Surprise Attack's defender's, a squadron's all or none; alerted only in the defender's own turns
+  const defender = surprise && state.scenario.attacker !== undefined ? otherPlayer(state.scenario.attacker) : null;
+  for (const ship of state.ships) {
+    if (ship.standby !== undefined && (ship.standby !== true || ship.owner !== defender)) fail("I18", `${ship.id} on standby in ${id}`);
+    if (state.turnState.ships[ship.id]?.alerted !== undefined) {
+      if (ship.owner !== defender || clock.stage !== "battle" || activePlayer(state) !== defender) fail("I18", `${ship.id} alerted outside the defender's turn`);
+    }
+  }
+  for (const sq of state.squadrons ?? []) {
+    const standby = sq.shipIds.filter((sid) => state.ships.find((s) => s.id === sid)?.standby === true).length;
+    if (standby !== 0 && standby !== sq.shipIds.length) fail("I18", `${sq.id} is partly on standby`);
   }
 
   // I10: turnState belongs to this player turn

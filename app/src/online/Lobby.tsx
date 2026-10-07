@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CATALOGUE, type PlayerId } from "@bfg/engine";
+import { CATALOGUE, surprise, type PlayerId } from "@bfg/engine";
 import type { Lobby as LobbyInfo, SeatInfo } from "@bfg/server";
 import { asFleet, carriersAllowed, roleOf, shipEntries, sideProblem, type Side } from "../game/config";
 import { duplicates, DuplicateNames, FleetFields, FleetProblem, resize } from "../panels/FleetForm";
@@ -20,6 +20,8 @@ function rulesLine(lobby: LobbyInfo, seat: PlayerId): string {
       ? `Fleet Engagement, ${forces.limit} points a side`
       : scenario === "raiders" && forces?.kind === "points"
       ? `The Raiders: ${attacker === seat ? "you raid" : `${lobby.seats[attacker === "p1" ? "p1" : "p2"].name ?? "your opponent"} raids`} with up to ${Math.floor(forces.limit / 2)} points against ${forces.limit} points at anchor, 8 turns`
+      : scenario === "surprise_attack" && forces?.kind === "points"
+      ? `Surprise Attack: ${attacker === seat ? "you attack" : `${lobby.seats[attacker === "p1" ? "p1" : "p2"].name ?? "your opponent"} attacks`} round a ${surprise.planetForLimit(forces.limit)} planet, ${forces.limit} points a side`
       : scenario === "the_bait" && forces?.kind === "points"
       ? `The Bait: ${(attacker === "p1" ? "p2" : "p1") === seat ? "you are" : `${lobby.seats[attacker === "p1" ? "p2" : "p1"].name ?? "your opponent"} is`} pursued; the pursuers field ${forces.limit} points, the bait up to ${Math.floor(forces.limit / 2)} and its reinforcements up to ${forces.limit}`
       : forces?.kind === "points"

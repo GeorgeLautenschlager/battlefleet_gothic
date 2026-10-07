@@ -1,4 +1,4 @@
-import { inFormation, leadership, maxShields, remainingHits, squadronOf, type Commander, type GameState, type Ship } from "@bfg/engine";
+import { inFormation, leadership, maxShields, onStandby, remainingHits, squadronOf, type Commander, type GameState, type Ship } from "@bfg/engine";
 import { playerClass } from "../players";
 
 const words = (s: string) => s.replaceAll("_", " ");
@@ -58,6 +58,8 @@ function ShipCard({ ship, state, selected, onSelect }: { ship: Ship; state: Game
       {ship.commander !== undefined && ship.commander !== null && <div className="commander">{commanderLine(ship.commander)}</div>}
       {status !== "" && <div className="status">{status}</div>}
       {ship.specialOrder !== null && <div className="order">{words(ship.specialOrder.kind)}</div>}
+      {onStandby(ship) && <div className="status">On standby: can't move, fire or launch</div>}
+      {state.turnState.ships[ship.id]?.alerted === true && <div className="status">Just on alert: no special orders</div>}
       {ship.grapple !== null && <div className="status">Grappled with {grappledWith(state, ship).join(", ")}</div>}
       {boarding !== null && ship.grapple === null && <div className="status">Boarding {nameOf(state, boarding)}</div>}
       {ship.criticals.length > 0 && (

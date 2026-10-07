@@ -117,6 +117,15 @@ export const REASON_CODES = [
   "RESERVES_MUST_ARRIVE",
   // Planets (validator spec v0.14)
   "INVALID_GRAVITY_TURN",
+  // Surprise Attack (validator spec v0.15)
+  "INVALID_ALERT",
+  "HEADING_REQUIRED",
+  "HEADING_NOT_ALLOWED",
+  "NOT_ABEAM",
+  "STANDBY_TOO_FAR",
+  "ON_STANDBY",
+  "JUST_ALERTED",
+  "ONE_ENTRY_EDGE",
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

@@ -4,7 +4,7 @@
  * out, and `data` to persist. Randomness, hashing and time come in as `Deps`.
  */
 import { newGame, reduce, validate, type FactionId, type Forces, type GameConfig, type GameState, type PlanetSize, type PlayerId, type ScenarioId, type Scoring, type Transform } from "@bfg/engine";
-import { cleanName, cruiserClash, fleetProblem } from "./config";
+import { cleanName, cruiserClash, fleetProblem, hasAttacker } from "./config";
 import {
   MAX_MESSAGES_PER_SECOND,
   MAX_NAME_LENGTH,
@@ -121,10 +121,11 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
   const name = cleanName(req.name);
   if (name === null) return { error: "INVALID_NAME" };
   const forces = req.forces ?? CRUISER_CLASH;
-  const scenario: ScenarioId = req.scenario === "fleet_engagement" || req.scenario === "the_bait" || req.scenario === "raiders" ? req.scenario : "cruiser_clash";
+  const scenario: ScenarioId =
+    req.scenario === "fleet_engagement" || req.scenario === "the_bait" || req.scenario === "raiders" || req.scenario === "surprise_attack" ? req.scenario : "cruiser_clash";
   const fleetLists = req.fleetLists === true && forces.kind === "points"; // points battles only (T58)
-  // The Bait and The Raiders: the host names the attacker (the pursuers, the raiders: T93, T100, D37).
-  const attacker: PlayerId | undefined = scenario === "the_bait" || scenario === "raiders" ? (req.attacker === "p1" ? "p1" : "p2") : undefined;
+  // The Bait, The Raiders and Surprise Attack: the host names the attacker (the pursuers, the raiders, the attackers: T93, T100, T114, D37).
+  const attacker: PlayerId | undefined = hasAttacker(scenario) ? (req.attacker === "p1" ? "p1" : "p2") : undefined;
   const problem = fleetProblem(req.faction, req.ships, req.ships.length, req.carriers ?? false, forces, scenario, fleetLists, attacker !== undefined && attacker !== req.side);
   if (problem !== null) return { error: "INVALID_FLEET", message: problem };
   const token = toBase64Url(deps.randomBytes(16));
@@ -153,7 +154,8 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
       // Every scenario but Cruiser Clash is victory points (transform §5).
       scoring: scenario === "cruiser_clash" ? (req.scoring ?? "cruiser_clash") : "victory_points",
       ...(attacker !== undefined ? { attacker } : {}),
-      ...(req.planet === "small" || req.planet === "medium" || req.planet === "large" ? { planet: req.planet } : {}),
+      // Surprise Attack's planet comes from the points limit (T114).
+      ...(scenario !== "surprise_attack" && (req.planet === "small" || req.planet === "medium" || req.planet === "large") ? { planet: req.planet } : {}),
     },
     config: null,
     transforms: [],

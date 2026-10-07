@@ -8,6 +8,7 @@ import { EngineError } from "./derived";
 import { cloneJson } from "./json";
 import { createRng } from "./rng";
 import { PLANET_SIZES } from "../rules/planets";
+import { planetForLimit } from "../rules/surprise";
 import type { FactionId, Forces, GameState, PlanetSize, PlayerId, Scenario, ScenarioId, Scoring, Ship, ShipProfile, ShipSquadron, ShipTurnState, TurnState } from "./types";
 
 export type GameConfig = {
@@ -17,9 +18,9 @@ export type GameConfig = {
   options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean; fleetLists?: boolean };
   /** Default: Cruiser Clash. Fleet Engagement and The Bait need points forces and victory points (transform §5). */
   scenario?: ScenarioId;
-  /** The Bait: the pursuers (state N47); The Raiders: the raiders (N56). Required there, refused elsewhere. */
+  /** The Bait: the pursuers (state N47); The Raiders: the raiders (N56); Surprise Attack: the attackers (N72). Required there, refused elsewhere. */
   attacker?: PlayerId;
-  /** A planet in the table centre (transform T107); default none. */
+  /** A planet in the table centre (transform T107); default none. Surprise Attack sets its own by points (T114). */
   planet?: PlanetSize;
   /** Default: Cruiser Clash forces (state §4). */
   forces?: Forces;
@@ -89,18 +90,24 @@ function validateConfig(config: GameConfig): void {
     if (forces.kind !== "points") throw new EngineError("Fleet Engagement is fought at a points limit");
     if (config.scoring !== undefined && config.scoring !== "victory_points") throw new EngineError("Fleet Engagement is scored with victory points");
   }
-  if (config.scenario === "the_bait" || config.scenario === "raiders") {
-    const name = config.scenario === "the_bait" ? "The Bait" : "The Raiders";
+  if (config.scenario === "the_bait" || config.scenario === "raiders" || config.scenario === "surprise_attack") {
+    const name = SCENARIO_NAMES[config.scenario];
     if (forces.kind !== "points") throw new EngineError(`${name} is fought at a points limit`);
     if (config.scoring !== undefined && config.scoring !== "victory_points") throw new EngineError(`${name} is scored with victory points`);
-    if (config.attacker !== "p1" && config.attacker !== "p2") {
-      throw new EngineError(config.scenario === "the_bait" ? "The Bait needs the pursuers named as the attacker" : "The Raiders needs the raiders named as the attacker");
-    }
+    if (config.attacker !== "p1" && config.attacker !== "p2") throw new EngineError(`${name} needs the ${ATTACKER_NAMES[config.scenario]} named as the attacker`);
   } else if (config.attacker !== undefined) {
-    throw new EngineError("only The Bait and The Raiders have an attacker");
+    throw new EngineError("only The Bait, The Raiders and Surprise Attack have an attacker");
   }
   if (config.scenario !== "the_bait" && config.ships.some((s) => s.reserve === true)) {
-    throw new EngineError(config.scenario === "raiders" ? "every raider moves on: no ship is marked as a reinforcement" : "only The Bait has reinforcements in reserve");
+    throw new EngineError(
+      config.scenario === "raiders" || config.scenario === "surprise_attack"
+        ? `every ${config.scenario === "raiders" ? "raider" : "attacker"} moves on: no ship is marked as a reinforcement`
+        : "only The Bait has reinforcements in reserve",
+    );
+  }
+  // Surprise Attack's planet comes from the points limit (state N73).
+  if (config.scenario === "surprise_attack" && forces.kind === "points" && config.planet !== undefined && config.planet !== planetForLimit(forces.limit)) {
+    throw new EngineError(`Surprise Attack at ${forces.limit} pts has a ${planetForLimit(forces.limit)} planet, not a ${config.planet} one`);
   }
   const counts = { p1: 0, p2: 0 };
   const points = { p1: 0, p2: 0 };
@@ -191,6 +198,9 @@ function validateConfig(config: GameConfig): void {
   }
 }
 
+const SCENARIO_NAMES = { the_bait: "The Bait", raiders: "The Raiders", surprise_attack: "Surprise Attack" } as const;
+const ATTACKER_NAMES = { the_bait: "pursuers", raiders: "raiders", surprise_attack: "attackers" } as const;
+
 /** A ship's points as fielded: its class, options and any commander. */
 function fieldedPoints(ship: GameConfig["ships"][number], i: number): number {
   return shipProfile(ship, i).points + (ship.commander !== undefined ? commanderPoints(ship.commander) : 0);
@@ -271,6 +281,9 @@ function scenarioOf(config: GameConfig): Scenario {
   if (config.scenario === "raiders" && config.attacker !== undefined) {
     return { id: "raiders", maxRounds: 8, forces, scoring: "victory_points", attacker: config.attacker };
   }
+  if (config.scenario === "surprise_attack" && config.attacker !== undefined) {
+    return { id: "surprise_attack", maxRounds: null, forces, scoring: "victory_points", attacker: config.attacker };
+  }
   if (config.scenario === "fleet_engagement") {
     return { id: "fleet_engagement", maxRounds: null, forces, scoring: "victory_points" };
   }
@@ -291,12 +304,25 @@ function scenarioOf(config: GameConfig): Scenario {
 const baitPursued = (config: GameConfig): PlayerId | null =>
   config.scenario === "the_bait" ? (config.attacker === "p1" ? "p2" : "p1") : null;
 
+/** The Raiders' and Surprise Attack's defender, who deploys everything. */
 const raidDefender = (config: GameConfig): PlayerId | null =>
-  config.scenario === "raiders" ? (config.attacker === "p1" ? "p2" : "p1") : null;
+  config.scenario === "raiders" || config.scenario === "surprise_attack" ? (config.attacker === "p1" ? "p2" : "p1") : null;
+
+/** The scenario's planet, if any: Surprise Attack's by points (state N73), else the config's (T107). */
+function planetOf(config: GameConfig): PlanetSize | undefined {
+  const forces = config.forces;
+  if (config.scenario === "surprise_attack" && forces?.kind === "points") return planetForLimit(forces.limit);
+  return config.planet;
+}
+
+/** Every raider (state N60) and every surprise attacker (N76) starts off the table. */
+const movesOn = (config: GameConfig, owner: PlayerId): boolean =>
+  (config.scenario === "raiders" || config.scenario === "surprise_attack") && owner === config.attacker;
 
 /** Create a game at setup / roll_leadership (transform spec §5). */
 export function newGame(config: GameConfig): GameState {
   validateConfig(config);
+  const planet = planetOf(config);
 
   const ships: Ship[] = config.ships.map((spec, i) => {
     const profile = cloneJson(shipProfile(spec, i)); // checked above
@@ -310,8 +336,8 @@ export function newGame(config: GameConfig): GameState {
       name: spec.name,
       profile,
       leadership: null,
-      // The Bait's reinforcements, and every raider (state N60), start in reserve.
-      status: spec.reserve === true || (config.scenario === "raiders" && spec.owner === config.attacker) ? "reserve" : "undeployed",
+      // The Bait's reinforcements, every raider (state N60) and every surprise attacker (N76) start in reserve.
+      status: spec.reserve === true || movesOn(config, spec.owner) ? "reserve" : "undeployed",
       position: null,
       heading: null,
       damage: 0,
@@ -355,8 +381,8 @@ export function newGame(config: GameConfig): GameState {
       width: 180,
       height: 120,
       // A planet in the centre, its id after the ships' and squadrons' (transform §5, T107).
-      ...(config.planet !== undefined
-        ? { features: [{ kind: "planet" as const, id: `planet-${ships.length + squadrons.length + 1}`, position: { x: 90, y: 60 }, size: config.planet, ...PLANET_SIZES[config.planet] }] }
+      ...(planet !== undefined
+        ? { features: [{ kind: "planet" as const, id: `planet-${ships.length + squadrons.length + 1}`, position: { x: 90, y: 60 }, size: planet, ...PLANET_SIZES[planet] }] }
         : {}),
     },
     players: { p1: player("p1"), p2: player("p2") },
@@ -365,15 +391,16 @@ export function newGame(config: GameConfig): GameState {
       zoneRoll: null,
       zones: null,
       deployOrderRolls: [],
-      // The Bait: the bait deploys first and the fleeing ship goes first (state N55). The Raiders: the defender deploys, the raiders go first.
+      // The Bait: the bait deploys first and the fleeing ship goes first (state N55). The Raiders and Surprise Attack: the defender deploys, the attackers go first.
       firstDeployer: baitPursued(config) ?? raidDefender(config),
       firstTurnRolls: [],
       firstTurnChooser: null,
-      firstPlayer: baitPursued(config) ?? (config.scenario === "raiders" ? (config.attacker ?? null) : null),
+      firstPlayer: baitPursued(config) ?? (raidDefender(config) !== null ? (config.attacker ?? null) : null),
       ...(config.scenario === "fleet_engagement"
         ? { engagement: { formations: { p1: null, p2: null }, setupRolls: [], setupChooser: null, map: null, colours: null } }
         : {}),
       ...(config.scenario === "raiders" ? { raid: { facing: null, surpriseTurns: null } } : {}),
+      ...(config.scenario === "surprise_attack" ? { surpriseAttack: { alertUnits: null, alertChosen: false, entryEdge: null } } : {}),
     },
     clock: { stage: "setup", setupStep: "roll_leadership", playerTurn: 0, phase: null, step: null },
     ships,
@@ -385,7 +412,7 @@ export function newGame(config: GameConfig): GameState {
     pending: [],
     queue: [],
     rng: createRng(config.seed),
-    nextId: ships.length + squadrons.length + (config.planet !== undefined ? 1 : 0) + 1,
+    nextId: ships.length + squadrons.length + (planet !== undefined ? 1 : 0) + 1,
     log: [],
     result: null,
   };

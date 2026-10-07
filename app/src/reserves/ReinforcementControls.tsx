@@ -30,12 +30,17 @@ export function ReinforcementControls({ state, player, chosen, onChoose, turn, o
   if (units.length === 0) return null;
   // The Raiders' raiders all move on now, from any edge (state N60); The Bait's reinforcements may wait.
   const mayWait = reserves.reservesMayWait(state);
+  const surpriseAttack = state.scenario.id === "surprise_attack";
   return (
     <div className="ship-controls reinforcements">
-      <h3>{mayWait ? "Reinforcements" : "Raiders moving on"}</h3>
+      <h3>{mayWait ? "Reinforcements" : surpriseAttack ? "Attackers moving on" : "Raiders moving on"}</h3>
       <p className="muted small">
         {mayWait
           ? "Pick a ship or squadron, then click the lit table edge to bring it on. It arrives facing in, and then moves like any other ship this turn."
+          : surpriseAttack
+          ? state.setup.surpriseAttack?.entryEdge === null
+            ? "Every attacker moves on this turn, all from one table edge: the first ship you bring on picks it. Pick a ship or squadron, then click a table edge."
+            : "Every attacker moves on this turn, from the lit edge. Pick a ship or squadron, then click it; it then moves like any other ship."
           : "Every raider moves on this turn. Pick a ship or squadron, then click any table edge to bring it on; it then moves like any other ship."}
       </p>
       <div className="buttons">

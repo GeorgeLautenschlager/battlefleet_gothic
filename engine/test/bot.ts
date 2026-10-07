@@ -7,7 +7,8 @@
 import { actor, isWave, launchCapacity, onTable, partlyDeployedSquadron, squadronOf, weaponDisabled } from "../src/state/derived";
 import { rolesCarried, waveSpeed } from "../src/rules/craft";
 import { removableBlastMarkers } from "../src/reducer/steps";
-import { baseRadius, distance, headingVector, quadrantsOfPoint } from "../src/geometry/basic";
+import { baseRadius, distance, headingVector, quadrantsOfPoint, tableBearing } from "../src/geometry/basic";
+import { alertCount, unitIds } from "../src/rules/surprise";
 import { boardingsToFight } from "../src/rules/boarding";
 import { deploymentDivisions, emptyDivisions, setupOptions } from "../src/rules/engagement";
 import { canArrive, entryEdges } from "../src/rules/reserves";
@@ -59,23 +60,38 @@ function baseCandidates(s: GameState, n: number): Transform[] {
         const waiting = s.ships.filter((x) => x.owner === p && x.status === "undeployed" && (partial === undefined || partial.shipIds.includes(x.id)));
         const ship = waiting[n % 2 === 0 ? 0 : waiting.length - 1]!;
         const mates = (squadronOf(s, ship)?.shipIds ?? []).flatMap((id) => s.ships.find((x) => x.id === id && x.position !== null) ?? []);
+        // Surprise Attack's defender gives a heading: broadside to the planet on standby, any way on alert.
+        const planet = s.table.features?.[0];
+        const headed = (position: Point): Transform => {
+          const free = deploymentDivisions(s, p, ship).some((d) => d.heading === null);
+          const heading = !free ? undefined : ship.standby === true && planet !== undefined ? (tableBearing(position, planet.position) + (n % 2 === 0 ? 90 : 270)) % 360 : (n * 45) % 360;
+          return { type: "deploy_ship", player: p, shipId: ship.id, position, ...(heading === undefined ? {} : { heading }) };
+        };
         const near: Transform[] = mates.flatMap((m) =>
-          [[5, 0], [-5, 0], [10, 0], [-10, 0], [0, 5], [0, -5], [7, 7], [-7, 7], [7, -7], [-7, -7], [12, 0], [-12, 0]].map(([dx, dy]): Transform => ({
-            type: "deploy_ship", player: p, shipId: ship.id, position: { x: m.position!.x + dx!, y: m.position!.y + dy! },
-          })),
+          [[5, 0], [-5, 0], [10, 0], [-10, 0], [0, 5], [0, -5], [7, 7], [-7, 7], [7, -7], [-7, -7], [12, 0], [-12, 0]].map(([dx, dy]): Transform =>
+            headed({ x: m.position!.x + dx!, y: m.position!.y + dy! }),
+          ),
         );
         if (near.length > 0) return near;
-        if (s.setup.engagement !== undefined || s.scenario.id === "the_bait" || s.scenario.id === "raiders") {
+        if (ship.standby === true && planet !== undefined) {
+          // On standby: rings round the planet, the first within 15 cm of it.
+          const r0 = planet.diameter / 2;
+          return [r0 + 6, r0 + 12, r0 + 20, r0 + 30].flatMap((r) =>
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((k) => {
+              const b = ((k * 30 + n * 7) % 360) * (Math.PI / 180);
+              return headed({ x: planet.position.x + r * Math.sin(b), y: planet.position.y + r * Math.cos(b) });
+            }),
+          );
+        }
+        if (s.setup.engagement !== undefined || s.scenario.id === "the_bait" || s.scenario.id === "raiders" || s.scenario.id === "surprise_attack") {
           // Fleet Engagement and The Bait: empty divisions first, at spots across each one.
-          const divisions = deploymentDivisions(s, p);
+          const divisions = deploymentDivisions(s, p, ship);
           const empty = emptyDivisions(s, p);
           const order = [...empty, ...divisions.map((_, i) => i).filter((i) => !empty.includes(i))];
           return order.flatMap((i) => {
             const { rect } = divisions[i]!;
             return [0.5, 0.2, 0.8, 0.35, 0.65, 0.1, 0.9].flatMap((fx) =>
-              [0.5, 0.2, 0.8].map((fy): Transform => ({
-                type: "deploy_ship", player: p, shipId: ship.id, position: { x: rect.x + rect.width * fx, y: rect.y + rect.height * fy },
-              })),
+              [0.5, 0.2, 0.8].map((fy): Transform => headed({ x: rect.x + rect.width * fx, y: rect.y + rect.height * fy })),
             );
           });
         }
@@ -85,6 +101,11 @@ function baseCandidates(s: GameState, n: number): Transform[] {
       }
       case "choose_facing":
         return [{ type: "choose_facing", player: p, heading: ([0, 90, 180, 270] as const)[n % 4]! }];
+      case "choose_alert": {
+        const units = unitIds(s, p);
+        const k = n % units.length;
+        return [{ type: "choose_alert", player: p, units: [...units.slice(k), ...units.slice(0, k)].slice(0, alertCount(s, p)) }];
+      }
       case "choose_first_turn":
         return [{ type: "choose_first_turn", player: p, goFirst: n % 2 === 0 }];
       default:

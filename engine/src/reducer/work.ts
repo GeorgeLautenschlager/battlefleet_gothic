@@ -2,7 +2,7 @@
  * Work items (reducer spec §11): everything still to resolve lives in
  * state.queue and runs front first. Follow-ups are inserted at the front.
  */
-import { getShip } from "../state/derived";
+import { getShip, wentOnAlert } from "../state/derived";
 import type { AttackSource, GameState, Ship, WorkItem } from "../state/types";
 import type { Ctx } from "./context";
 import { explosionHit, fireDamage } from "./damage";
@@ -22,6 +22,7 @@ export function canBrace(state: GameState, ship: Ship, source: AttackSource): bo
   return (
     ship.status === "active" &&
     ship.specialOrder?.kind !== "brace_for_impact" &&
+    !wentOnAlert(state, ship) && // no special orders the turn it goes on alert (T120)
     !state.turnState.braceFailures.some((f) => f.shipId === ship.id && sameSource(f.source, source))
   );
 }
