@@ -38,7 +38,7 @@ export type SeatInfo = { name: string | null; faction: FactionId | null; ships: 
  * The game's rules. `carriers`: one carrier each over the 185-point cap (p. 129).
  * `scenario`: Cruiser Clash or Fleet Engagement; `forces`: Cruiser Clash or a points battle; `scoring`: Cruiser Clash or victory points (transform §5).
  */
-/** `fleetLists`: points battles follow the fleet lists, with commanders (T58). `attacker`: The Bait's pursuers, The Raiders' raiders, Surprise Attack's attackers (state N47, N56, N72). `planet`: one in the table centre (T107). */
+/** `fleetLists`: points battles follow the fleet lists, with commanders (T58). `attacker`: The Bait's pursuers, The Raiders' raiders, Surprise Attack's attackers, Blockade Run's runners (state N47, N56, N72, N81). `planet`: one in the table centre (T107). */
 export type RoomOptions = { ramming: boolean; boarding: boolean; carriers: boolean; fleetLists: boolean; scenario: ScenarioId; forces: Forces; scoring: Scoring; attacker?: PlayerId; planet?: PlanetSize };
 /** `count`: ships a side, set by the host (Cruiser Clash; a points battle leaves each side its own); `options`: the game's rules. */
 export type Lobby = { seats: Record<PlayerId, SeatInfo>; count: number; options: RoomOptions };

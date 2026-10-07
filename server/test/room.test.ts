@@ -226,6 +226,23 @@ describe("lobby and start", () => {
     expect(state.ships.map((s) => s.status)).toEqual(["undeployed", "undeployed", "reserve", "reserve"]);
   });
 
+  test("Blockade Run: the host names the runners, held to half the blockader's points", async () => {
+    const ann: Fleet = { faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }, { name: "Invincible", classId: "gothic" }] };
+    // The host blockades; p2 runs at up to 250 points.
+    const h = await Harness.create({ fleet: ann, scenario: "blockade_run", forces: { kind: "points", limit: 500 }, attacker: "p2" });
+    const [welcome] = await h.hello("a", "p1");
+    expect(welcome).toMatchObject({ lobby: { options: { scenario: "blockade_run", attacker: "p2", scoring: "victory_points" } } });
+    await h.hello("b", "p2");
+    expect(rejection(await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }, { name: "Despair", classId: "carnage" }] }))?.reason).toMatchObject({
+      code: "INVALID_FLEET",
+      message: expect.stringContaining("over the 250 pt limit"),
+    });
+    await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }] });
+    const state = h.stateOf("b")!;
+    expect(state.scenario).toMatchObject({ id: "blockade_run", attacker: "p2", maxRounds: 6 });
+    expect(state.setup.blockade).toEqual({ thirds: null });
+  });
+
   test("fleet lists: commanders ride on the ship entries and the engine checks the list", async () => {
     const ann: Fleet = {
       faction: "imperial_navy",

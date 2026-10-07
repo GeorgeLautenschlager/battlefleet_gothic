@@ -3,6 +3,7 @@
  * rams, the 0-shield Blast Marker roll, finishing a move, and drifting hulks.
  */
 import { gravityTurnProblem, gravityWellAt, stemPlanetContact } from "../rules/planets";
+import { arrivalEdge } from "../rules/reserves";
 import { BM_RADIUS, BM_SLOWDOWN, EPS } from "../geometry/constants";
 import { approxGe, approxLe, baseRadius, basesTouch, distance, headingVector, norm } from "../geometry/basic";
 import { exitT, sweptCircleVsCircle, sweptCircleVsSegment } from "../geometry/sweep";
@@ -280,14 +281,18 @@ function travel(state: GameState, ship: Ship, a: Activation, d: number): void {
 /** Resolve an event in place, or return the work items it needs. */
 function handleEvent(ctx: Ctx, ship: Ship, a: Activation, event: Event): WorkItem[] {
   switch (event.kind) {
-    case "exit":
+    case "exit": {
       releaseCap(ctx, ship);
+      // The edge it leaves by, the one it faces most squarely out of (state N87, reducer R55).
+      const edge = arrivalEdge(ctx.state, { position: ship.position as Point, heading: norm((ship.heading as number) + 180) });
       ship.status = "disengaged";
+      ship.exitEdge = edge;
       ship.position = null;
       ship.heading = null;
       ship.specialOrder = null;
-      ctx.log("disengaged", { shipId: ship.id, reason: "table_edge" });
+      ctx.log("disengaged", { shipId: ship.id, reason: "table_edge", edge });
       return [];
+    }
     case "ram":
       return [
         { kind: "brace_offer", shipId: event.targetId, source: { kind: "ship", id: ship.id } },

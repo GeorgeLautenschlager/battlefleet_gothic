@@ -220,12 +220,12 @@ export function configProblem(options: NewGameOptions): string | null {
   }
 }
 
-/** The side's part in a scenario with an attacker and a defender (The Bait, The Raiders, Surprise Attack). */
-export type Role = { scenario: "the_bait" | "raiders" | "surprise_attack"; defender: boolean };
+/** The side's part in a scenario with an attacker and a defender (The Bait, The Raiders, Surprise Attack, Blockade Run). */
+export type Role = { scenario: "the_bait" | "raiders" | "surprise_attack" | "blockade_run"; defender: boolean };
 
 /** The scenarios with an attacker and a defender. */
 export const hasRoles = (scenario: ScenarioId | undefined): scenario is Role["scenario"] =>
-  scenario === "the_bait" || scenario === "raiders" || scenario === "surprise_attack";
+  scenario === "the_bait" || scenario === "raiders" || scenario === "surprise_attack" || scenario === "blockade_run";
 
 /** This seat's role, if the scenario has them: `attacker` is the attacking seat. */
 export const roleOf = (scenario: ScenarioId | undefined, attacker: PlayerId | undefined, seat: PlayerId): Role | undefined =>

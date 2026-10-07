@@ -90,13 +90,13 @@ function validateConfig(config: GameConfig): void {
     if (forces.kind !== "points") throw new EngineError("Fleet Engagement is fought at a points limit");
     if (config.scoring !== undefined && config.scoring !== "victory_points") throw new EngineError("Fleet Engagement is scored with victory points");
   }
-  if (config.scenario === "the_bait" || config.scenario === "raiders" || config.scenario === "surprise_attack") {
+  if (config.scenario === "the_bait" || config.scenario === "raiders" || config.scenario === "surprise_attack" || config.scenario === "blockade_run") {
     const name = SCENARIO_NAMES[config.scenario];
     if (forces.kind !== "points") throw new EngineError(`${name} is fought at a points limit`);
     if (config.scoring !== undefined && config.scoring !== "victory_points") throw new EngineError(`${name} is scored with victory points`);
     if (config.attacker !== "p1" && config.attacker !== "p2") throw new EngineError(`${name} needs the ${ATTACKER_NAMES[config.scenario]} named as the attacker`);
   } else if (config.attacker !== undefined) {
-    throw new EngineError("only The Bait, The Raiders and Surprise Attack have an attacker");
+    throw new EngineError("only The Bait, The Raiders, Surprise Attack and Blockade Run have an attacker");
   }
   if (config.scenario !== "the_bait" && config.ships.some((s) => s.reserve === true)) {
     throw new EngineError(
@@ -169,13 +169,14 @@ function validateConfig(config: GameConfig): void {
     baitForces(config, forces.limit);
     return;
   }
-  if (config.scenario === "raiders" && forces.kind === "points") {
-    // The defender up to the limit, the raiders up to half of it (p. 131, state N57).
+  if ((config.scenario === "raiders" || config.scenario === "blockade_run") && forces.kind === "points") {
+    // The defender up to the limit, the raiders or runners up to half of it (p. 131, p. 133; state N57, N81).
     const raiders = config.attacker as PlayerId;
+    const runners = config.scenario === "blockade_run";
     for (const player of ["p1", "p2"] as const) {
       const limit = player === raiders ? Math.floor(forces.limit / 2) : forces.limit;
       if (counts[player] < 1) throw new EngineError(`${player} must field at least one ship`);
-      const who = player === raiders ? "the raiders'" : "the defender's";
+      const who = player === raiders ? (runners ? "the runners'" : "the raiders'") : runners ? "the blockader's" : "the defender's";
       if (points[player] > limit) throw new EngineError(`${who} fleet is ${points[player]} pts, over the ${limit} pt limit`);
     }
     return;
@@ -198,8 +199,8 @@ function validateConfig(config: GameConfig): void {
   }
 }
 
-const SCENARIO_NAMES = { the_bait: "The Bait", raiders: "The Raiders", surprise_attack: "Surprise Attack" } as const;
-const ATTACKER_NAMES = { the_bait: "pursuers", raiders: "raiders", surprise_attack: "attackers" } as const;
+const SCENARIO_NAMES = { the_bait: "The Bait", raiders: "The Raiders", surprise_attack: "Surprise Attack", blockade_run: "Blockade Run" } as const;
+const ATTACKER_NAMES = { the_bait: "pursuers", raiders: "raiders", surprise_attack: "attackers", blockade_run: "blockade runners" } as const;
 
 /** A ship's points as fielded: its class, options and any commander. */
 function fieldedPoints(ship: GameConfig["ships"][number], i: number): number {
@@ -281,6 +282,9 @@ function scenarioOf(config: GameConfig): Scenario {
   if (config.scenario === "raiders" && config.attacker !== undefined) {
     return { id: "raiders", maxRounds: 8, forces, scoring: "victory_points", attacker: config.attacker };
   }
+  if (config.scenario === "blockade_run" && config.attacker !== undefined) {
+    return { id: "blockade_run", maxRounds: 6, forces, scoring: "victory_points", attacker: config.attacker };
+  }
   if (config.scenario === "surprise_attack" && config.attacker !== undefined) {
     return { id: "surprise_attack", maxRounds: null, forces, scoring: "victory_points", attacker: config.attacker };
   }
@@ -304,9 +308,9 @@ function scenarioOf(config: GameConfig): Scenario {
 const baitPursued = (config: GameConfig): PlayerId | null =>
   config.scenario === "the_bait" ? (config.attacker === "p1" ? "p2" : "p1") : null;
 
-/** The Raiders' and Surprise Attack's defender, who deploys everything. */
+/** The Raiders' and Surprise Attack's defender, who deploys everything; Blockade Run's blockader, who deploys first (state N85). */
 const raidDefender = (config: GameConfig): PlayerId | null =>
-  config.scenario === "raiders" || config.scenario === "surprise_attack" ? (config.attacker === "p1" ? "p2" : "p1") : null;
+  config.scenario === "raiders" || config.scenario === "surprise_attack" || config.scenario === "blockade_run" ? (config.attacker === "p1" ? "p2" : "p1") : null;
 
 /** The scenario's planet, if any: Surprise Attack's by points (state N73), else the config's (T107). */
 function planetOf(config: GameConfig): PlanetSize | undefined {
@@ -395,12 +399,14 @@ export function newGame(config: GameConfig): GameState {
       firstDeployer: baitPursued(config) ?? raidDefender(config),
       firstTurnRolls: [],
       firstTurnChooser: null,
-      firstPlayer: baitPursued(config) ?? (raidDefender(config) !== null ? (config.attacker ?? null) : null),
+      // Blockade Run rolls off for the first turn (p. 133).
+      firstPlayer: baitPursued(config) ?? (raidDefender(config) !== null && config.scenario !== "blockade_run" ? (config.attacker ?? null) : null),
       ...(config.scenario === "fleet_engagement"
         ? { engagement: { formations: { p1: null, p2: null }, setupRolls: [], setupChooser: null, map: null, colours: null } }
         : {}),
       ...(config.scenario === "raiders" ? { raid: { facing: null, surpriseTurns: null } } : {}),
       ...(config.scenario === "surprise_attack" ? { surpriseAttack: { alertUnits: null, alertChosen: false, entryEdge: null } } : {}),
+      ...(config.scenario === "blockade_run" ? { blockade: { thirds: null } } : {}),
     },
     clock: { stage: "setup", setupStep: "roll_leadership", playerTurn: 0, phase: null, step: null },
     ships,

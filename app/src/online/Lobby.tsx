@@ -20,6 +20,8 @@ function rulesLine(lobby: LobbyInfo, seat: PlayerId): string {
       ? `Fleet Engagement, ${forces.limit} points a side`
       : scenario === "raiders" && forces?.kind === "points"
       ? `The Raiders: ${attacker === seat ? "you raid" : `${lobby.seats[attacker === "p1" ? "p1" : "p2"].name ?? "your opponent"} raids`} with up to ${Math.floor(forces.limit / 2)} points against ${forces.limit} points at anchor, 8 turns`
+      : scenario === "blockade_run" && forces?.kind === "points"
+      ? `Blockade Run: ${attacker === seat ? "you run" : `${lobby.seats[attacker === "p1" ? "p1" : "p2"].name ?? "your opponent"} runs`} the blockade with up to ${Math.floor(forces.limit / 2)} points against ${forces.limit} points, 6 turns`
       : scenario === "surprise_attack" && forces?.kind === "points"
       ? `Surprise Attack: ${attacker === seat ? "you attack" : `${lobby.seats[attacker === "p1" ? "p1" : "p2"].name ?? "your opponent"} attacks`} round a ${surprise.planetForLimit(forces.limit)} planet, ${forces.limit} points a side`
       : scenario === "the_bait" && forces?.kind === "points"

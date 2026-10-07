@@ -2,7 +2,9 @@
 import { otherPlayer, squadronOf } from "../../state/derived";
 import { deploymentDivisions, divisionAt, isSplit, setupBonus, setupOptions } from "../../rules/engagement";
 import type { ChooseAlert, ChooseFacing, ChooseFirstTurn, ChooseFormation, ChooseSetup, DeployShip } from "../../transforms/types";
-import { unitShips } from "../../rules/surprise";
+import { unitIds, unitShips } from "../../rules/surprise";
+import { blockader, thirdOf } from "../../rules/blockade";
+import type { Third } from "../../state/types";
 import type { Ctx } from "../context";
 import { getShip } from "../work";
 
@@ -35,6 +37,20 @@ export function rollLeadership(ctx: Ctx): void {
     const roll = ctx.d6();
     surprise.alertUnits = Math.ceil(roll / 2);
     ctx.log("alert_roll", { rolls: [roll], units: surprise.alertUnits });
+  }
+  // Blockade Run: a D6 per blockading unit for the third it deploys in (state N86, reducer R54).
+  const blockade = ctx.state.setup.blockade;
+  const blockading = blockader(ctx.state);
+  if (blockade !== undefined && blockading !== null) {
+    const rolls: number[] = [];
+    const thirds: Record<string, Third> = {};
+    for (const unit of unitIds(ctx.state, blockading)) {
+      const roll = ctx.d6();
+      rolls.push(roll);
+      thirds[unit] = thirdOf(roll);
+    }
+    blockade.thirds = thirds;
+    ctx.log("thirds_roll", { rolls, thirds: { ...thirds } });
   }
   ctx.state.setup.leadershipRolled = true;
 }

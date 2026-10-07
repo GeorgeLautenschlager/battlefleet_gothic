@@ -15,7 +15,8 @@ export function Zones({ state, preview = null }: { state: GameState; preview?: S
   const bait = state.scenario.id === "the_bait";
   const raiders = state.scenario.id === "raiders";
   const surpriseAttack = state.scenario.id === "surprise_attack";
-  if (state.setup.engagement === undefined && !bait && !raiders && !surpriseAttack) {
+  const blockade = state.scenario.id === "blockade_run";
+  if (state.setup.engagement === undefined && !bait && !raiders && !surpriseAttack && !blockade) {
     return (
       <>
         {(["A", "B"] as const).map((zone) => {
@@ -44,10 +45,12 @@ export function Zones({ state, preview = null }: { state: GameState; preview?: S
       ? `At anchor · ${playerName(state, p)}`
       : surpriseAttack
       ? `Full alert · ${playerName(state, p)}`
+      : blockade
+      ? `${p === state.scenario.attacker ? "Runners" : "Blockade"} · ${playerName(state, p)}`
       : `Map ${map} · ${playerName(state, p)}`;
   const divisionsOf = (p: PlayerId): readonly Division[] =>
     preview !== null ? engagement.SETUP_MAPS[preview.map][preview.colours[p]] : engagement.deploymentDivisions(state, p);
-  if (map === null && !bait && !raiders && !surpriseAttack) return null;
+  if (map === null && !bait && !raiders && !surpriseAttack && !blockade) return null;
   // Surprise Attack: ships on standby go broadside to the planet, the first within 15 cm of it (state N74–N75).
   const planet = surpriseAttack ? state.table.features?.[0] : undefined;
   const standbyRing = planet !== undefined && state.ships.some((s) => s.standby === true && s.status === "undeployed") ? planet : undefined;

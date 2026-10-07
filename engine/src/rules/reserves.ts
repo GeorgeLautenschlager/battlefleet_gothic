@@ -101,10 +101,23 @@ export function inwardHeadings(state: GameState, p: Point): number[] {
  * or at a corner, the one it faces most nearly straight in from (the first on a tie: west, east, bottom, top).
  */
 export function arrivalEdge(state: GameState, placement: { position: Point; heading: number }): Facing {
-  const edges = inwardHeadings(state, placement.position);
+  const found = inwardHeadings(state, placement.position);
+  const edges = found.length > 0 ? found : [nearestEdge(state, placement.position)];
   let best = edges[0] ?? 0;
   for (const h of edges) if (angleBetween(placement.heading, h) < angleBetween(placement.heading, best) - EPS) best = h;
   return best as Facing;
+}
+
+/** The inward heading of the table edge nearest `p` (west, east, bottom, top on a tie). */
+function nearestEdge(state: GameState, p: Point): number {
+  const { width: w, height: h } = state.table;
+  const gaps: [number, number][] = [
+    [Math.abs(p.x), 90],
+    [Math.abs(w - p.x), 270],
+    [Math.abs(p.y), 0],
+    [Math.abs(h - p.y), 180],
+  ];
+  return gaps.reduce((a, b) => (b[0] < a[0] - EPS ? b : a))[1];
 }
 
 /** The smaller angle between two headings, 0–180 (validator §2.3). */

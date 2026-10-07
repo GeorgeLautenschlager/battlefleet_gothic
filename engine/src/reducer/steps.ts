@@ -32,6 +32,9 @@ const RAIDERS_SETUP_ORDER: readonly SetupStep[] = ["roll_leadership", "choose_fa
 /** Surprise Attack: Leadership with the alert roll, the defender's units on alert, then the defender deploys; the attackers go first. */
 const SURPRISE_SETUP_ORDER: readonly SetupStep[] = ["roll_leadership", "choose_alert", "deploy"];
 
+/** Blockade Run: Leadership with the thirds, the blockader deploys then the runners, and the first turn rolled off (p. 133). */
+const BLOCKADE_SETUP_ORDER: readonly SetupStep[] = ["roll_leadership", "deploy", "roll_first_turn", "choose_first_turn"];
+
 /** Fleet Engagement replaces roll_zones with the formations and the set-up roll-off (transform §2.3). */
 const ENGAGEMENT_SETUP_ORDER: readonly SetupStep[] = [
   "roll_leadership",
@@ -49,6 +52,7 @@ const SETUP_ORDERS: Readonly<Record<GameState["scenario"]["id"], readonly SetupS
   the_bait: BAIT_SETUP_ORDER,
   raiders: RAIDERS_SETUP_ORDER,
   surprise_attack: SURPRISE_SETUP_ORDER,
+  blockade_run: BLOCKADE_SETUP_ORDER,
   fleet_engagement: ENGAGEMENT_SETUP_ORDER,
 };
 
