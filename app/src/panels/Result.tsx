@@ -33,6 +33,7 @@ export function Result({ state }: { state: GameState }) {
                     </li>
                   ))}
                   {v.field > 0 && <li>Holding the field: {v.field}</li>}
+                  {v.mines > 0 && <li>Orbital mines gone: {v.mines}</li>}
                 </ul>
               </li>
             );

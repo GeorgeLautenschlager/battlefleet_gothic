@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CATALOGUE, surprise, type PlayerId } from "@bfg/engine";
 import type { Lobby as LobbyInfo, SeatInfo } from "@bfg/server";
-import { asFleet, carriersAllowed, roleOf, shipEntries, sideProblem, type Side } from "../game/config";
+import { asFleet, carriersAllowed, holdsPlanet, roleOf, shipEntries, sideProblem, type Side } from "../game/config";
 import { duplicates, DuplicateNames, FleetFields, FleetProblem, resize } from "../panels/FleetForm";
 import { factionName } from "../players";
 import { inviteLink } from "./config";
@@ -116,12 +116,15 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
   // The host's planet, and whether this seat holds it (state N91).
   const planet = options.scenario !== "surprise_attack" ? options.planet : undefined;
   const problem = dupes.length > 0 ? null : sideProblem(side, carriers, forces, lists, role, planet, options.planetHolder === seat);
+  // Mines and minefields, if you hold the planet (state N107).
+  const holds = holdsPlanet({ ...(options.scenario !== undefined ? { scenario: options.scenario } : {}), ...(options.attacker !== undefined ? { attacker: options.attacker } : {}), ...(planet !== undefined ? { planet } : {}), planetHolder: options.planetHolder ?? other(seat), ...(forces ? { forces } : {}) }, seat);
+  const emplacements = holds && side.emplacements !== undefined && side.emplacements.orbitalMines + side.emplacements.minefields > 0 ? side.emplacements : undefined;
   return (
     <form
       className="new-game"
       onSubmit={(e) => {
         e.preventDefault();
-        if (dupes.length === 0 && problem === null) remote.join(side.name.trim(), side.fleet, shipEntries(side, carriers, forces?.kind === "points", lists, reinforcements));
+        if (dupes.length === 0 && problem === null) remote.join(side.name.trim(), side.fleet, shipEntries(side, carriers, forces?.kind === "points", lists, reinforcements), emplacements);
       }}
     >
       <h2>You've been invited</h2>
@@ -150,6 +153,7 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
         taken={hostNames}
         lists={lists}
         reinforcements={reinforcements}
+        holdsPlanet={holds}
       />
       <DuplicateNames dupes={dupes} />
       <FleetProblem problem={problem} />

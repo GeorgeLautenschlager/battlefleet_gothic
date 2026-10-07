@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { FactionId, GameState, PlayerId, Transform } from "@bfg/engine";
-import { PROTOCOL, verifyEnded, type Lobby, type Presence, type RoomStatus, type ServerMessage, type ShipEntry, type Verification } from "@bfg/server";
+import { PROTOCOL, verifyEnded, type Emplacements, type Lobby, type Presence, type RoomStatus, type ServerMessage, type ShipEntry, type Verification } from "@bfg/server";
 import type { SavedGame } from "../game/history";
 import type { GameSource, Notice } from "../game/source";
 import { ENGINE_BUILD, socketUrl } from "./config";
@@ -28,7 +28,7 @@ export type Remote = {
   ended: { save: SavedGame; verification: Verification } | null;
   /** The server's last refusal (in the lobby: a join it didn't accept). */
   rejection: Notice | null;
-  join(name: string, faction: FactionId, ships: ShipEntry[]): void;
+  join(name: string, faction: FactionId, ships: ShipEntry[], emplacements?: Emplacements): void;
 };
 
 type Applied = { seq: number; by: PlayerId; rolled: boolean };
@@ -249,8 +249,8 @@ export function useRemoteSource(config: RemoteConfig | null): Remote | null {
     source,
     ended: snap.ended,
     rejection: snap.rejection,
-    join: (name, faction, ships) => {
-      socket.current?.send(JSON.stringify({ type: "join", token, name, faction, ships }));
+    join: (name, faction, ships, emplacements) => {
+      socket.current?.send(JSON.stringify({ type: "join", token, name, faction, ships, ...(emplacements !== undefined ? { emplacements } : {}) }));
     },
   };
 }

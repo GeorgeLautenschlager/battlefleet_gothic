@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { carriersAllowed, defaultNames, hasRoles, listsOn, MAX_SHIPS, pursuedOf, roleOf, shipEntries, sideProblem, type Side } from "../game/config";
+import { carriersAllowed, defaultNames, hasRoles, holdsPlanet, listsOn, MAX_SHIPS, pursuedOf, roleOf, shipEntries, sideProblem, type Side } from "../game/config";
 import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, PlanetField, PlanetHolderField, resize, RulesChecks, type Battle, type Rules } from "../panels/FleetForm";
 import type { PlanetSize, PlayerId } from "@bfg/engine";
 import { createGame } from "./api";
@@ -25,6 +25,9 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
   const table = battle.scenario !== "surprise_attack" ? planet : undefined;
   const holderNamed = table !== undefined && !hasRoles(battle.scenario) && points !== null;
   const problem = dupes.length > 0 ? null : sideProblem(side, carriers, battle.forces, lists, role, table, holderNamed && planetHolder === "p1");
+  // Mines and minefields, if you hold the planet (state N107).
+  const holds = holdsPlanet({ ...battle, ...(table !== undefined ? { planet: table } : {}), planetHolder }, "p1");
+  const emplacements = holds && side.emplacements !== undefined && side.emplacements.orbitalMines + side.emplacements.minefields > 0 ? { emplacements: side.emplacements } : {};
   return (
     <form
       className="new-game"
@@ -34,7 +37,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         setBusy(true);
         setError(null);
         const name = side.name.trim();
-        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists, reinforcements), ...rules, fleetLists: lists, ...battle, ...(table !== undefined ? { planet: table } : {}), ...(holderNamed ? { planetHolder } : {}) })
+        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists, reinforcements), ...rules, fleetLists: lists, ...battle, ...(table !== undefined ? { planet: table } : {}), ...(holderNamed ? { planetHolder } : {}), ...emplacements })
           .then((g) => onCreated({ gameId: g.gameId, token: g.token, seat: g.seat, name, joinedAt: new Date().toISOString(), inviteToken: g.inviteToken }))
           .catch((err: unknown) => setError((err as Error).message))
           .finally(() => setBusy(false));
@@ -66,6 +69,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         pointsLimit={points}
         lists={lists}
         reinforcements={reinforcements}
+        holdsPlanet={holds}
       />
       <RulesChecks value={rules} onChange={setRules} points={points !== null} />
       <DuplicateNames dupes={dupes} />

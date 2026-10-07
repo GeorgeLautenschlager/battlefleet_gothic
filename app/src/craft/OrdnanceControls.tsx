@@ -1,4 +1,4 @@
-import { actor, type GameState, type TorpedoSalvo, type Transform } from "@bfg/engine";
+import { actor, type GameState, type OrbitalMine, type TorpedoSalvo, type Transform } from "@bfg/engine";
 import { Act } from "../controls/Act";
 import { movableWaves, waveName } from "./craft";
 import type { CraftPlot } from "./useCraftPlot";
@@ -21,6 +21,8 @@ export function OrdnanceControls({ state, plot, onApply, onHighlight, onFocus }:
   const salvos = state.ordnance.filter(
     (o): o is TorpedoSalvo => o.kind === "torpedo_salvo" && o.owner === mover && !state.turnState.ordnanceMoved.includes(o.id),
   );
+  // Orbital mines steer themselves: 10 cm toward the nearest enemy ship (state N110).
+  const mines = state.ordnance.filter((o): o is OrbitalMine => o.kind === "orbital_mine" && o.owner === mover && !state.turnState.ordnanceMoved.includes(o.id));
   const waves = movableWaves(state);
   const hover = (id: string) => ({ onPointerEnter: () => onHighlight([id]), onPointerLeave: () => onHighlight([]) });
   const onCap = waves.filter((w) => w.cap !== null);
@@ -32,6 +34,17 @@ export function OrdnanceControls({ state, plot, onApply, onHighlight, onFocus }:
             <span key={o.id} {...hover(o.id)}>
               <Act state={state} transform={{ type: "move_ordnance", player: mover, ordnanceId: o.id }} onApply={onApply} primary>
                 Move {state.ships.find((s) => s.id === o.launchedBy)?.name ?? "torpedoes"}'s torpedoes ({o.strength})
+              </Act>
+            </span>
+          ))}
+        </div>
+      )}
+      {mines.length > 0 && (
+        <div className="buttons mines">
+          {mines.map((o, i) => (
+            <span key={o.id} {...hover(o.id)}>
+              <Act state={state} transform={{ type: "move_ordnance", player: mover, ordnanceId: o.id }} onApply={onApply} primary={salvos.length === 0 && i === 0}>
+                Move orbital mine {i + 1}
               </Act>
             </span>
           ))}

@@ -142,6 +142,9 @@ export function describe(state: GameState, entry: LogEntry): string {
     case "ram":
       return `${ship("rammerId")} rams ${ship("targetId")}${d["headOn"] === true ? " head-on" : ""}: ${num(d["rammerHits"])} hits dealt, ${num(d["targetHits"])} taken`;
     case "attack": {
+      if (d["weapon"] === "mine") {
+        return `An orbital mine detonates against ${ship("targetId")}: ${dice(d["rolls"])} need ${num(d["need"])}+, ${num(d["hits"])} hit${d["hits"] === 1 ? "" : "s"}`;
+      }
       const src = d["source"] as { id?: string } | undefined;
       const from = state.ships.find((s) => s.id === src?.id)?.name ?? words(String(d["weapon"]));
       const shooters = Array.isArray(d["shooterIds"]) ? d["shooterIds"].map((id) => state.ships.find((x) => x.id === id)?.name ?? String(id)) : [];
@@ -195,6 +198,7 @@ export function describe(state: GameState, entry: LogEntry): string {
       return `${ship("shipId")} catastrophic damage ${dice(d["rolls"])}: ${words(String(d["outcome"]))}`;
     case "turrets": {
       const massed = Array.isArray(d["massed"]) ? d["massed"].length : 0;
+      if (d["against"] === "mine") return `${ship("shipId")} turrets${massed > 0 ? ` (+${massed} massed)` : ""} ${dice(d["rolls"])}: ${d["stopped"] === 1 ? "the mine is hit, half its punch gone" : "the mine gets through"}`;
       const what = d["against"] === "attack_craft" ? (d["stopped"] === 1 ? "squadron" : "squadrons") : "torpedoes";
       return `${ship("shipId")} turrets${massed > 0 ? ` (+${massed} massed)` : ""} ${dice(d["rolls"])}: ${num(d["stopped"])} ${what} stopped`;
     }
@@ -250,7 +254,46 @@ export function describe(state: GameState, entry: LogEntry): string {
     case "hulk_drift":
       return `${ship("shipId")} drifts ${dice(d["rolls"])} ${num(d["distance"])} cm`;
     case "hulk_lost":
-      return d["reason"] === "planet" ? `${ship("shipId")} drifts into the planet and is gone` : `${ship("shipId")} drifts off the table`;
+      return d["reason"] === "planet"
+        ? `${ship("shipId")} drifts into the planet and is gone`
+        : d["reason"] === "minefield"
+          ? `${ship("shipId")} drifts into a minefield and is torn apart`
+          : `${ship("shipId")} drifts off the table`;
+    case "minefield_sizes": {
+      const sizes = (d["sizes"] as { width: number; height: number }[] | undefined) ?? [];
+      return `Minefields measured ${dice(d["rolls"])}: ${sizes.map((x) => `${x.width} × ${x.height} cm`).join(", ")}`;
+    }
+    case "defence_placed":
+      return d["kind"] === "minefield" ? "A minefield is laid near the planet" : "An orbital mine is placed in orbit";
+    case "minefield_test":
+      return `${ship("shipId")} picks its way through a minefield ${dice(d["rolls"])}${Array.isArray(d["rerolls"]) ? `, again ${dice(d["rerolls"])}` : ""} against Ld ${num(d["leadership"])}: ${
+        d["passed"] === true ? "through unscathed" : `mines go off ${dice(d["hitRolls"])}, ${num((d["hitRolls"] as number[] | undefined)?.[0])} hits`
+      }`;
+    case "minefield_contact":
+      return d["ordnanceId"] !== undefined ? "A torpedo salvo runs into a minefield and is destroyed" : `${ship("shipId")} meets a minefield`;
+    case "minefield_craft":
+      return `${wave("ordnanceId")} weave through a minefield ${dice(d["rolls"])}: ${d["effect"] === "removed" ? "lost" : "through"}`;
+    case "minefield_detection": {
+      const checks = (d["checks"] as { shipId: string; roll: number; modifier: number; detected: boolean }[] | undefined) ?? [];
+      const seen = checks.filter((c) => c.detected).map((c) => state.ships.find((x) => x.id === c.shipId)?.name ?? c.shipId);
+      return `A minefield scans ${dice(d["rolls"])}: ${seen.length === 0 ? "nothing detected" : `${seen.join(", ")} detected, ${seen.length === 1 ? "a mine activates" : `${seen.length} mines activate`}`}`;
+    }
+    case "minefield_hit":
+      return `${num(d["hits"])} hit${d["hits"] === 1 ? "" : "s"} on the minefield: ${num(d["hits"])} Blast Marker${d["hits"] === 1 ? "" : "s"} blind its trackers`;
+    case "minefield_blast_markers": {
+      const n = Array.isArray(d["removed"]) ? d["removed"].length : 0;
+      return `A minefield clears ${n} Blast Marker${n === 1 ? "" : "s"} ${dice(d["rolls"])}`;
+    }
+    case "mine_move":
+      return d["quarryId"] === null ? "An orbital mine waits: no enemy ship in sight" : `An orbital mine homes in on ${ship("quarryId")}`;
+    case "mine_intercept":
+      return `${wave("ordnanceId")} take out an orbital mine${Array.isArray(d["lost"]) && d["lost"].length > 0 ? `, losing ${names(d["lost"])}` : ""}`;
+    case "detonation": {
+      const hit = (d["ships"] as { shipId: string; lost?: boolean; fires?: number }[] | undefined) ?? [];
+      const what = hit.map((h) => `${state.ships.find((x) => x.id === h.shipId)?.name ?? h.shipId} ${h.lost === true ? "destroyed" : `${h.fires ?? 0} fire${h.fires === 1 ? "" : "s"}`}`);
+      const n = Array.isArray(d["ordnanceIds"]) ? d["ordnanceIds"].length : 0;
+      return `${ship("shipId")} detonates ${dice(d["radiusRolls"])} ${num(d["radius"])} cm: ${what.length > 0 ? what.join(", ") : "no ship caught"}${n > 0 ? `; ${n} ordnance marker${n === 1 ? "" : "s"} gone` : ""}`;
+    }
     case "gravity_turn":
       return d["skipped"] === true
         ? `${ship("shipId")} can't make its gravity turn`

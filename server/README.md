@@ -20,6 +20,7 @@ Network play's server side ([network/SPEC.md](../network/SPEC.md), [ADR 0003](..
 | Surprise Attack: the host names the attackers; both seats checked at the full points; the planet comes from the limit, not the host | ✅ |
 | Blockade Run: the host names the runners, checked at half the blockader's points | ✅ |
 | Planetary defences: the host names the planet holder where there's no attacker (`planetHolder`); each seat's defences checked against it | ✅ |
+| Orbital mines and minefields: the holder's `emplacements` with their fleet (create and `join`), refused for anyone else, shown in the lobby | ✅ |
 
 ## Layout
 

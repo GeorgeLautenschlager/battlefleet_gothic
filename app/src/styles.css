@@ -287,3 +287,18 @@ strong.p2 { color: var(--p2); }
 .planet .well { fill: rgba(120, 150, 190, 0.05); stroke: rgba(160, 190, 230, 0.35); stroke-width: 0.3; stroke-dasharray: 1.5 1; }
 .standby-ring { fill: none; stroke: rgba(230, 200, 120, 0.55); stroke-width: 0.3; stroke-dasharray: 0.8 0.8; pointer-events: none; }
 .alert-units { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.5rem 0; }
+
+/* Mines and minefields (fleets book pp. 512–513) */
+.minefield { stroke-width: 0.4; stroke-dasharray: 1 0.6; cursor: pointer; }
+.minefield.p1 { fill: color-mix(in srgb, var(--p1) 14%, transparent); stroke: var(--p1); }
+.minefield.p2 { fill: color-mix(in srgb, var(--p2) 14%, transparent); stroke: var(--p2); }
+.minefield.highlight { stroke-width: 0.8; }
+.minefield.ghost { fill: rgba(255, 255, 255, 0.08); stroke: #fff; pointer-events: none; }
+.minefield.ghost.bad { stroke: #e66; }
+.mine circle { fill: #222; stroke-width: 0.3; }
+.mine.p1 circle { stroke: var(--p1); }
+.mine.p2 circle { stroke: var(--p2); }
+.mine text { font-size: 1.3px; fill: #eee; pointer-events: none; }
+.mine.highlight circle { stroke-width: 0.6; }
+.mine.ghost { pointer-events: none; opacity: 0.7; }
+.mine.ghost.bad circle { stroke: #e66; }

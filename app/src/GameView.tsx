@@ -27,6 +27,8 @@ import { CraftOverlay } from "./craft/CraftOverlay";
 import { movableWaves } from "./craft/craft";
 import { arrivalAt, reserveUnits } from "./reserves/arrival";
 import { ReinforcementControls } from "./reserves/ReinforcementControls";
+import { DEFAULT_PLACE, placeAt, type PlaceAim } from "./game/place";
+import { PlacementOverlay } from "./table/PlacementOverlay";
 
 const REROLLABLE = new Set<Transform["type"]>(["declare_order", "fire", "move", "answer_brace"]);
 
@@ -116,6 +118,12 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
   const arrivingUnit = arrivalsHere && arrivalShip !== null ? reserveUnits(state, arrivals).find((u) => u.some((s) => s.id === arrivalShip)) : undefined;
   const arrival = arrivingUnit !== undefined && arrivals !== null && pointer !== null ? arrivalAt(state, arrivals, arrivingUnit, pointer, arrivalTurn) : null;
 
+  /** The planet holder placing mines and minefields (T143–T146): what goes next, and where a click puts it. */
+  const [placeAim, setPlaceAim] = useState<PlaceAim>(DEFAULT_PLACE);
+  const placer = state.clock.setupStep === "place_defences" ? actor(state) : null;
+  const placing = (placer === "p1" || placer === "p2") && controls(seat, placer) ? placer : null;
+  const placement = placing !== null && pointer !== null ? placeAt(state, placing, placeAim, mm(pointer)) : null;
+
   /** Fleet Engagement: the set-up the chooser is looking at, drawn on the table. */
   const [setupPreview, setSetupPreview] = useState<SetupPreview | null>(null);
 
@@ -199,6 +207,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           }}
           onTableClick={(p, s) => {
             if (deploy !== null) act(deployAt(state, deploy.player, deploy.ship, mm(p), deployAim));
+            else if (placing !== null) act(placeAt(state, placing, placeAim, mm(p)));
             else if (arrivingUnit !== undefined && arrivals !== null) {
               const t = arrivalAt(state, arrivals, arrivingUnit, p, arrivalTurn);
               if (t !== null) void run(t).then((ok) => ok && setArrivalShip(null));
@@ -209,6 +218,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
             else if (aimed !== null && nova && validate(state, novaShot(aimed.ship, aimed.weapon, p)).ok) act(novaShot(aimed.ship, aimed.weapon, p));
           }}
         >
+          {placement !== null && pointer !== null && <PlacementOverlay state={state} aim={placeAim} at={mm(pointer)} ok={validate(state, placement).ok} />}
           {plot !== null && <PlotOverlay state={state} plot={plot} />}
           {craftPlot !== null && <CraftOverlay state={state} plot={craftPlot} />}
           {aimed !== null && (
@@ -226,7 +236,7 @@ export function GameView({ source, banner }: { source: GameSource; banner?: Reac
           ) : state.pending.length > 0 ? (
             <BracePrompt state={state} onApply={act} />
           ) : state.clock.stage === "setup" ? (
-            <SetupControls state={state} seat={seat} onApply={act} focus={focus} onFocus={setFocus} onPreview={setSetupPreview} aim={deployAim} onAim={setDeployAim} />
+            <SetupControls state={state} seat={seat} onApply={act} focus={focus} onFocus={setFocus} onPreview={setSetupPreview} aim={deployAim} onAim={setDeployAim} placeAim={placeAim} onPlaceAim={setPlaceAim} />
           ) : shooting ? (
             <FireControls state={state} aimed={aimed} onAim={setAim} onApply={act} bearing={bearing} novaAim={novaAim} />
           ) : state.clock.stage === "battle" ? (

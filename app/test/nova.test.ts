@@ -15,7 +15,7 @@ describe("ship options in the fleet forms (T57)", () => {
     expect(classChoices("imperial_navy", false, true)).toEqual([
       "lunar", "gothic", "tyrant", "dominator", "dauntless", "mars", "overlord", "emperor", "retribution", "firestorm", "sword", "cobra",
       // and the planetary defences, for the planet holder (state N91)
-      "laser_platform", "torpedo_platform", "weapons_platform", "orbital_dock", "space_station", "blackstone_fortress", "defence_monitor", "system_ship",
+      "laser_platform", "torpedo_platform", "weapons_platform", "orbital_dock", "space_station", "blackstone_fortress", "defence_monitor", "system_ship", "fire_ship",
     ]);
     expect(classChoices("chaos", false, true)).toContain("acheron");
     expect(classChoices("chaos", false, true)).toContain("repulsive");

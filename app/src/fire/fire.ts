@@ -3,7 +3,7 @@
  * aspect choices the validator asks for, and torpedo bearings. Legality is
  * always the engine's; this only enumerates candidates and asks it.
  */
-import { effectiveStrength, formation, geometry, inFormation, novaScatterDice, onTable, squadronOf, targeting, validate, weaponDisabled } from "@bfg/engine";
+import { effectiveStrength, formation, geometry, inFormation, minefields, novaScatterDice, onTable, rect, squadronOf, targeting, validate, weaponDisabled } from "@bfg/engine";
 import { mm } from "../table/view";
 import type { Fire, FireNovaCannon, GameState, Point, Quadrant, Ship, Transform, Weapon } from "@bfg/engine";
 
@@ -20,7 +20,7 @@ export const quadrantName = (q: Quadrant): string => QUADRANT_NAMES[q];
 
 export type FireOption = { transform: Fire; label: string };
 export type TargetChoice = {
-  kind: "ship" | "ordnance";
+  kind: "ship" | "ordnance" | "minefield";
   id: string;
   name: string;
   distance: number;
@@ -148,17 +148,24 @@ export function targets(state: GameState, ship: Ship, weapon: Weapon): TargetCho
   }
   for (const o of state.ordnance) {
     if (o.owner === ship.owner || (o.kind === "attack_craft" && o.cap !== null)) continue; // CAP can't be shot at
-    const launcher = state.ships.find((s) => s.id === o.launchedBy)?.name;
+    const launcher = o.kind === "orbital_mine" ? undefined : state.ships.find((s) => s.id === o.launchedBy)?.name;
     const r = fireOptions(state, { ...base, target: { kind: "ordnance", id: o.id } });
     const options = Array.isArray(r) ? withVolleys(state, ship, weapon, r) : [];
     out.push({
       kind: "ordnance",
       id: o.id,
-      name: `${launcher ? `${launcher}'s ` : ""}${o.kind === "torpedo_salvo" ? `torpedoes (${o.strength})` : o.squadrons.map((q) => q.name).join(", ")}`,
+      name: `${launcher ? `${launcher}'s ` : ""}${o.kind === "torpedo_salvo" ? `torpedoes (${o.strength})` : o.kind === "orbital_mine" ? "orbital mine" : o.squadrons.map((q) => q.name).join(", ")}`,
       distance: geometry.distance(from, o.position),
       options,
       reason: Array.isArray(r) ? null : r.reason,
     });
+  }
+  // An enemy minefield, shot at as ordnance: each hit a Blast Marker on it (state N119).
+  for (const f of minefields.minefields(state)) {
+    if (f.owner === ship.owner) continue;
+    const r = fireOptions(state, { ...base, target: { kind: "minefield", id: f.id } });
+    const options = Array.isArray(r) ? withVolleys(state, ship, weapon, r) : [];
+    out.push({ kind: "minefield", id: f.id, name: "minefield", distance: geometry.distance(from, rect.nearestPoint(f.rect, from)), options, reason: Array.isArray(r) ? null : r.reason });
   }
   return out.sort((a, b) => a.distance - b.distance);
 }

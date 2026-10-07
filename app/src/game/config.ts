@@ -27,7 +27,17 @@ export const FLEETS: Record<Fleet, { name: string; classId: string; classes: str
 };
 
 /** Planetary defences (state §7.6): either fleet may field them, in a points battle, if it holds the planet (N91). */
-export const DEFENCE_CLASSES = ["laser_platform", "torpedo_platform", "weapons_platform", "orbital_dock", "space_station", "blackstone_fortress", "defence_monitor", "system_ship"] as const;
+export const DEFENCE_CLASSES = ["laser_platform", "torpedo_platform", "weapons_platform", "orbital_dock", "space_station", "blackstone_fortress", "defence_monitor", "system_ship", "fire_ship"] as const;
+
+/** The planet holder's orbital mines and minefields, bought by number (state N107). */
+export type Emplacements = { orbitalMines: number; minefields: number };
+export const NO_EMPLACEMENTS: Emplacements = { orbitalMines: 0, minefields: 0 };
+/** An orbital mine's and a minefield's points (fleets book pp. 512–513), and the most minefields (p. 498). */
+export const MINE_POINTS = 5;
+export const MINEFIELD_POINTS = 40;
+export const MAX_MINEFIELDS = 2;
+export const emplacementPoints = (e: Emplacements | undefined): number => MINE_POINTS * (e?.orbitalMines ?? 0) + MINEFIELD_POINTS * (e?.minefields ?? 0);
+const hasEmplacements = (e: Emplacements | undefined): e is Emplacements => (e?.orbitalMines ?? 0) + (e?.minefields ?? 0) > 0;
 
 /** System defence ships squadron with each other, never with the fleet's escorts. */
 export const DEFAULT_DEFENCE_SQUADRON = "System ships";
@@ -41,7 +51,7 @@ export const POINTS_LIMITS = [500, 750, 1000, 1500] as const;
  * `classes[i]`: ship i's class; missing means the fleet's standard cruiser. `options[i]`: its option ids (T57).
  * `command`: commanders, with fleet lists. `squadrons[i]`: its squadron's name, "" for none (T76).
  */
-export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[]; options?: string[][]; command?: Command | undefined; squadrons?: string[]; reserves?: boolean[] };
+export type Side = { name: string; fleet: Fleet; ships: string[]; classes?: string[]; options?: string[][]; command?: Command | undefined; squadrons?: string[]; reserves?: boolean[]; emplacements?: Emplacements };
 
 /** An escort left without a squadron name joins this one (every escort is in a squadron, T76). */
 export const DEFAULT_ESCORT_SQUADRON = "Escorts";
@@ -248,6 +258,8 @@ export const roleOf = (scenario: ScenarioId | undefined, attacker: PlayerId | un
  */
 export function sideProblem(side: Side, carriers: boolean, forces?: Forces, fleetLists = false, role?: Role, planet?: PlanetSize, holder = false): string | null {
   const table = planet !== undefined && role?.scenario !== "surprise_attack" ? { planet } : {};
+  // Mines and minefields are the planet holder's alone (state N107).
+  if (hasEmplacements(side.emplacements) && !(role !== undefined ? role.defender : holder)) return "Only the planet holder fields orbital mines and minefields";
   if (role === undefined) {
     // The mirror leaves out planetary defences: only the planet holder fields them (N91).
     const kept = side.ships.map((_, i) => i).filter((i) => !isDefenceClass(classIds(side, carriers, forces?.kind === "points")[i] ?? ""));
@@ -284,7 +296,23 @@ export function cruiserClash(options: NewGameOptions, now = new Date()): GameCon
       p2: { name: options.p2.name.trim(), faction: options.p2.fleet satisfies FactionId },
     },
     ships: [...ships("p1"), ...ships("p2")],
+    ...emplacementsConfig(options),
   };
+}
+
+/** Who holds the planet (state N91): the defender in a scenario with roles, else the form's holder, Player 1 by default. */
+export const planetHolderOf = (o: Pick<NewGameOptions, "scenario" | "attacker" | "planetHolder">): PlayerId =>
+  hasRoles(o.scenario) ? ((o.attacker ?? "p2") === "p1" ? "p2" : "p1") : (o.planetHolder ?? "p1");
+
+/** This side may buy mines and minefields (state N107): a points battle with a planet, and it holds it (The Bait has none). */
+export const holdsPlanet = (o: Pick<NewGameOptions, "scenario" | "attacker" | "planetHolder" | "planet" | "forces">, p: PlayerId): boolean =>
+  o.forces?.kind === "points" && o.scenario !== "the_bait" && (o.planet !== undefined || o.scenario === "surprise_attack") && planetHolderOf(o) === p;
+
+/** The holder's mines and minefields in the config; a side that doesn't hold the planet brings none. */
+function emplacementsConfig(options: NewGameOptions): Pick<GameConfig, "orbitalMines" | "minefields"> {
+  const e = options[planetHolderOf(options)].emplacements;
+  if (!hasEmplacements(e) || options.forces?.kind !== "points") return {};
+  return { ...(e.orbitalMines > 0 ? { orbitalMines: e.orbitalMines } : {}), ...(e.minefields > 0 ? { minefields: e.minefields } : {}) };
 }
 
 function randomSeed(): number {

@@ -11,7 +11,9 @@ import {
   MAX_SOCKETS_PER_SEAT,
   PROTOCOL,
   parseClientMessage,
+  emplacementsOf,
   shipEntry,
+  type Emplacements,
   type ErrorCode,
   type Lobby,
   type Presence,
@@ -37,7 +39,8 @@ export type Deps = {
 };
 
 /** A seat: who holds it, and once they've joined, their name and fleet. */
-export type SeatRecord = { tokenHash: string; name: string | null; faction: FactionId | null; ships: ShipEntry[] };
+/** `emplacements`: the holder's mines and minefields (state N107); absent: none. */
+export type SeatRecord = { tokenHash: string; name: string | null; faction: FactionId | null; ships: ShipEntry[]; emplacements?: Emplacements };
 
 export type TransformRecord = {
   /** The seq this transform produced: 1 for the first. */
@@ -113,6 +116,8 @@ export type CreateRequest = {
   planet?: PlanetSize;
   /** Without an attacker: who holds the planet and may field planetary defences (state N91). */
   planetHolder?: PlayerId;
+  /** The host's orbital mines and minefields, if they hold the planet (state N107). */
+  emplacements?: Emplacements;
 };
 export type Created = { data: RoomData; seat: PlayerId; token: string; inviteToken: string };
 export type CreateError = { error: "INVALID_NAME" | "INVALID_SIDE" | "INVALID_FLEET"; message?: string };
@@ -132,14 +137,15 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
   const attacker: PlayerId | undefined = hasAttacker(scenario) ? (req.attacker === "p1" ? "p1" : "p2") : undefined;
   const planet = scenario !== "surprise_attack" && (req.planet === "small" || req.planet === "medium" || req.planet === "large") ? req.planet : undefined;
   const planetHolder: PlayerId | undefined = planet !== undefined && attacker === undefined && (req.planetHolder === "p1" || req.planetHolder === "p2") ? req.planetHolder : undefined;
-  const problem = fleetProblem(req.faction, req.ships, req.ships.length, req.carriers ?? false, forces, scenario, fleetLists, attacker !== undefined && attacker !== req.side, planet, planetHolder === req.side);
+  const mines = emplacementsOf(req.emplacements);
+  const problem = fleetProblem(req.faction, req.ships, req.ships.length, req.carriers ?? false, forces, scenario, fleetLists, attacker !== undefined && attacker !== req.side, planet, planetHolder === req.side, mines.emplacements);
   if (problem !== null) return { error: "INVALID_FLEET", message: problem };
   const token = toBase64Url(deps.randomBytes(16));
   const inviteToken = toBase64Url(deps.randomBytes(16));
   const guest: PlayerId = req.side === "p1" ? "p2" : "p1";
   const now = deps.now();
   const seats = {
-    [req.side]: { tokenHash: await deps.sha256(token), name, faction: req.faction, ships: trimShips(req.ships) },
+    [req.side]: { tokenHash: await deps.sha256(token), name, faction: req.faction, ships: trimShips(req.ships), ...mines },
     [guest]: { tokenHash: await deps.sha256(inviteToken), name: null, faction: null, ships: [] },
   } as Record<PlayerId, SeatRecord>;
   const data: RoomData = {
@@ -252,7 +258,7 @@ export class GameRoom {
     if (seat === null) return this.fail(conn, "HELLO_FIRST", "Say hello first");
     switch (msg.type) {
       case "join":
-        return this.join(conn, seat, msg.token, msg.name, msg.faction, msg.ships);
+        return this.join(conn, seat, msg.token, msg.name, msg.faction, msg.ships, msg.emplacements);
       case "propose":
         return this.propose(conn, seat, msg.id, msg.base, msg.transform);
       case "undo":
@@ -274,7 +280,7 @@ export class GameRoom {
     return [{ to: [conn], message: this.welcome(seat) }, this.presenceToAll()];
   }
 
-  private async join(conn: string, seat: PlayerId, token: string, rawName: string, faction: FactionId, ships: ShipEntry[]): Promise<Outgoing[]> {
+  private async join(conn: string, seat: PlayerId, token: string, rawName: string, faction: FactionId, ships: ShipEntry[], emplacements?: Emplacements): Promise<Outgoing[]> {
     if ((await this.deps.sha256(token)) !== this.data.seats[seat].tokenHash) {
       return this.fail(conn, "UNKNOWN_TOKEN", "That token isn't this seat's");
     }
@@ -282,12 +288,13 @@ export class GameRoom {
     const name = cleanName(rawName);
     if (name === null) return this.reject(conn, "", "INVALID_NAME", `Names need 1–${MAX_NAME_LENGTH} characters`);
     const { attacker, planet, planetHolder } = this.data.options;
-    const problem = fleetProblem(faction, ships, this.data.count, this.data.options.carriers, this.data.options.forces, this.data.options.scenario, this.data.options.fleetLists, attacker !== undefined && attacker !== seat, planet, planetHolder === seat);
+    const problem = fleetProblem(faction, ships, this.data.count, this.data.options.carriers, this.data.options.forces, this.data.options.scenario, this.data.options.fleetLists, attacker !== undefined && attacker !== seat, planet, planetHolder === seat, emplacements);
     if (problem !== null) return this.reject(conn, "", "INVALID_FLEET", problem);
     const other = this.data.seats[seat === "p1" ? "p2" : "p1"];
     const taken = trimShips(ships).find((s) => other.ships.some((o) => o.name === s.name));
     if (taken !== undefined) return this.reject(conn, "", "INVALID_NAME", `${taken.name} is already a ship in this game`);
-    this.data.seats[seat] = { ...this.data.seats[seat], name, faction, ships: trimShips(ships) };
+    const { tokenHash } = this.data.seats[seat];
+    this.data.seats[seat] = { tokenHash, name, faction, ships: trimShips(ships), ...emplacementsOf(emplacements) };
     this.touch();
     const out: Outgoing[] = [{ to: this.seated(), message: { type: "lobby", ...this.lobby() } }];
     if (SEATS.every((p) => this.data.seats[p].name !== null)) out.push(...this.start());
@@ -301,7 +308,7 @@ export class GameRoom {
     const fleet = (p: PlayerId) => {
       const s = this.data.seats[p];
       if (s.name === null || s.faction === null) throw new Error(`${p} hasn't joined`);
-      return { name: s.name, faction: s.faction, ships: s.ships };
+      return { name: s.name, faction: s.faction, ships: s.ships, ...(s.emplacements !== undefined ? { emplacements: s.emplacements } : {}) };
     };
     const config = cruiserClash({ p1: fleet("p1"), p2: fleet("p2") }, seed, new Date(this.deps.now()).toISOString(), this.data.options);
     this.data.config = config;
@@ -396,7 +403,7 @@ export class GameRoom {
   private lobby(): Lobby {
     const seat = (p: PlayerId) => {
       const s = this.data.seats[p];
-      return { name: s.name, faction: s.faction, ships: s.ships, joined: s.name !== null };
+      return { name: s.name, faction: s.faction, ships: s.ships, joined: s.name !== null, ...(s.emplacements !== undefined ? { emplacements: s.emplacements } : {}) };
     };
     return { seats: { p1: seat("p1"), p2: seat("p2") }, count: this.data.count, options: this.data.options };
   }

@@ -1,6 +1,6 @@
 /** The game server's HTTP side (spec §8.1). */
 import type { FactionId, Forces, PlanetSize, PlayerId, ScenarioId, Scoring } from "@bfg/engine";
-import type { ShipEntry } from "@bfg/server";
+import type { Emplacements, ShipEntry } from "@bfg/server";
 import { SERVER_URL } from "./config";
 
 export type CreatedGame = { gameId: string; seat: PlayerId; token: string; inviteToken: string };
@@ -29,6 +29,8 @@ export type CreateGame = {
   planet?: PlanetSize;
   /** Without an attacker: who holds the planet and may field planetary defences (state N91). */
   planetHolder?: PlayerId;
+  /** Your orbital mines and minefields, if you hold the planet (state N107). */
+  emplacements?: Emplacements;
 };
 
 export async function createGame(req: CreateGame): Promise<CreatedGame> {
