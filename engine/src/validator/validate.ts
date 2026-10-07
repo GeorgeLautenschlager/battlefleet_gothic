@@ -15,7 +15,7 @@ import { checkAnswerBrace, checkChooseAlert, checkChooseSetup, checkDeployShip, 
 import { checkLaunchAttackCraft, checkMoveOrdnance, checkReleaseCap } from "./craft";
 import { checkBoard, checkEndStep, checkTeleport } from "./boarding";
 import { checkArrive, checkEndMovement } from "./reserves";
-import { checkDetonate, checkPlaceDefence } from "./defences";
+import { checkChooseDefences, checkDetonate, checkPlaceDefence } from "./defences";
 
 /** Where each transform is allowed (transform spec §3). answer_brace is gated by G3/G4 instead. */
 const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" | "battle"; when: readonly string[] }> = {
@@ -31,6 +31,7 @@ const ALLOWED: Record<Exclude<TransformType, "answer_brace">, { stage: "setup" |
   choose_setup: { stage: "setup", when: ["choose_setup"] },
   choose_facing: { stage: "setup", when: ["choose_facing"] },
   choose_alert: { stage: "setup", when: ["choose_alert"] },
+  choose_defences: { stage: "setup", when: ["choose_defences"] },
   drift_hulk: { stage: "battle", when: ["hulks_drift"] },
   declare_order: { stage: "battle", when: ["move_ships"] },
   move: { stage: "battle", when: ["move_ships"] },
@@ -109,6 +110,8 @@ export function validate(state: GameState, input: unknown): ValidationResult {
       return checkDeployShip(state, t);
     case "place_defence":
       return checkPlaceDefence(state, t);
+    case "choose_defences":
+      return checkChooseDefences(state, t);
     case "detonate":
       return checkDetonate(state, t);
     case "drift_hulk":

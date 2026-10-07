@@ -15,7 +15,8 @@ export type GameConfig = {
   seed: number;
   createdAt: string;
   /** `fleetLists`: points battles follow the Gothic War fleet lists, with commanders (T58). */
-  options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean; fleetLists?: boolean };
+  /** `freeDefences`: Surprise Attack's free planetary defences (state N123, transform T157). */
+  options?: { ramming?: boolean; boarding?: boolean; carriers?: boolean; fleetLists?: boolean; freeDefences?: boolean };
   /** Default: Cruiser Clash. Fleet Engagement and The Bait need points forces and victory points (transform §5). */
   scenario?: ScenarioId;
   /** The Bait: the pursuers (state N47); The Raiders: the raiders (N56); Surprise Attack: the attackers (N72). Required there, refused elsewhere. */
@@ -111,6 +112,7 @@ function validateConfig(config: GameConfig): void {
         : "only The Bait has reinforcements in reserve",
     );
   }
+  if (config.options?.freeDefences === true && config.scenario !== "surprise_attack") throw new EngineError("free defences come with Surprise Attack");
   // Surprise Attack's planet comes from the points limit (state N73).
   if (config.scenario === "surprise_attack" && forces.kind === "points" && config.planet !== undefined && config.planet !== planetForLimit(forces.limit)) {
     throw new EngineError(`Surprise Attack at ${forces.limit} pts has a ${planetForLimit(forces.limit)} planet, not a ${config.planet} one`);
@@ -269,9 +271,9 @@ function defenceProblems(config: GameConfig, forces: Forces): void {
 }
 
 /** The most minefields and fire ships a holder may buy (fleets book p. 498). */
-const MAX_MINEFIELDS = 2;
-const MAX_FIRE_SHIPS = 6;
-const MINEFIELD_POINTS = 40;
+export const MAX_MINEFIELDS = 2;
+export const MAX_FIRE_SHIPS = 6;
+export const MINEFIELD_POINTS = 40;
 
 /** What the holder's orbital mines and minefields cost (state N107). */
 export const emplacementPoints = (config: GameConfig): number => MINE_POINTS * (config.orbitalMines ?? 0) + MINEFIELD_POINTS * (config.minefields ?? 0);
@@ -406,6 +408,27 @@ function emplacementsOf(config: GameConfig): { emplacements?: Emplacements } {
   return { emplacements: { owner: holder, orbitalMines, minefields, unplaced: { orbitalMines, minefields: null } } };
 }
 
+/** A planetary defence bought during set-up (Surprise Attack's free defences, reducer R76): built as newGame builds one. */
+export function defenceShip(id: string, owner: PlayerId, name: string, classId: string, faction: FactionId): Ship {
+  const profile = cloneJson(profileWithOptions(classId, []));
+  for (const w of profile.weapons) if (w.kind === "launch_bay" && w.craft?.length === 0) w.craft = fleetCraft(faction);
+  const hasTorpedoes = profile.weapons.some((w) => w.kind === "torpedoes");
+  const hasBays = profile.weapons.some((w) => w.kind === "launch_bay");
+  return {
+    id, owner, name, profile,
+    leadership: DEFENCE_LEADERSHIP,
+    status: "undeployed",
+    position: null,
+    heading: null,
+    damage: 0,
+    criticals: [],
+    specialOrder: null,
+    loaded: { ...(hasTorpedoes ? { torpedoes: true } : {}), ...(hasBays ? { launchBays: true } : {}) },
+    lastMove: null,
+    grapple: null,
+  };
+}
+
 /** Create a game at setup / roll_leadership (transform spec §5). */
 export function newGame(config: GameConfig): GameState {
   validateConfig(config);
@@ -463,6 +486,7 @@ export function newGame(config: GameConfig): GameState {
         boarding: config.options?.boarding ?? false,
         carriers: config.options?.carriers ?? false,
         ...(config.options?.fleetLists === true ? { fleetLists: true } : {}),
+        ...(config.options?.freeDefences === true ? { freeDefences: true } : {}),
       },
     },
     scenario: scenarioOf(config),
@@ -490,7 +514,9 @@ export function newGame(config: GameConfig): GameState {
         ? { engagement: { formations: { p1: null, p2: null }, setupRolls: [], setupChooser: null, map: null, colours: null } }
         : {}),
       ...(config.scenario === "raiders" ? { raid: { facing: null, surpriseTurns: null } } : {}),
-      ...(config.scenario === "surprise_attack" ? { surpriseAttack: { alertUnits: null, alertChosen: false, entryEdge: null } } : {}),
+      ...(config.scenario === "surprise_attack"
+        ? { surpriseAttack: { alertUnits: null, alertChosen: false, entryEdge: null, ...(config.options?.freeDefences === true ? { defenceBudget: null, defencesChosen: false } : {}) } }
+        : {}),
       ...(config.scenario === "blockade_run" ? { blockade: { thirds: null } } : {}),
       ...emplacementsOf(config),
     },

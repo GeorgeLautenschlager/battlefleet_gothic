@@ -5,7 +5,10 @@ import { getShip } from "../state/derived";
 import { gravityWellAt, onPlanet } from "../rules/planets";
 import { minefieldPlacementProblem, minefieldRect } from "../rules/minefields";
 import type { GameState } from "../state/types";
-import type { Detonate, PlaceDefence } from "../transforms/types";
+import type { ChooseDefences, Detonate, PlaceDefence } from "../transforms/types";
+import { MINE_POINTS } from "../state/derived";
+import { CATALOGUE } from "../state/catalogue";
+import { isDefenceClass, MAX_FIRE_SHIPS, MAX_MINEFIELDS, MINEFIELD_POINTS } from "../state/newGame";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
 import { MINEFIELD_REACH } from "../geometry/constants";
 
@@ -48,5 +51,47 @@ export function checkDetonate(state: GameState, t: Detonate): ValidationResult {
   if (getShip(state, ship.id).profile.traits?.fireShip !== true) return reject("NOT_A_FIRE_SHIP", `${ship.name} isn't a fire ship`, { shipId: ship.id });
   // Before its move or after it, never halfway (transform T153).
   if (state.activation !== null) return reject("ACTIVATION_OPEN", "Finish the ship that's moving first", { shipId: state.activation.shipId });
+  return OK;
+}
+
+/** Surprise Attack's free defences (validator §4.1, V45–V47): the whole shopping list at once. */
+export function checkChooseDefences(state: GameState, t: ChooseDefences): ValidationResult {
+  // 1
+  const bad = t.ships.find((s) => !isDefenceClass(s.classId));
+  if (bad !== undefined) return reject("NOT_A_DEFENCE", `${bad.classId} isn't a planetary defence`, { classId: bad.classId });
+  // 2
+  const taken = new Set(state.ships.map((s) => s.name.trim()));
+  for (const s of t.ships) {
+    const name = s.name.trim();
+    if (name.length === 0 || name.length > 40) return reject("INVALID_NAME", "Ship names need 1–40 characters", { name: s.name });
+    if (taken.has(name)) return reject("INVALID_NAME", `${name} is already a ship in this game`, { name });
+    taken.add(name);
+  }
+  // 3
+  const profile = (classId: string) => CATALOGUE[classId]?.profile;
+  const points = t.ships.reduce((n, s) => n + (profile(s.classId)?.points ?? 0), 0) + MINE_POINTS * t.orbitalMines + MINEFIELD_POINTS * t.minefields;
+  const budget = state.setup.surpriseAttack?.defenceBudget ?? 0;
+  if (points > budget) return reject("OVER_BUDGET", `That's ${points} pts of defences; the budget is ${budget} pts`, { points, budget });
+  // 4 (state N125)
+  const fields = (state.setup.emplacements?.minefields ?? 0) + t.minefields;
+  if (fields > MAX_MINEFIELDS) return reject("TOO_MANY", `At most ${MAX_MINEFIELDS} minefields in all`, { kind: "minefield", count: fields, max: MAX_MINEFIELDS });
+  const torches = state.ships.filter((s) => s.owner === t.player && s.profile.traits?.fireShip === true).length + t.ships.filter((s) => profile(s.classId)?.traits?.fireShip === true).length;
+  if (torches > MAX_FIRE_SHIPS) return reject("TOO_MANY", `At most ${MAX_FIRE_SHIPS} fire ships in all`, { kind: "fire_ship", count: torches, max: MAX_FIRE_SHIPS });
+  // 5 (V47)
+  const theirs = new Set((state.squadrons ?? []).filter((sq) => sq.owner === t.player).map((sq) => sq.name));
+  const min = state.meta.options.fleetLists === true ? 2 : 1;
+  const groups = new Map<string, number>();
+  for (const s of t.ships) {
+    const escort = profile(s.classId)?.type === "escort";
+    const name = s.squadron?.trim();
+    if (escort && (name === undefined || name === "")) return reject("INVALID_SQUADRON", `${s.name.trim()} is an escort: name its squadron`, { name: s.name });
+    if (!escort && name !== undefined) return reject("INVALID_SQUADRON", `${s.name.trim()} is a stationary defence: it doesn't squadron`, { name: s.name });
+    if (name === undefined) continue;
+    if (theirs.has(name)) return reject("INVALID_SQUADRON", `${name} is already one of your squadrons`, { squadron: name });
+    groups.set(name, (groups.get(name) ?? 0) + 1);
+  }
+  for (const [name, n] of groups) {
+    if (n < min || n > 6) return reject("INVALID_SQUADRON", `Squadron ${name} has ${n} ships: it needs ${min}–6`, { squadron: name, count: n });
+  }
   return OK;
 }
