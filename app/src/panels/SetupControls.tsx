@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { actor, engagement, getSquadron, surprise, type Formation, type GameState, type PlayerId, type Transform } from "@bfg/engine";
+import { actor, engagement, getSquadron, planetaryDefence, surprise, type Formation, type GameState, type PlayerId, type Transform } from "@bfg/engine";
 import { Act } from "../controls/Act";
 import { freeHeading, type DeployAim } from "../game/deploy";
 import type { SetupPreview } from "../table/Zones";
@@ -188,7 +188,9 @@ export function SetupControls({
         <>
           <p className="hint">
             {playerName(state, who)}: click to deploy <strong>{ship.name}</strong>
-            {state.scenario.id === "blockade_run"
+            {planetaryDefence(ship)
+              ? ", a planetary defence: anywhere in the planet's gravity well (the dashed ring), off the planet itself, facing any way."
+              : state.scenario.id === "blockade_run"
               ? `, in its ${THIRD_NAMES[thirdOf(state, ship) ?? 0]} third of the table, at least 60 cm from the runners' edge, facing any way.`
               : standby
               ? `, on standby: anywhere, broadside to the planet${first ? `, and this first one within ${surprise.STANDBY_RANGE} cm of it` : ""}.`

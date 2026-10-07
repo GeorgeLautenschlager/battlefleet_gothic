@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.21, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29). v0.15 adds battleships: the `battleship` category, the traits that bar Come to New Heading and raise Leadership, and options that exclude each other (§7.1, §11, N30–N33). v0.16 adds escorts and squadrons, escort and capital: §3, §7.5, §8, §9.1, §11, §13, N34–N45. v0.17 adds the second scenario, The Bait (p. 130), and with it reserves: ships that start off the table and arrive along an entry edge during the battle (§4, §5, §6, §7, §11, §13, N47–N55). v0.18 adds the third scenario, The Raiders (p. 131): the defender's facing and spacing, raiders arriving from any edge in their first turn, and the defenders' surprise (§4, §5, §11, §13, N56–N63). v0.19 adds the first celestial phenomenon, a planet in the table centre (pp. 112–113): its template, line of sight, torpedoes and drifting hulks, and its gravity well's free turns and high orbit (§4, §9.1, §11, §13, N64–N71). v0.20 adds the fourth scenario, Surprise Attack (p. 132): units on full alert and on standby, going on alert, the planet by points, and attackers who all move on from one edge (§4, §5, §7, §8, §11, §13, N72–N80). v0.21 adds the fifth scenario, Blockade Run (p. 133): the blockaders in their rolled thirds, the runners along their edge, the edge a ship leaves by, and the runners' victory points for getting through (§4, §5, §7, §11, §13, N81–N89).
+**Status:** draft v0.22, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29). v0.15 adds battleships: the `battleship` category, the traits that bar Come to New Heading and raise Leadership, and options that exclude each other (§7.1, §11, N30–N33). v0.16 adds escorts and squadrons, escort and capital: §3, §7.5, §8, §9.1, §11, §13, N34–N45. v0.17 adds the second scenario, The Bait (p. 130), and with it reserves: ships that start off the table and arrive along an entry edge during the battle (§4, §5, §6, §7, §11, §13, N47–N55). v0.18 adds the third scenario, The Raiders (p. 131): the defender's facing and spacing, raiders arriving from any edge in their first turn, and the defenders' surprise (§4, §5, §11, §13, N56–N63). v0.19 adds the first celestial phenomenon, a planet in the table centre (pp. 112–113): its template, line of sight, torpedoes and drifting hulks, and its gravity well's free turns and high orbit (§4, §9.1, §11, §13, N64–N71). v0.20 adds the fourth scenario, Surprise Attack (p. 132): units on full alert and on standby, going on alert, the planet by points, and attackers who all move on from one edge (§4, §5, §7, §8, §11, §13, N72–N80). v0.21 adds the fifth scenario, Blockade Run (p. 133): the blockaders in their rolled thirds, the runners along their edge, the edge a ship leaves by, and the runners' victory points for getting through (§4, §5, §7, §11, §13, N81–N89). v0.22 adds planetary defences, first slice (pp. 100–101; fleets book pp. 496–517): stationary defences (the `defence` type) and system defence ships, their Leadership, orders, deployment in the gravity well, the Defences Critical Hits table with Orbit Lost, Blast Marker removal, and how they score (§7, §7.2, §7.6, §11, §13, N90–N105).
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -376,7 +376,7 @@ type ShipProfile = {
   className: string                  // "Lunar class cruiser"
   source: { book: "fleets", page: number }
   points: number                     // 180
-  type: "battleship" | "cruiser" | "escort"
+  type: "battleship" | "cruiser" | "escort" | "defence"   // defence: a stationary planetary defence (§7.6)
   category: ShipCategory             // the fleet lists' kind of hull, for their ratios (N20); absent in older saves: "cruiser"
   options: string[]                  // the option ids chosen for this ship, already applied below (N21); absent in older saves: []
   hits: number                       // starting damage capacity
@@ -396,9 +396,10 @@ type ShipTraits = {
   noComeToNewHeading?: boolean       // may not use Come to New Heading (the battleships, N31)
   leadershipBonus?: number           // added to its Leadership, max 10 (the Emperor's +1, N32)
   noLongRangeShift?: boolean         // its batteries take no column shift for firing over 30 cm (the Idolator, p. 281)
+  planetaryDefence?: boolean         // a system defence ship (defence monitor, system ship): Ld 7, Reload and Brace only (§7.6)
 }
 
-type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship" | "escort"   // escorts count in no ratio (transform T77)
+type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship" | "escort" | "defence"   // escorts and defences count in no ratio (transform T77, T133)
 
 type Weapon = {
   id: string                         // unique within the profile: "port_lances"
@@ -438,6 +439,12 @@ type CriticalKind =
   | "thrusters"           // 8: −10 cm speed
   | "bridge_smashed"      // 9: −3 Ld, unrepairable
   | "shields_collapse"    // 10: shields 0, unrepairable
+  // The Defences Critical Hits table (p. 101), for stationary defences only (N98):
+  | "lances_damaged"      // 2–3: its lances can't fire
+  | "main_armament_damaged" // 4: its weapons batteries can't fire
+  | "ordnance_bays_hit"   // 5: no torpedoes or attack craft launched
+  | "reactors_damaged"    // 6: shields and turrets halved (+1 damage)
+  | "orbit_lost"          // 8–9: falls D6 cm toward the planet each Movement Phase (+1 damage) (N99)
 ```
 
 - **Hull Breach (11)** and **Bulkhead Collapse (12)** only cause extra damage, so they never appear here; they show up in the log and in `damage`.
@@ -508,6 +515,15 @@ type Squadron = {
 - **Leadership** (p. 45): an escort squadron rolls once and every member's `leadership` holds that value. Capital ships roll individually, as before.
 - **Formation** (p. 96): a squadron's members in formation are its largest chain of `active` members whose stems are linked, each within `FORMATION_RANGE` = 15 cm of another (N35). Others are **strays**: they act as single ships, with their own orders and targets, until they're back in formation (N36). Formation is derived from positions, never stored.
 - A squadron with one member left in formation is still a squadron for its orders, its Leadership and victory points; it just has no one to combine with.
+
+### 7.6 Planetary defences
+
+Planetary defences (pp. 100–101; fleets book pp. 496–517) are ships in the state: they have hits, shields, armour, turrets, weapons and criticals like any other, and are deployed, shot at, boarded and scored through the same paths (N90). Two kinds:
+
+- **Stationary defences**, `profile.type = "defence"`: the orbital defence laser platform, orbital torpedo launcher and orbital weapons platform (Defence/1), the orbital dock (6), space station (8) and Blackstone Fortress (16). Speed 0, all-round weapons, the Defences column whatever the aspect (N96). They never move, take no special order but Reload Ordnance (N95), never drift as hulks (N97), shed Blast Markers in every End Phase (N100), and roll on the Defences Critical Hits table (N98).
+- **System defence ships**, escorts with `traits.planetaryDefence`: the defence monitor and the system ship. They move, shoot and squadron as escorts, but share the stationary defences' Leadership and orders (N94–N95).
+
+Both kinds are the **planet holder's** (N91), deploy with their stems in the planet's gravity well (N93), have a fixed Leadership of 7 that's never rolled (N94), and are bought from the side's points, up to a third of its limit (N91).
 
 ---
 
@@ -750,7 +766,9 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `onPlanet(p)` | the planet whose template holds point `p` (`distance(p, position) ≤ diameter/2`, within `EPS`), or none |
 | `gravityWellAt(p)` | the planet whose gravity well holds `p` (`distance(p, position) ≤ diameter/2 + well`, within `EPS`), or none (N67) |
 | `planetBlocks(from, to)` | some planet's template lies across the line from `from` to `to` (it passes closer than `diameter/2 − EPS` to the centre), and neither end is on that planet (N65) |
-| `eliminated(player)` | no ship of `player`'s is `active` or in `reserve` (D6, N52) |
+| `eliminated(player)` | no ship of `player`'s is `active` or in `reserve`, stationary defences (`type = "defence"`) not counting (D6, N52, N102) |
+| `isDefence(s)` | `profile.type = "defence"`: a stationary planetary defence (§7.6) |
+| `planetaryDefence(s)` | `isDefence(s)` or `profile.traits.planetaryDefence`: Ld 7, Reload Ordnance and Brace only (N94–N95) |
 | `reservesMayWait(player)` | `player`'s reserves may stay off the table at the end of their Movement Phase: The Bait, yes; The Raiders and Surprise Attack, no, they all arrive in their first turn (N60, N76) |
 | `onStandby(s)` | Surprise Attack: `s` is `active` and has `standby` (N78) |
 | `wentOnAlert(s)` | `turnState.ships[s.id].alerted`: it went on alert this player turn (N78) |
@@ -762,29 +780,29 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `rerollFor(s)` | the commander whose re-roll `s` would use, or none: its own commander if they have re-rolls left, else its side's fleet commander if theirs is `active` with re-rolls left (N23–N24) |
 | `canBeBoarded(s)` | not on the Mark of Nurgle (§7.4) |
 | `speed(s)` | `max(0, profile.speed − (crippled ? 5 : 0) − (has(thrusters) ? 10 : 0))` |
-| `maxShields(s)` | `has(shields_collapse) ? 0 : crippled ? ⌈shields/2⌉ : shields`; hulks 0 |
+| `maxShields(s)` | `has(shields_collapse) ? 0 : crippled or has(reactors_damaged) ? ⌈shields/2⌉ : shields`; hulks 0. Crippled and reactors damaged halve once (N98) |
 | `bmsInContact(s)` | Blast Markers whose circle touches or overlaps the ship's base circle |
 | `shieldCapacity(s)` | `max(0, maxShields − |bmsInContact|)` (interpretation #11) |
-| `turrets(s)` | hulks 0; crippled `⌈turrets/2⌉`; else `turrets`. Not affected by Brace. |
+| `turrets(s)` | hulks 0; crippled or `has(reactors_damaged)` `⌈turrets/2⌉`; else `turrets`. Not affected by Brace. |
 | `launchCapacity(s)` | Σ `strength` over the ship's `launch_bay` weapons not lost to their side's armament critical, then halved (rounding up) if crippled and again if braced (p. 73, ruling N9) |
 | `craftInPlay(player)` | the number of squadrons in the player's attack craft waves, CAP included |
 | `fleetBays(player)` | Σ `launchCapacity` over the player's `active` ships: the fleet's ordnance limit (p. 73) |
 | `armourFacing(target, from)` | quadrant of `target` containing `from`; armour = `profile.armour[quadrant]`. Bombers use the minimum. |
 | `canTurn(s)` | `!has(engine_room)` |
-| `weaponDisabled(s, w)` | a matching `<location>_armament` critical exists, or the ship failed its disengage test this turn, is grappled, or declared a boarding action this turn (p. 89) |
+| `weaponDisabled(s, w)` | a matching `<location>_armament` critical exists, or a matching defence critical (`lances_damaged` for lances, `main_armament_damaged` for batteries, `ordnance_bays_hit` for torpedoes and launch bays, N98), or the ship failed its disengage test this turn, is grappled, or declared a boarding action this turn (p. 89) |
 | `isGrappled(s)` | `s.grapple ≠ null` |
 | `boardingValue(s)` | `remainingHits(s)` (p. 89), doubled with the Mark of Khorne. Later fleets modify it too (Tau halve it). |
 | `shieldsDown(s)` | `shieldCapacity(s) = 0`: the ship can be teleported onto (pp. 91–92) |
 | `novaCannonBarred(s)` | why `s` can't fire a nova cannon, or `null`: `"crippled"`, or `"order"` when its `specialOrder` is All Ahead Full, Come To New Heading, Burn Retros or Brace For Impact! (p. 64, p. 65). Lock On and Reload Ordnance don't matter to it. |
 | `effectiveStrength(s, w)` | `w.strength`, halved (round up) once for each that applies: crippled; braced; for direct fire only, on AAF / Come To New Heading / Burn Retros |
-| `targetedAsDefences(s)` | `lastMove.distance < 5` (p. 53) |
+| `targetedAsDefences(s)` | `isDefence(s)`, or `lastMove.distance < 5` (p. 53, N96) |
 | `commandCheckLd(s)` | `leadership(s) − (bmsInContact non-empty ? 1 : 0) + (any enemy ship has a live specialOrder ? 1 : 0)`, max 10; roll ≤ that, 11–12 always fail. For a squadron, `squadronLd(sq)` replaces `leadership(s)`, and the −1 applies if any member in formation has a Blast Marker in contact (p. 95) |
 | `gunneryColumn(target, aspect)` | defences → A; capital closing → B; capital moving away → C; capital abeam → D; escort closing → C; escort moving away → D; escort abeam → E; ordnance → E |
 | `score(player)` | `scenario.scoring = "cruiser_clash"`: Σ over enemy ships: `damage` + (destroyedForScoring ? 3 : crippled ? 1 : 0) (p. 128). `"victory_points"`: `victoryPoints(player)` |
 | `victoryPoints(player)` | Σ over enemy ships of `shipVP(s)`, plus Σ over enemy squadrons of `squadronVP(sq)`, plus `holdingTheField(player)` (pp. 122–123, N11–N12), plus in Blockade Run for the runners Σ over their own ships of `runVP(s)` (N88) |
 | `runVP(s)` | Blockade Run, a runner that moved off the blockader's edge (`exitEdge` 180): `shipValue(s)`, or ⌈25%⌉ of it if `crippled`, escorts included, each on its own (N88); otherwise 0 |
-| `shipVP(s)` | escorts → 0 (they score by squadron, `squadronVP`); `destroyedForScoring(s)` → `points`; `disengaged` → ⌈25%⌉ if `crippled`, else ⌈10%⌉; `active` and `crippled` → ⌈25%⌉; otherwise 0. `points` is `shipValue(s)` (N25) |
-| `holdingTheField(player)` | if no enemy ship is `active` and at least one of the player's is: Σ ⌈50% × shipValue⌉ over every **hulk** on the table, friend or foe (N11); otherwise 0 |
+| `shipVP(s)` | escorts → 0 (they score by squadron, `squadronVP`); `destroyedForScoring(s)` → `points`; a stationary defence that isn't destroyed → 0 (N101); `disengaged` → ⌈25%⌉ if `crippled`, else ⌈10%⌉; `active` and `crippled` → ⌈25%⌉; otherwise 0. `points` is `shipValue(s)` (N25) |
+| `holdingTheField(player)` | if no enemy ship but stationary defences is `active` and at least one of the player's is (stationary defences not counting, N102): Σ ⌈50% × shipValue⌉ over every **hulk** on the table, friend or foe (N11); otherwise 0 |
 | `destroyedForScoring(s)` | `status ∈ {destroyed, drifting_hulk, blazing_hulk}` (D7) |
 | `deploymentDivisions(player)` | Cruiser Clash: one division, the player's zone rectangle facing `deploymentFacing[zone]`. Fleet Engagement: the divisions of the player's colour on `engagement.map` (§4). The Bait: the pursued player's or the pursuers' division (§4). The Raiders: the defender's one division, facing `raid.facing`; none for the raiders (§4). Surprise Attack, the defender: for a ship on standby the whole table, otherwise (and with no ship named) `30, 30, 120, 60`, both with no heading of their own: the defender gives one (§4); none for the attackers. Blockade Run: the blockader's ship goes in its unit's third, `60k, 60, 60, 60`, with no heading of its own; with no ship named, every third one of their units rolled; the runners' one division, `0, 0, 180, 15`, facing 0 (§4). `deploymentDivisions(player, ship?)` takes the ship being placed for this |
 | `setupOptions()` | Fleet Engagement, both formations chosen: the two set-ups `{ map, colours }` from p1's row of the formation table (§5), split or B with each colour |
@@ -832,6 +850,7 @@ Properties every valid state satisfies. These are good property-test fodder.
 16. `turnState.squadronMove` is non-null only in `movement / move_ships`. Its members are the squadron's, the active player's, and at least one hasn't `moved`. While it's set, `activation` is null or for one of its members.
 17. Ships in `reserve` exist only in The Bait, where they're the pursued player's (not `scenario.attacker`), and The Raiders and Surprise Attack, where they're the attacker's (`scenario.attacker`). A squadron's members are all in `reserve` or none is.
 18. `standby` is only on the Surprise Attack defender's ships, and a squadron's members all have it or none has. `turnState.ships[id].alerted` is only on the defender's ships, in their own player turns.
+19. Planetary defences all belong to one player, and the table has a planet. Stationary defences are in no squadron and never in `reserve`; every planetary defence's `leadership` is 7.
 
 ```ts
 type GameResult = {
@@ -1106,6 +1125,22 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N86 | **The thirds are rolled with Leadership**: after every ship's Leadership, one D6 per blockading unit in `ships` order (a squadron at its first member): 1–2 left, 3–4 centre, 5–6 right. | §5 |
 | N87 | **The edge a ship leaves by** is recorded on it as `exitEdge`, the inward heading of that edge, whatever the scenario: at a corner, the edge it faces most squarely out of (as `arrivalEdge`, reversed). A ship that disengages by test has none. | §7 |
 | N88 | **Running the blockade** (p. 133): the runners score the points value (`shipValue`) of each of their ships that moved off the blockader's edge, a quarter (⌈25%⌉) if it was crippled. It's on top of standard victory points, as written, so the blockader still scores those ships as disengaged (⌈10%⌉ or ⌈25%⌉). Escorts count one by one here. | §11 |
+| N90 | **Planetary defences, first slice**: the high orbit defences with profiles of their own, as ships (§7.6). Orbital mines, minefields and fire ships come next; the Ramilies star fort (quadrants) and low orbit defences (the low orbit table) later. Stationary defences don't form squadrons yet. | §7.6 |
+| N91 | **Who has defences, and how many** (p. 100, fleets book p. 498): the **planet holder**, only with a planet on the table and points forces: in a scenario with an attacker, the defender (The Bait has none: the bait is far from home); otherwise the player the host names (`planetHolder` in the config; the book rolls for it). They spend at most ⌊`limit`/3⌋ points on defences, counted in their fleet's limit. They're on no fleet list and count towards no ratio. | §7.6 |
+| N92 | **Defence profiles** are the fleets book's, pp. 506–515. A stationary defence's weapons fire all round (all four arcs); its armour is the same all round. The dock's, station's and Blackstone's launch bays carry the holder's fleet attack craft (as their carriers do). | §7.1, §7.6 |
+| N93 | **High orbit deployment** (fleets book p. 498): every planetary defence deploys with its stem in the planet's gravity well, off the template, at a heading the holder gives (it only matters for a ship that moves). Defences are outside the scenario's zones and divisions, its alert units, thirds and spacing; they deploy in the usual turn order as units of their own. | §5, §7.6 |
+| N94 | **Defence Leadership** (p. 100): planetary defences don't roll; `leadership` is 7 from the start, for every test, with the usual Command check modifiers, and fleet commander re-rolls apply as for any ship of the side. | §7.6 |
+| N95 | **Defence orders** (p. 100): only Reload Ordnance, and Brace for Impact when attacked. A stationary defence that passes for Reload has it at once: it doesn't move, so it counts as having moved. | §7.3 |
+| N96 | **Shooting at stationary defences** uses the Defences column (A), whatever the aspect (p. 59). | §11 |
+| N97 | **Damage** (p. 101): a Defence/1 is destroyed by any damage or critical, as an escort is, leaving a Blast Marker at its stem. Larger stationary defences take damage like capital ships, crippled at half, roll on the Defences Critical Hits table, and roll Catastrophic Damage at 0 hits; their hulks stay where they are and never drift. | §7.2, §7.6 |
+| N98 | **The Defences Critical Hits table** (p. 101): 2–3 lances damaged, 4 main armament (batteries), 5 ordnance bays (torpedoes and launch bays), 6 reactors (+1; shields and turrets halved, rounding up, once even if crippled too), 7 fire, 8–9 orbit lost (+1), 10 shields collapse, 11 hull breach (+D3), 12 bulkhead collapse (+D6). A result that can't apply (no lances, a second Shields Collapse) moves up the table. Everything but Shields Collapse can be repaired. | §7.2 |
+| N99 | **Orbit Lost**: at the start of each of its owner's Movement Phases, a defence with `orbit_lost` falls D6 cm straight toward the planet's centre, once however many it has; if its stem reaches the template it's destroyed (and scores as destroyed). | §7.2 |
+| N100 | **Blast Marker removal** (p. 101): in every End Phase, after everything else, each stationary defence on the table (either side's, hulks not included) with Blast Markers in contact removes D6 of them, lowest id first. These don't count against the player's own removal. Monitors, system ships and ships at 0 cm don't. | §10.1 |
+| N101 | **Victory points**: a planetary defence destroyed scores its points value (p. 123), a hulk too. A crippled stationary defence scores nothing: only capital ships score for being crippled. System defence ships score as escorts, by squadron. | §11 |
+| N102 | **Defences can't hold a battle alone**: a side whose only active units are stationary defences is eliminated (D6) and can't hold the field. Otherwise a battle with no round limit couldn't end, since platforms can't be chased off. | §11 |
+| N103 | **Boarding and teleports**: stationary defences can be boarded (their boarding value is their hits left) and rammed (Defence is the largest size, and a rammed defence always takes its full starting hits, p. 55), but don't board or make teleport attacks themselves. | §7 |
+| N104 | **Hulks of stationary defences** don't drift (`hulks_drift` passes them by) and can't be moved by a `drift_hulk`. | §6 |
+| N105 | **Defences in the scenarios so far**: The Raiders', Surprise Attack's and Blockade Run's defenders may field them around a planet added to the game (Surprise Attack's own planet included); they're never on standby and never alert units. | §4 |
 | N89 | **Blockade Run's length and battlezone**: 6 rounds (`maxRounds = 6`), or until a fleet is gone (D6). The battlezone (outer reaches or deep space) is the plain table until celestial phenomena are in (N54). | §4 |
 | N29 | **Grand cruisers' immunity to prow criticals** (Vengeance, Exorcist, Avenger, Retaliator, Executor) isn't needed yet: the only grand cruiser on the Gothic War lists, the Repulsive, doesn't have it. It arrives as a trait with the first class that does. | §7.1 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |

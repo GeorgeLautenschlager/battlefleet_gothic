@@ -3,7 +3,7 @@
  * standby, the planet the points limit sets, and the defender's deployment rules.
  */
 import { approxLe, distance, quadrantsOfPoint } from "../geometry/basic";
-import { getSquadron, otherPlayer, squadronOf } from "../state/derived";
+import { getSquadron, otherPlayer, planetaryDefence, squadronOf } from "../state/derived";
 import type { GameState, PlanetSize, PlayerId, Point } from "../state/types";
 import { planets } from "./planets";
 
@@ -22,11 +22,11 @@ export function surpriseDefender(state: GameState): PlayerId | null {
   return state.scenario.id === "surprise_attack" && attacker !== undefined ? otherPlayer(attacker) : null;
 }
 
-/** A player's units, as `choose_alert` names them (state N77): a squadron's id, or a ship's in none, in `ships` order. */
+/** A player's units, as `choose_alert` names them (state N77): a squadron's id, or a ship's in none, in `ships` order. Planetary defences aren't among them (state N105). */
 export function unitIds(state: GameState, player: PlayerId): string[] {
   const ids: string[] = [];
   for (const ship of state.ships) {
-    if (ship.owner !== player) continue;
+    if (ship.owner !== player || planetaryDefence(ship)) continue;
     const id = squadronOf(state, ship)?.id ?? ship.id;
     if (!ids.includes(id)) ids.push(id);
   }

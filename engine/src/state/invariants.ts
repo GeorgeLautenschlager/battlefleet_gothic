@@ -4,7 +4,7 @@
  * violation it finds, so tests and debugging tools can show them all at once.
  */
 import { EPS } from "../geometry/constants";
-import { activePlayer, isHulk, onTable, otherPlayer } from "./derived";
+import { activePlayer, isDefence, isHulk, onTable, otherPlayer, planetaryDefence } from "./derived";
 import { nonJsonPaths } from "./json";
 import type { GameState, Phase, Ship, Step } from "./types";
 
@@ -215,6 +215,15 @@ export function checkInvariants(state: GameState): Violation[] {
   for (const sq of state.squadrons ?? []) {
     const standby = sq.shipIds.filter((sid) => state.ships.find((s) => s.id === sid)?.standby === true).length;
     if (standby !== 0 && standby !== sq.shipIds.length) fail("I18", `${sq.id} is partly on standby`);
+  }
+
+  // I19: planetary defences are one player's, round a planet; stationary ones squadronless and never in reserve; Ld 7
+  const defences = state.ships.filter(planetaryDefence);
+  if (new Set(defences.map((s) => s.owner)).size > 1) fail("I19", "planetary defences on both sides");
+  if (defences.length > 0 && !(state.table.features ?? []).some((f) => f.kind === "planet")) fail("I19", "planetary defences without a planet");
+  for (const ship of defences) {
+    if (ship.leadership !== 7) fail("I19", `${ship.id}: a planetary defence with Leadership ${ship.leadership}`);
+    if (isDefence(ship) && (ship.status === "reserve" || (state.squadrons ?? []).some((sq) => sq.shipIds.includes(ship.id)))) fail("I19", `${ship.id}: a stationary defence in reserve or a squadron`);
   }
 
   // I10: turnState belongs to this player turn

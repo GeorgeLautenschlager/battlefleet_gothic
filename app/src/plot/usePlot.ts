@@ -46,7 +46,8 @@ export function movableShips(state: GameState): Ship[] {
   const player = activePlayer(state);
   const members = state.turnState.squadronMove?.members ?? null;
   return state.ships.filter(
-    (s) => s.owner === player && s.status === "active" && state.turnState.ships[s.id]?.moved !== true && (members === null || members.includes(s.id)),
+    // Stationary defences never move (state §7.6).
+    (s) => s.owner === player && s.status === "active" && s.profile.type !== "defence" && state.turnState.ships[s.id]?.moved !== true && (members === null || members.includes(s.id)),
   );
 }
 

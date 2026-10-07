@@ -111,6 +111,8 @@ export type CreateRequest = {
   attacker?: PlayerId;
   /** A planet in the table centre (T107). */
   planet?: PlanetSize;
+  /** Without an attacker: who holds the planet and may field planetary defences (state N91). */
+  planetHolder?: PlayerId;
 };
 export type Created = { data: RoomData; seat: PlayerId; token: string; inviteToken: string };
 export type CreateError = { error: "INVALID_NAME" | "INVALID_SIDE" | "INVALID_FLEET"; message?: string };
@@ -128,7 +130,9 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
   const fleetLists = req.fleetLists === true && forces.kind === "points"; // points battles only (T58)
   // The Bait, The Raiders and Surprise Attack: the host names the attacker (the pursuers, the raiders, the attackers: T93, T100, T114, D37).
   const attacker: PlayerId | undefined = hasAttacker(scenario) ? (req.attacker === "p1" ? "p1" : "p2") : undefined;
-  const problem = fleetProblem(req.faction, req.ships, req.ships.length, req.carriers ?? false, forces, scenario, fleetLists, attacker !== undefined && attacker !== req.side);
+  const planet = scenario !== "surprise_attack" && (req.planet === "small" || req.planet === "medium" || req.planet === "large") ? req.planet : undefined;
+  const planetHolder: PlayerId | undefined = planet !== undefined && attacker === undefined && (req.planetHolder === "p1" || req.planetHolder === "p2") ? req.planetHolder : undefined;
+  const problem = fleetProblem(req.faction, req.ships, req.ships.length, req.carriers ?? false, forces, scenario, fleetLists, attacker !== undefined && attacker !== req.side, planet, planetHolder === req.side);
   if (problem !== null) return { error: "INVALID_FLEET", message: problem };
   const token = toBase64Url(deps.randomBytes(16));
   const inviteToken = toBase64Url(deps.randomBytes(16));
@@ -157,7 +161,8 @@ export async function createRoom(req: CreateRequest, deps: Deps): Promise<Create
       scoring: scenario === "cruiser_clash" ? (req.scoring ?? "cruiser_clash") : "victory_points",
       ...(attacker !== undefined ? { attacker } : {}),
       // Surprise Attack's planet comes from the points limit (T114).
-      ...(scenario !== "surprise_attack" && (req.planet === "small" || req.planet === "medium" || req.planet === "large") ? { planet: req.planet } : {}),
+      ...(planet !== undefined ? { planet } : {}),
+      ...(planetHolder !== undefined ? { planetHolder } : {}),
     },
     config: null,
     transforms: [],
@@ -276,8 +281,8 @@ export class GameRoom {
     if (this.data.status !== "lobby") return this.reject(conn, "", "ALREADY_STARTED", "The game has already started");
     const name = cleanName(rawName);
     if (name === null) return this.reject(conn, "", "INVALID_NAME", `Names need 1–${MAX_NAME_LENGTH} characters`);
-    const { attacker } = this.data.options;
-    const problem = fleetProblem(faction, ships, this.data.count, this.data.options.carriers, this.data.options.forces, this.data.options.scenario, this.data.options.fleetLists, attacker !== undefined && attacker !== seat);
+    const { attacker, planet, planetHolder } = this.data.options;
+    const problem = fleetProblem(faction, ships, this.data.count, this.data.options.carriers, this.data.options.forces, this.data.options.scenario, this.data.options.fleetLists, attacker !== undefined && attacker !== seat, planet, planetHolder === seat);
     if (problem !== null) return this.reject(conn, "", "INVALID_FLEET", problem);
     const other = this.data.seats[seat === "p1" ? "p2" : "p1"];
     const taken = trimShips(ships).find((s) => other.ships.some((o) => o.name === s.name));

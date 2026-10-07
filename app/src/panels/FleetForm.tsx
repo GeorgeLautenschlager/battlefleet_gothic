@@ -1,5 +1,5 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
-import { CATALOGUE, surprise, type CommanderConfig, type Mark, type PlanetSize, type PlayerId } from "@bfg/engine";
+import { CATALOGUE, isDefenceClass, surprise, type CommanderConfig, type Mark, type PlanetSize, type PlayerId } from "@bfg/engine";
 import { classChoices, classIds, commandPoints, DEFAULT_ESCORT_SQUADRON, defaultCommand, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, mostExpensive, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, withOption, type Command, type Fleet, type NewGameOptions, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
@@ -294,6 +294,22 @@ export function PlanetField({ value, onChange }: { value: PlanetSize | undefined
   );
 }
 
+/** Without an attacker, who holds the planet and may field planetary defences (state N91; the book rolls for it). */
+export function PlanetHolderField({ value, onChange, players = PLAYER_LABELS }: { value: PlayerId; onChange: (holder: PlayerId) => void; players?: Record<PlayerId, string> }) {
+  return (
+    <label>
+      Planet held by
+      <select value={value} onChange={(e) => onChange(e.target.value === "p2" ? "p2" : "p1")}>
+        {(["p1", "p2"] as const).map((p) => (
+          <option key={p} value={p}>
+            {players[p]}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 /** The game's rule switches: ramming (pp. 55–56), boarding with teleport attacks (pp. 89–92), and carriers (p. 129, Cruiser Clash only). */
 export function RulesChecks({ value, onChange, points = false }: { value: Rules; onChange: (rules: Rules) => void; points?: boolean }) {
   return (
@@ -357,7 +373,11 @@ function fleetSummary(side: Side, carriers: boolean, limit: number | null = null
   const command = lists ? commandPoints(side, carriers, limit !== null) : 0;
   const total = [...counts.values()].reduce((t, c) => t + c.n * c.points, 0) + command;
   const ships = [...counts].map(([name, c]) => `${c.n} × ${name} (${c.points} pts)`);
-  return `${[...ships, ...(command > 0 ? [`commanders (${command} pts)`] : [])].join(", ")} · ${total}${limit === null ? "" : ` of ${limit}`} pts`;
+  // Planetary defences: up to a third of the limit (p. 100, state N91).
+  const classes = classIds(side, carriers, limit !== null);
+  const defences = side.ships.reduce((n, _, i) => n + (isDefenceClass(classes[i] ?? "") ? shipProfileOf(side, i, carriers, true).points : 0), 0);
+  const defenceNote = defences > 0 && limit !== null ? ` · defences ${defences} of ${Math.floor(limit / 3)} pts` : "";
+  return `${[...ships, ...(command > 0 ? [`commanders (${command} pts)`] : [])].join(", ")} · ${total}${limit === null ? "" : ` of ${limit}`} pts${defenceNote}`;
 }
 
 /** The Bait's pursued side (N48): "Bait 180 of 250 pts · reinforcements 285 of 500 pts". */

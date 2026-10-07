@@ -56,13 +56,16 @@ export function inflict(ctx: Ctx, target: Ship, hits: number, src: DamageSource)
 export function damagePoint(ctx: Ctx, ship: Ship, critCheck: boolean, cause: string): void {
   ship.damage += 1;
   ctx.log("damage", { shipId: ship.id, cause, damageAfter: ship.damage });
-  if (ship.profile.type === "escort") {
+  if (lostLikeAnEscort(ship)) {
     // An escort is lost at 0 hits or on any critical (state N34): no Critical Hits table, no hulk.
     if (ship.damage >= ship.profile.hits || (critCheck && ctx.d6() === 6)) escortLost(ctx, ship, cause === "boarding" ? "boarding" : ship.damage >= ship.profile.hits ? "damage" : "critical");
     return;
   }
   if (critCheck && ship.damage < ship.profile.hits && ctx.d6() === 6) critical(ctx, ship);
 }
+
+/** Escorts, and Defence/1 platforms (state N97, reducer R58): lost at 0 hits or on any critical. */
+const lostLikeAnEscort = (ship: Ship): boolean => ship.profile.type === "escort" || (ship.profile.type === "defence" && ship.profile.hits === 1);
 
 /** An escort reduced to 0 hits, or suffering a critical (state N34, reducer R33): destroyed, leaving a BM at its stem. */
 export function escortLost(ctx: Ctx, ship: Ship, cause: "damage" | "critical" | "hit_and_run" | "boarding"): void {
@@ -97,12 +100,32 @@ const CRITICALS: Record<number, { kind: CriticalKind | "hull_breach" | "bulkhead
   12: { kind: "bulkhead_collapse", applies: () => true },
 };
 
+/** The Defences Critical Hits table (p. 101, state N98). */
+const DEFENCE_CRITICALS: Record<number, { kind: CriticalKind | "hull_breach" | "bulkhead_collapse"; applies: (s: Ship) => boolean }> = {
+  2: { kind: "lances_damaged", applies: (s) => hasWeaponKind(s, "lance") },
+  3: { kind: "lances_damaged", applies: (s) => hasWeaponKind(s, "lance") },
+  4: { kind: "main_armament_damaged", applies: (s) => hasWeaponKind(s, "battery") },
+  5: { kind: "ordnance_bays_hit", applies: (s) => hasWeaponKind(s, "torpedoes") || hasWeaponKind(s, "launch_bay") },
+  6: { kind: "reactors_damaged", applies: () => true },
+  7: { kind: "fire", applies: () => true },
+  8: { kind: "orbit_lost", applies: () => true },
+  9: { kind: "orbit_lost", applies: () => true },
+  10: {
+    kind: "shields_collapse",
+    applies: (s) => s.profile.shields > 0 && !s.criticals.some((c) => c.kind === "shields_collapse"),
+  },
+  11: { kind: "hull_breach", applies: () => true },
+  12: { kind: "bulkhead_collapse", applies: () => true },
+};
+
+const hasWeaponKind = (ship: Ship, kind: string): boolean => ship.profile.weapons.some((w) => w.kind === kind);
+
 function hasWeaponAt(ship: Ship, location: string): boolean {
   return ship.profile.weapons.some((w) => w.location === location);
 }
 
 export function critical(ctx: Ctx, ship: Ship): void {
-  if (ship.profile.type === "escort") {
+  if (lostLikeAnEscort(ship)) {
     escortLost(ctx, ship, "critical"); // no table to roll on (state N34)
     return;
   }
@@ -112,13 +135,15 @@ export function critical(ctx: Ctx, ship: Ship): void {
 
 /** A result on the Critical Hits table: 2D6, or a Hit-and-Run's single D6 read as the total (§6, §10.5). */
 export function applyCritical(ctx: Ctx, ship: Ship, rolled: number, rolls: number[]): void {
-  if (ship.profile.type === "escort") {
-    escortLost(ctx, ship, "critical"); // any critical destroys an escort (p. 67)
+  if (lostLikeAnEscort(ship)) {
+    escortLost(ctx, ship, "critical"); // any critical destroys an escort (p. 67) or a Defence/1 (state N97)
     return;
   }
+  // Stationary defences roll on the Defences Critical Hits table (p. 101, state N98, reducer R57).
+  const table = ship.profile.type === "defence" ? DEFENCE_CRITICALS : CRITICALS;
   let applied = rolled;
-  while (!(CRITICALS[applied]?.applies(ship) ?? true)) applied += 1; // "next highest" (p. 67)
-  const kind = CRITICALS[applied]?.kind ?? "bulkhead_collapse"; // 12 always applies
+  while (!(table[applied]?.applies(ship) ?? true)) applied += 1; // "next highest" (p. 67)
+  const kind = table[applied]?.kind ?? "bulkhead_collapse"; // 12 always applies
 
   let extra = 0;
   let extraRolls: number[] = [];
@@ -132,7 +157,7 @@ export function applyCritical(ctx: Ctx, ship: Ship, rolled: number, rolls: numbe
     extra = roll;
   } else {
     ship.criticals.push({ id: ctx.newId("crit"), kind, playerTurn: ctx.state.clock.playerTurn });
-    if (kind === "engine_room" || kind === "thrusters") extra = 1;
+    if (kind === "engine_room" || kind === "thrusters" || kind === "reactors_damaged" || kind === "orbit_lost") extra = 1;
   }
   ctx.log("critical", { shipId: ship.id, rolls, rolled, applied, kind, extraRolls });
   // A commander on a smashed bridge loses the re-rolls left (fleets book, p. 11; R30).

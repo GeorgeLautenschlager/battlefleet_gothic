@@ -82,6 +82,14 @@ export function describe(state: GameState, entry: LogEntry): string {
       const who = d["squadronId"] !== undefined ? squadron("squadronId") : (state.ships.find((x) => x.id === ids[0])?.name ?? "A ship");
       return `${who} tests to go on alert ${dice(d["rolls"])} against Ld ${num(d["leadership"])}: ${d["passed"] === true ? "on alert" : "still on standby"}`;
     }
+    case "orbit_fall":
+      return d["destroyed"] === true
+        ? `${ship("shipId")} loses its orbit ${dice(d["rolls"])} and falls into the planet`
+        : `${ship("shipId")} loses orbit: it falls ${num(d["distance"])} cm toward the planet ${dice(d["rolls"])}`;
+    case "defence_blast_markers": {
+      const n = Array.isArray(d["removed"]) ? d["removed"].length : 0;
+      return `${ship("shipId")} clears ${n} Blast Marker${n === 1 ? "" : "s"} ${dice(d["rolls"])}`;
+    }
     case "thirds_roll": {
       const thirds = (d["thirds"] ?? {}) as Record<string, number>;
       const unit = (id: string): string => (state.squadrons ?? []).find((sq) => sq.id === id)?.name ?? state.ships.find((x) => x.id === id)?.name ?? id;

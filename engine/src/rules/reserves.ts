@@ -78,9 +78,9 @@ export function canArrive(state: GameState, player: PlayerId): boolean {
 /** `player`'s reserves may stay off the table past their Movement Phase: The Bait's may; The Raiders' and Surprise Attack's all arrive (state N60, N76). */
 export const reservesMayWait = (state: GameState): boolean => state.scenario.id !== "raiders" && state.scenario.id !== "surprise_attack";
 
-/** Nothing of `player`'s is active or waiting in reserve (state D6, N52). */
+/** Nothing of `player`'s is active or waiting in reserve, stationary defences not counting (state D6, N52, N102). */
 export const eliminated = (state: GameState, player: PlayerId): boolean =>
-  !state.ships.some((s) => s.owner === player && (s.status === "active" || s.status === "reserve"));
+  !state.ships.some((s) => s.owner === player && s.profile.type !== "defence" && (s.status === "active" || s.status === "reserve"));
 
 export const onEntryEdge = (edges: readonly EntryEdge[], p: Point): boolean =>
   edges.some((e) => segmentPointDistance(e.from, e.to, p) <= EPS);

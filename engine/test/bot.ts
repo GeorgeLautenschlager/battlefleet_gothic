@@ -4,7 +4,7 @@
  * Shared by the engine's full-game test and the server's fuzz test, and it
  * only ever *validates*, so it works on a redacted state too.
  */
-import { actor, isWave, launchCapacity, onTable, partlyDeployedSquadron, squadronOf, weaponDisabled } from "../src/state/derived";
+import { actor, isWave, launchCapacity, onTable, partlyDeployedSquadron, planetaryDefence, squadronOf, weaponDisabled } from "../src/state/derived";
 import { rolesCarried, waveSpeed } from "../src/rules/craft";
 import { removableBlastMarkers } from "../src/reducer/steps";
 import { baseRadius, distance, headingVector, quadrantsOfPoint, tableBearing } from "../src/geometry/basic";
@@ -63,7 +63,7 @@ function baseCandidates(s: GameState, n: number): Transform[] {
         // Surprise Attack's defender gives a heading: broadside to the planet on standby, any way on alert.
         const planet = s.table.features?.[0];
         const headed = (position: Point): Transform => {
-          const free = deploymentDivisions(s, p, ship).some((d) => d.heading === null);
+          const free = planetaryDefence(ship) || deploymentDivisions(s, p, ship).some((d) => d.heading === null);
           const heading = !free ? undefined : ship.standby === true && planet !== undefined ? (tableBearing(position, planet.position) + (n % 2 === 0 ? 90 : 270)) % 360 : (n * 45) % 360;
           return { type: "deploy_ship", player: p, shipId: ship.id, position, ...(heading === undefined ? {} : { heading }) };
         };
@@ -73,6 +73,16 @@ function baseCandidates(s: GameState, n: number): Transform[] {
           ),
         );
         if (near.length > 0) return near;
+        if (planetaryDefence(ship) && planet !== undefined) {
+          // Planetary defences: rings inside the gravity well, off the template (state N93).
+          const r0 = planet.diameter / 2;
+          return [r0 + 3, r0 + planet.well / 2, r0 + planet.well - 2].flatMap((r) =>
+            [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((k) => {
+              const b = ((k * 30 + n * 11) % 360) * (Math.PI / 180);
+              return headed({ x: planet.position.x + r * Math.sin(b), y: planet.position.y + r * Math.cos(b) });
+            }),
+          );
+        }
         if (ship.standby === true && planet !== undefined) {
           // On standby: rings round the planet, the first within 15 cm of it.
           const r0 = planet.diameter / 2;
@@ -136,7 +146,10 @@ function baseCandidates(s: GameState, n: number): Transform[] {
         if (s.activation === null && ship.specialOrder === null && !s.turnState.commandCheckFailed) {
           const { x, y } = ship.position!;
           const edge = Math.min(x, y, s.table.width - x, s.table.height - y);
-          const order = edge < 30 ? (n % 2 ? "come_to_new_heading" : "burn_retros") : n % 5 === 0 ? "lock_on" : n % 11 === 0 && edge > 60 ? "all_ahead_full" : null;
+          // Planetary defences only reload (state N95).
+          const order = planetaryDefence(ship)
+            ? ship.loaded.torpedoes === false ? "reload_ordnance" : null
+            : edge < 30 ? (n % 2 ? "come_to_new_heading" : "burn_retros") : n % 5 === 0 ? "lock_on" : n % 11 === 0 && edge > 60 ? "all_ahead_full" : null;
           if (order !== null) out.push({ type: "declare_order", player: p, shipId: ship.id, order });
         }
         // Stay on the table and close to about 20 cm of the nearest enemy; a little noise to vary the games.

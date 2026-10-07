@@ -2,7 +2,7 @@
  * The newGame factory (transform spec §5). Not a transform: there's no state
  * to validate against yet, so a bad config throws instead of returning a reason.
  */
-import { boardingModifier, CATALOGUE, profileWithOptions } from "./catalogue";
+import { boardingModifier, CATALOGUE, fleetCraft, profileWithOptions } from "./catalogue";
 import { buildCommander, commanderPoints, fleetListProblem, type CommanderConfig } from "../rules/fleetLists";
 import { EngineError } from "./derived";
 import { cloneJson } from "./json";
@@ -22,6 +22,8 @@ export type GameConfig = {
   attacker?: PlayerId;
   /** A planet in the table centre (transform T107); default none. Surprise Attack sets its own by points (T114). */
   planet?: PlanetSize;
+  /** Who fields planetary defences in a game without an attacker (state N91, transform T133). */
+  planetHolder?: PlayerId;
   /** Default: Cruiser Clash forces (state §4). */
   forces?: Forces;
   /** Default: Cruiser Clash scoring. */
@@ -117,7 +119,7 @@ function validateConfig(config: GameConfig): void {
     const entry = CATALOGUE[ship.classId];
     if (entry === undefined) throw new EngineError(`ships[${i}]: unknown class "${ship.classId}"`);
     const faction = config.players[ship.owner].faction;
-    if (entry.faction !== faction) {
+    if (entry.faction !== "any" && entry.faction !== faction) {
       throw new EngineError(`ships[${i}]: a ${ship.classId} can't serve in a ${faction} fleet`);
     }
     // Battleships and escorts come with points battles (T71, state N45).
@@ -141,6 +143,7 @@ function validateConfig(config: GameConfig): void {
     }
     counts[ship.owner] += 1;
   }
+  defenceProblems(config, forces);
   squadronProblems(config, forces.kind === "points");
   // Rarity limits (T35): e.g. two Murder lance variants per 750 points of the side's fleet, or part.
   for (const player of ["p1", "p2"] as const) {
@@ -158,7 +161,8 @@ function validateConfig(config: GameConfig): void {
   if (config.options?.fleetLists === true) {
     if (forces.kind !== "points") throw new EngineError("fleet lists need a points battle");
     for (const player of ["p1", "p2"] as const) {
-      const side = config.ships.flatMap((s, i) => (s.owner === player ? [{ classId: s.classId, profile: shipProfile(s, i), ...(s.commander ? { commander: s.commander } : {}) }] : []));
+      // Planetary defences sit beside the list (T131): they're on none and count towards no ratio.
+      const side = config.ships.flatMap((s, i) => (s.owner === player && !isDefenceClass(s.classId) ? [{ classId: s.classId, profile: shipProfile(s, i), ...(s.commander ? { commander: s.commander } : {}) }] : []));
       const problem = fleetListProblem(config.players[player].faction, side);
       if (problem !== null) throw new EngineError(`${player}: ${problem}`);
     }
@@ -201,6 +205,53 @@ function validateConfig(config: GameConfig): void {
 
 const SCENARIO_NAMES = { the_bait: "The Bait", raiders: "The Raiders", surprise_attack: "Surprise Attack", blockade_run: "Blockade Run" } as const;
 const ATTACKER_NAMES = { the_bait: "pursuers", raiders: "raiders", surprise_attack: "attackers", blockade_run: "blockade runners" } as const;
+
+/** Planetary defences' fixed Leadership (p. 100, state N94). */
+const DEFENCE_LEADERSHIP = 7;
+
+/** A stationary defence or a system defence ship (state §7.6). */
+export function isDefenceClass(classId: string): boolean {
+  const profile = CATALOGUE[classId]?.profile;
+  return profile !== undefined && (profile.type === "defence" || profile.traits?.planetaryDefence === true);
+}
+
+/** Who may field planetary defences (state N91): the scenario's defender, the host's `planetHolder`, or nobody (The Bait). */
+export function planetHolderOf(config: GameConfig): PlayerId | null {
+  if (config.scenario === "the_bait") return null;
+  if (config.attacker !== undefined) return config.attacker === "p1" ? "p2" : "p1";
+  return config.planetHolder ?? null;
+}
+
+/** Planetary defences (state N91, transform T131–T133): a planet, points, the holder's, a third of the limit at most. */
+function defenceProblems(config: GameConfig, forces: Forces): void {
+  if (config.planetHolder !== undefined) {
+    if (config.planetHolder !== "p1" && config.planetHolder !== "p2") throw new EngineError("the planet holder is p1 or p2");
+    if (config.attacker !== undefined || config.scenario === "the_bait") throw new EngineError("in a scenario with an attacker, the defender holds the planet");
+  }
+  const defences = config.ships.map((s, i) => ({ s, i })).filter((x) => isDefenceClass(x.s.classId));
+  if (defences.length === 0) return;
+  if (forces.kind !== "points") throw new EngineError("planetary defences come with points battles");
+  if (planetOf(config) === undefined) throw new EngineError("planetary defences need a planet on the table");
+  if (config.scenario === "the_bait") throw new EngineError("The Bait has no planetary defences");
+  const holder = planetHolderOf(config);
+  if (holder === null) throw new EngineError("name the planet holder: who fields the planetary defences");
+  let spent = 0;
+  for (const { s, i } of defences) {
+    if (s.owner !== holder) throw new EngineError(`ships[${i}]: only the planet holder (${holder}) fields planetary defences`);
+    if (s.reserve === true || s.commander !== undefined || (s.options ?? []).length > 0) throw new EngineError(`ships[${i}]: planetary defences take no options, commander or reserve`);
+    if (CATALOGUE[s.classId]?.profile.type === "defence" && s.squadron !== undefined) throw new EngineError(`ships[${i}]: stationary defences don't form squadrons yet`);
+    spent += shipProfile(s, i).points;
+  }
+  if (!config.ships.some((s) => s.owner === holder && CATALOGUE[s.classId]?.profile.type !== "defence")) {
+    throw new EngineError(`${holder} needs at least one ship besides stationary defences (state N102)`);
+  }
+  const allowance = Math.floor(forces.limit / 3);
+  if (spent > allowance) throw new EngineError(`planetary defences are ${spent} pts, over a third of the limit (${allowance} pts)`);
+  for (const sq of squadronGroups(config)) {
+    const kinds = new Set(sq.members.map((m) => isDefenceClass(m.classId)));
+    if (kinds.size > 1) throw new EngineError(`squadron "${sq.name}": system defence ships squadron only with each other`);
+  }
+}
 
 /** A ship's points as fielded: its class, options and any commander. */
 function fieldedPoints(ship: GameConfig["ships"][number], i: number): number {
@@ -330,6 +381,8 @@ export function newGame(config: GameConfig): GameState {
 
   const ships: Ship[] = config.ships.map((spec, i) => {
     const profile = cloneJson(shipProfile(spec, i)); // checked above
+    // A defence's launch bays carry its holder's attack craft (transform T131).
+    for (const w of profile.weapons) if (w.kind === "launch_bay" && w.craft?.length === 0) w.craft = fleetCraft(config.players[spec.owner].faction);
     const commander = spec.commander !== undefined ? buildCommander(spec.commander) : null;
     if (commander?.marks.includes("nurgle") === true) profile.hits += 1; // the Mark of Nurgle: +1 hit (state §7.4)
     const hasTorpedoes = profile.weapons.some((w) => w.kind === "torpedoes");
@@ -339,7 +392,7 @@ export function newGame(config: GameConfig): GameState {
       owner: spec.owner,
       name: spec.name,
       profile,
-      leadership: null,
+      leadership: isDefenceClass(spec.classId) ? DEFENCE_LEADERSHIP : null, // never rolled (state N94)
       // The Bait's reinforcements, every raider (state N60) and every surprise attacker (N76) start in reserve.
       status: spec.reserve === true || movesOn(config, spec.owner) ? "reserve" : "undeployed",
       position: null,

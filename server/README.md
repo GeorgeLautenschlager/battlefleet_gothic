@@ -19,6 +19,7 @@ Network play's server side ([network/SPEC.md](../network/SPEC.md), [ADR 0003](..
 | Planets: the host's `planet` choice rides in the room options and the game config | ✅ |
 | Surprise Attack: the host names the attackers; both seats checked at the full points; the planet comes from the limit, not the host | ✅ |
 | Blockade Run: the host names the runners, checked at half the blockader's points | ✅ |
+| Planetary defences: the host names the planet holder where there's no attacker (`planetHolder`); each seat's defences checked against it | ✅ |
 
 ## Layout
 

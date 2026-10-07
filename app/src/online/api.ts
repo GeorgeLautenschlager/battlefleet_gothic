@@ -27,6 +27,8 @@ export type CreateGame = {
   attacker?: PlayerId;
   /** A planet in the table centre (T107). */
   planet?: PlanetSize;
+  /** Without an attacker: who holds the planet and may field planetary defences (state N91). */
+  planetHolder?: PlayerId;
 };
 
 export async function createGame(req: CreateGame): Promise<CreatedGame> {

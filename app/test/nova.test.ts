@@ -12,7 +12,11 @@ const fixture = (): History => fromSave(save) as History;
 describe("ship options in the fleet forms (T57)", () => {
   test("Cruiser Clash offers the classes that can fit 185 points; a points battle offers them all", () => {
     expect(classChoices("imperial_navy", false)).toEqual(["lunar", "gothic", "tyrant", "dominator", "dauntless"]); // the Dominator, with its original batteries
-    expect(classChoices("imperial_navy", false, true)).toEqual(["lunar", "gothic", "tyrant", "dominator", "dauntless", "mars", "overlord", "emperor", "retribution", "firestorm", "sword", "cobra"]);
+    expect(classChoices("imperial_navy", false, true)).toEqual([
+      "lunar", "gothic", "tyrant", "dominator", "dauntless", "mars", "overlord", "emperor", "retribution", "firestorm", "sword", "cobra",
+      // and the planetary defences, for the planet holder (state N91)
+      "laser_platform", "torpedo_platform", "weapons_platform", "orbital_dock", "space_station", "blackstone_fortress", "defence_monitor", "system_ship",
+    ]);
     expect(classChoices("chaos", false, true)).toContain("acheron");
     expect(classChoices("chaos", false, true)).toContain("repulsive");
     expect(classChoices("chaos", false)).not.toContain("repulsive"); // 230 pts, over Cruiser Clash's cap

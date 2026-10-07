@@ -57,6 +57,7 @@ const LABELS: Record<ShipCategory, string> = {
   grand_cruiser: "grand cruiser",
   battleship: "battleship",
   escort: "escort",
+  defence: "planetary defence",
 };
 export const ADMIRAL_POINTS: Record<8 | 9 | 10, number> = { 8: 50, 9: 100, 10: 150 }; // Fleet-Admiral, Admiral, Solar Admiral
 export const EXTRA_REROLL_POINTS = [0, 25, 75, 150] as const;

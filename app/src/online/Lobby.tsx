@@ -33,7 +33,9 @@ function rulesLine(lobby: LobbyInfo, seat: PlayerId): string {
     (scoring === "victory_points" ? ", victory points" : forces?.kind === "points" ? ", Cruiser Clash scoring" : "") +
     ((lobby.options as Partial<LobbyInfo["options"]>).fleetLists === true ? ", fleet lists" : "");
   const planet = (lobby.options as Partial<LobbyInfo["options"]>).planet;
-  return `${size}${score}, ${ramming ? "ramming allowed" : "no ramming"}, ${boarding ? "boarding allowed" : "no boarding"}${planet !== undefined ? `, a ${planet} planet in the centre` : ""}.`;
+  const holder = (lobby.options as Partial<LobbyInfo["options"]>).planetHolder;
+  const held = holder === undefined ? "" : holder === seat ? ", which you hold" : `, held by ${lobby.seats[holder].name ?? "your opponent"}`;
+  return `${size}${score}, ${ramming ? "ramming allowed" : "no ramming"}, ${boarding ? "boarding allowed" : "no boarding"}${planet !== undefined ? `, a ${planet} planet in the centre${held}` : ""}.`;
 }
 
 /** "Imperial Navy: 2 × Lunar class cruiser (Agrippa, Hammer of Terra)" */
@@ -111,7 +113,9 @@ function JoinForm({ remote, seat, lobby }: { remote: Remote; seat: PlayerId; lob
   // The Bait and The Raiders: the host chose the roles (T93, T100).
   const role = roleOf(options.scenario, options.attacker, seat);
   const reinforcements = options.scenario === "the_bait" && role?.defender === true;
-  const problem = dupes.length > 0 ? null : sideProblem(side, carriers, forces, lists, role);
+  // The host's planet, and whether this seat holds it (state N91).
+  const planet = options.scenario !== "surprise_attack" ? options.planet : undefined;
+  const problem = dupes.length > 0 ? null : sideProblem(side, carriers, forces, lists, role, planet, options.planetHolder === seat);
   return (
     <form
       className="new-game"

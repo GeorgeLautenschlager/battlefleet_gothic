@@ -226,7 +226,8 @@ export type Grapple = {
   attackerIds: string[];
 };
 
-export type ShipType = "battleship" | "cruiser" | "escort";
+/** `defence`: a stationary planetary defence (state §7.6). */
+export type ShipType = "battleship" | "cruiser" | "escort" | "defence";
 
 export type ShipProfile = {
   classId: string;
@@ -261,9 +262,11 @@ export type ShipTraits = {
   leadershipBonus?: number;
   /** Its batteries take no column shift for firing over 30 cm (the Idolator, p. 281). */
   noLongRangeShift?: boolean;
+  /** A system defence ship (defence monitor, system ship): Ld 7, Reload Ordnance and Brace only (state §7.6). */
+  planetaryDefence?: boolean;
 };
 
-export type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship" | "escort";
+export type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship" | "escort" | "defence";
 
 // --- Squadrons (§7.5)
 
@@ -342,6 +345,12 @@ export type CriticalKind =
   | "fire"
   | "thrusters"
   | "bridge_smashed"
+  // The Defences Critical Hits table (p. 101), stationary defences only (state N98)
+  | "lances_damaged"
+  | "main_armament_damaged"
+  | "ordnance_bays_hit"
+  | "reactors_damaged"
+  | "orbit_lost"
   | "shields_collapse";
 
 export type Critical = { id: string; kind: CriticalKind; playerTurn: number };

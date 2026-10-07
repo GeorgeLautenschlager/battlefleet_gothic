@@ -413,7 +413,8 @@ export function ram(ctx: Ctx, rammerId: string, targetId: string): void {
   const facing = armourFacing(target, from); // lower armour on a boundary (R7)
   const rRolls = ctx.nD6(rammer.profile.hits);
   const rHits = rRolls.filter((r) => r >= facing.armour).length;
-  const tDice = isHulk(target) ? 0 : headOn ? target.profile.hits : Math.ceil(target.profile.hits / 2); // R5
+  // A defence always hits back with its full starting hits (p. 55, state N103).
+  const tDice = isHulk(target) ? 0 : headOn || target.profile.type === "defence" ? target.profile.hits : Math.ceil(target.profile.hits / 2); // R5
   const tRolls = ctx.nD6(tDice);
   const tHits = tRolls.filter((r) => r >= rammer.profile.armour.front).length;
   ctx.log("ram", {

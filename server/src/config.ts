@@ -1,5 +1,5 @@
 /** Online Cruiser Clash (p. 128): each seat brings its own fleet; the room builds the config when both have. */
-import { newGame, type FactionId, type Forces, type GameConfig, type PlayerId, type ScenarioId } from "@bfg/engine";
+import { isDefenceClass, newGame, type FactionId, type Forces, type GameConfig, type PlanetSize, type PlayerId, type ScenarioId } from "@bfg/engine";
 import { MAX_NAME_LENGTH, MAX_POINTS_SHIPS, MAX_SHIPS, shipEntry, type RoomOptions, type ShipEntry } from "./protocol";
 
 export type SeatFleet = { name: string; faction: FactionId; ships: ShipEntry[] };
@@ -25,6 +25,8 @@ export function cruiserClash(
     ...(hasAttacker(options.scenario) && options.attacker !== undefined ? { attacker: options.attacker } : {}),
     // Surprise Attack sets its own planet by points (T114).
     ...(options.planet !== undefined && options.scenario !== "surprise_attack" ? { planet: options.planet } : {}),
+    // Planetary defences in a game without an attacker: the host named who holds the planet (state N91).
+    ...(options.planetHolder !== undefined && !hasAttacker(options.scenario) ? { planetHolder: options.planetHolder } : {}),
     players: {
       p1: { name: seats.p1.name, faction: seats.p1.faction },
       p2: { name: seats.p2.name, faction: seats.p2.faction },
@@ -61,6 +63,10 @@ export function fleetProblem(
   fleetLists = false,
   /** The Bait and The Raiders: whether this seat defends (The Bait's pursued player) rather than attacks (T93, T100). */
   defender = false,
+  /** The game's planet, if the host put one on the table (T107); Surprise Attack sets its own. */
+  planet?: PlanetSize,
+  /** Without an attacker: whether this seat holds the planet, and so may field planetary defences (state N91). */
+  holder = false,
 ): string | null {
   if (forces.kind === "points") {
     // A points battle: each side brings its own number of ships, within the limit (T36).
@@ -75,7 +81,8 @@ export function fleetProblem(
   const side = (owner: PlayerId) => ships.map((s) => ({ owner, ...shipEntry(s) }));
   // The Bait's and The Raiders' sides differ, so the fleet plays its own role against a lone cruiser of its faction (T93, T100).
   const roles = hasAttacker(scenario);
-  const opponent = roles ? [{ owner: "p2" as const, ...loneCruiser(faction, fleetLists) }] : side("p2");
+  // A mirror leaves the planetary defences out: only the planet holder fields them (state N91).
+  const opponent = roles ? [{ owner: "p2" as const, ...loneCruiser(faction, fleetLists) }] : side("p2").filter((s) => !isDefenceClass(s.classId));
   try {
     newGame({
       seed: 1,
@@ -84,6 +91,8 @@ export function fleetProblem(
       scenario,
       forces,
       ...(roles ? { attacker: defender ? ("p2" as const) : ("p1" as const) } : {}),
+      ...(planet !== undefined && scenario !== "surprise_attack" ? { planet } : {}),
+      ...(!roles && planet !== undefined ? { planetHolder: holder ? ("p1" as const) : ("p2" as const) } : {}),
       players: { p1: { name: "a", faction: faction as FactionId }, p2: { name: "b", faction: faction as FactionId } },
       ships: [...side("p1"), ...opponent],
     });

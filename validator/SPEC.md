@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.16, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.21](../game_state/SPEC.md) and [Transforms v0.19](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21). v0.13 adds The Raiders: `choose_facing`, spacing at deployment (`deploy_ship` 6a), and raiders who can't wait (`end_step` in `move_ships`, check 1a) (V22–V23). v0.14 adds planets: blocked lines of fire (§2.7), gravity turns (`move` 6a) and high orbit (`move` 13) (V24–V27). v0.15 adds Surprise Attack: `choose_alert`, headings, standby and the first ship near the planet in `deploy_ship` (3b, 6b–6d), standby and the turn a ship goes on alert in `declare_order`, `move` and shooting, and one entry edge in `arrive` (10a) (V28–V31). v0.16 adds Blockade Run's deployment: the blockaders' thirds and headings through `deploymentDivisions(player, ship)` (V32).
+**Status:** draft v0.17, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.22](../game_state/SPEC.md) and [Transforms v0.20](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21). v0.13 adds The Raiders: `choose_facing`, spacing at deployment (`deploy_ship` 6a), and raiders who can't wait (`end_step` in `move_ships`, check 1a) (V22–V23). v0.14 adds planets: blocked lines of fire (§2.7), gravity turns (`move` 6a) and high orbit (`move` 13) (V24–V27). v0.15 adds Surprise Attack: `choose_alert`, headings, standby and the first ship near the planet in `deploy_ship` (3b, 6b–6d), standby and the turn a ship goes on alert in `declare_order`, `move` and shooting, and one entry edge in `arrive` (10a) (V28–V31). v0.16 adds Blockade Run's deployment: the blockaders' thirds and headings through `deploymentDivisions(player, ship)` (V32). v0.17 adds planetary defences: deploying in the gravity well (`deploy_ship` 4a), their orders (`declare_order` 3c), and stationary ones that never move (`move` 3b, `drift_hulk` 3a) (V33–V36).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -283,7 +283,8 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 | 3 | `ship.status ≠ "reserve"`: reinforcements arrive during the battle (transform §4.2) | `IN_RESERVE` |
 | 3a | `ship.status = "undeployed"` | `ALREADY_DEPLOYED` |
 | 3b | `heading` is given exactly when the ship's divisions have no heading of their own (Surprise Attack's defender, transform T116), (a heading outside `[0, 360)` is `MALFORMED`) | `HEADING_REQUIRED`, `HEADING_NOT_ALLOWED` |
-| 4 | `position` lies in one of `deploymentDivisions(player, ship)` (inclusive, `EPS`); the first in list order that holds it is the ship's division | `NOT_IN_ZONE` |
+| 4 | `position` lies in one of `deploymentDivisions(player, ship)` (inclusive, `EPS`); the first in list order that holds it is the ship's division. Not for planetary defences: 4a instead | `NOT_IN_ZONE` |
+| 4a | A planetary defence: `gravityWellAt(position)` and not `onPlanet(position)` (state N93) | `NOT_IN_GRAVITY_WELL` |
 | 5 | If the player's undeployed ships (this one included) are no more than their empty divisions, this ship's division is empty (state N18) | `FILL_DIVISIONS_FIRST` |
 | 6 | The new base doesn't overlap any deployed ship's base: `distance > r1 + r2 − EPS`. Touching is allowed. | `BASES_OVERLAP` |
 | 6a | The Raiders: the stem is at least 20 cm (`approxGe`) from the stem of every deployed ship in another unit (state N59) | `TOO_CLOSE` |
@@ -306,6 +307,7 @@ Check 5 doesn't apply in Surprise Attack or Blockade Run (transform T116, T124):
 | 1 | Ship exists | `UNKNOWN_SHIP` |
 | 2 | `ship.owner = player` | `NOT_YOUR_SHIP` |
 | 3 | Ship is a hulk | `NOT_A_HULK` |
+| 3a | `!isDefence(ship)`: a defence's hulk stays put (transform T138) | `STATIONARY` |
 | 4 | `turnState.ships[id].drifted = false` | `ALREADY_DRIFTED` |
 
 **`declare_order`**
@@ -317,6 +319,7 @@ Check 5 doesn't apply in Surprise Attack or Blockade Run (transform T116, T124):
 | 3 | `ship.status = "active"` | `SHIP_NOT_ACTIVE` |
 | 3a | `!onStandby(ship)` (transform T117) | `ON_STANDBY` |
 | 3b | `!wentOnAlert(ship)` (transform T120) | `JUST_ALERTED` |
+| 3c | A planetary defence: `order = "reload_ordnance"` (state N95) | `DEFENCE_ORDERS` |
 | 4 | `turnState.ships[id].moved = false` | `ALREADY_MOVED` |
 | 5 | `activation = null` | `ACTIVATION_OPEN` |
 | 6 | `turnState.commandCheckFailed = false` | `ORDERS_LOCKED` |
@@ -369,6 +372,7 @@ First, identify the move:
 | 2 | `ship.owner = player` | `NOT_YOUR_SHIP` |
 | 3 | `ship.status = "active"` | `SHIP_NOT_ACTIVE` |
 | 3a | `!onStandby(ship)` (transform T117) | `ON_STANDBY` |
+| 3b | `!isDefence(ship)` (transform T135) | `STATIONARY` |
 | 4 | `turnState.ships[id].moved = false` | `ALREADY_MOVED` |
 | 5 | `activation = null`, or `activation.stage = "ordered"` with `activation.shipId = shipId` | `ACTIVATION_OPEN` |
 | 5a | If `squadronMove` is set: the ship is one of its `members` | `SQUADRON_MOVING` |
@@ -660,6 +664,9 @@ In `move_ships` (transform T95):
 | `ON_STANDBY` | Surprise Attack: a ship on standby can't move, fire, launch or take a special order |
 | `JUST_ALERTED` | Surprise Attack: no special orders the turn a ship goes on alert |
 | `ONE_ENTRY_EDGE` | Surprise Attack: an arriving unit facing in from a different edge |
+| `NOT_IN_GRAVITY_WELL` | A planetary defence deployed outside the planet's gravity well, or on the planet |
+| `STATIONARY` | A stationary defence asked to move, or its hulk to drift |
+| `DEFENCE_ORDERS` | A planetary defence given a special order other than Reload Ordnance |
 | `RESERVES_MUST_ARRIVE` | The Raiders: `end_step` while raiders are still off the table |
 | `FILL_DIVISIONS_FIRST` | Fleet Engagement: a division still needs a ship before this one gets another (p. 142) |
 | `INVALID_SETUP` | `choose_setup` with a set-up the formations don't offer |
@@ -785,6 +792,10 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V28 | **`ON_STANDBY` comes before `ALREADY_MOVED`**: a standby ship is marked `moved` (transform T117), and "on standby" is the reason. |
 | V29 | **Abeam is inclusive**: a planet's centre exactly on the boundary between the front and starboard arcs is abeam, as it would be in both arcs for firing (V2). |
 | V30 | **`STANDBY_TOO_FAR` only binds the first ship on standby** (state N75): once one is down, the rest go anywhere abeam. |
+| V33 | **`NOT_IN_GRAVITY_WELL` replaces `NOT_IN_ZONE` for defences**: a defence is never in a zone, so the zone isn't what's wrong. |
+| V34 | **`DEFENCE_ORDERS` comes after `ON_STANDBY` and `JUST_ALERTED`**, before `ALREADY_MOVED`: a stationary defence that has reloaded is `moved`, and a second order is refused as `ALREADY_ON_ORDERS` or `ALREADY_MOVED` as usual. |
+| V35 | **`STATIONARY` comes before `ALREADY_MOVED`** in `move`, so a reloaded platform still says why it can't move. |
+| V36 | **A stationary defence's heading** is checked like any deploy heading (`[0, 360)`); it changes nothing in play. |
 | V32 | **Blockade Run needs no codes of its own**: a blockader outside its third, or within 60 cm of the runners' edge, is `NOT_IN_ZONE`; a missing heading `HEADING_REQUIRED`, a runner's heading `HEADING_NOT_ALLOWED`; and the order of deployment is `NOT_YOUR_TURN` (G5). |
 | V31 | **`ONE_ENTRY_EDGE.details`** is `{ entryEdge: null }`: it's only checked on the first arrival. With `entryEdge` set, check 9 already holds the stems to that edge. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |

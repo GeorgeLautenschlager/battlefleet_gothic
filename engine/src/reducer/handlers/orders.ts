@@ -1,5 +1,5 @@
 /** Special orders: declare_order (reducer §8.1) and answer_brace (§11). */
-import { activePlayer, commandCheckLd, formation, getShip, inFormation, leadership, squadronOf } from "../../state/derived";
+import { activePlayer, commandCheckLd, formation, getShip, inFormation, isDefence, leadership, squadronOf } from "../../state/derived";
 import { moveParameters } from "../../rules/move";
 import type { Activation, ShipType } from "../../state/types";
 import type { AnswerBrace, DeclareOrder } from "../../transforms/types";
@@ -8,7 +8,7 @@ import { rerollableTest } from "../reroll";
 import { startSquadronMove } from "../squadrons";
 
 /** Size order for rams (p. 55): escort < cruiser < battleship (< defence). */
-const SIZE: Record<ShipType, number> = { escort: 0, cruiser: 1, battleship: 2 };
+const SIZE: Record<ShipType, number> = { escort: 0, cruiser: 1, battleship: 2, defence: 3 };
 
 /** Ram Leadership test dice: 3 vs a smaller target, 2 vs the same size, 1 vs a larger one. */
 export function ramTestDice(rammer: ShipType, target: ShipType): number {
@@ -58,6 +58,14 @@ export function declareOrder(ctx: Ctx, t: DeclareOrder): void {
     }
   } else {
     state.turnState.commandCheckFailed = true;
+  }
+
+  // A stationary defence never moves: its Reload is resolved on the spot (transform T135, reducer R61).
+  if (isDefence(ship)) {
+    const turn = state.turnState.ships[ship.id];
+    if (turn !== undefined) turn.moved = true;
+    ship.lastMove = { playerTurn: now, distance: 0 };
+    return;
   }
 
   const activation: Activation = {
