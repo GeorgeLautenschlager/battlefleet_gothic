@@ -58,7 +58,8 @@ export type Meta = {
   createdAt: string;
   /** `carriers`: one ship with launch bays each, above the 185-point cap (p. 129). Absent in older saves: read as false. */
   /** `fleetLists`: fleets follow their fleet list, with commanders (state §4). Absent in older saves: false. */
-  options: { ramming: boolean; boarding: boolean; carriers?: boolean; fleetLists?: boolean };
+  /** `freeDefences`: Surprise Attack's free planetary defences (state N123). Absent: off. */
+  options: { ramming: boolean; boarding: boolean; carriers?: boolean; fleetLists?: boolean; freeDefences?: boolean };
 };
 
 export type Rect = { x: number; y: number; width: number; height: number };
@@ -147,7 +148,8 @@ export type Third = 0 | 1 | 2;
 export type Facing = 0 | 90 | 180 | 270;
 export type Raid = { facing: Facing | null; surpriseTurns: number | null };
 /** `alertUnits`: the D3 of units on full alert; `entryEdge`: the inward heading of the attackers' edge, once one has arrived. */
-export type SurpriseAttack = { alertUnits: number | null; alertChosen: boolean; entryEdge: Facing | null };
+/** With free defences (state N123–N124): `defenceBudget`, their points (null until rolled), and whether they're bought. */
+export type SurpriseAttack = { alertUnits: number | null; alertChosen: boolean; entryEdge: Facing | null; defenceBudget?: number | null; defencesChosen?: boolean };
 
 export type Formation = "sphere" | "wedge" | "cross";
 export type SetupMap = "A" | "B" | "C" | "D";
@@ -175,6 +177,7 @@ export type SetupStep =
   | "choose_setup"
   | "choose_facing"
   | "choose_alert"
+  | "choose_defences"
   | "place_defences"
   | "deploy"
   | "roll_first_turn"

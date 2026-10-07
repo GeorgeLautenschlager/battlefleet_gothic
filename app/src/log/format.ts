@@ -259,6 +259,17 @@ export function describe(state: GameState, entry: LogEntry): string {
         : d["reason"] === "minefield"
           ? `${ship("shipId")} drifts into a minefield and is torn apart`
           : `${ship("shipId")} drifts off the table`;
+    case "defence_budget_roll":
+      return `${player("player")}'s planet has defences of its own ${dice(d["rolls"])}: ${num(d["points"])} pts to spend (a die per 500 of the fleet's ${num(d["fleetPoints"])} pts)`;
+    case "defences_chosen": {
+      const n = Array.isArray(d["shipIds"]) ? d["shipIds"].length : 0;
+      const parts = [
+        ...(n > 0 ? [`${n} defence${n === 1 ? "" : "s"}`] : []),
+        ...(Number(d["orbitalMines"]) > 0 ? [`${num(d["orbitalMines"])} orbital mine${d["orbitalMines"] === 1 ? "" : "s"}`] : []),
+        ...(Number(d["minefields"]) > 0 ? [`${num(d["minefields"])} minefield${d["minefields"] === 1 ? "" : "s"}`] : []),
+      ];
+      return parts.length === 0 ? `${player("player")} takes no free defences` : `${player("player")} buys ${parts.join(", ")} (${num(d["points"])} of ${num(d["budget"])} pts)`;
+    }
     case "minefield_sizes": {
       const sizes = (d["sizes"] as { width: number; height: number }[] | undefined) ?? [];
       return `Minefields measured ${dice(d["rolls"])}: ${sizes.map((x) => `${x.width} × ${x.height} cm`).join(", ")}`;

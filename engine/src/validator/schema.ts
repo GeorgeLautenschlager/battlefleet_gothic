@@ -62,6 +62,8 @@ const arrayOf =
   };
 
 const point = shape({ x: num, y: num });
+/** A whole number ≥ 0. */
+const count: FieldCheck = (v, path) => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? null : path);
 
 const pathStep: FieldCheck = (v, path) => {
   if (!isObject(v)) return path;
@@ -86,6 +88,13 @@ const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>
   choose_setup: { required: { map: oneOf(SETUP_MAPS), colour: oneOf(COLOURS) } },
   choose_facing: { required: { heading: numOneOf([0, 90, 180, 270]) } },
   choose_alert: { required: { units: arrayOf(str) } },
+  choose_defences: {
+    required: {
+      ships: arrayOf((v, path) => (isObject(v) && v["squadron"] !== undefined ? shape({ classId: str, name: str, squadron: str })(v, path) : shape({ classId: str, name: str })(v, path))),
+      orbitalMines: count,
+      minefields: count,
+    },
+  },
   drift_hulk: { required: { shipId: str } },
   declare_order: { required: { shipId: str, order: oneOf(ORDER_KINDS) }, optional: { ramTargetId: str, reroll: bool } },
   move: { required: { shipId: str, path: arrayOf(pathStep), disengage: bool }, optional: { boardTargetId: str, reroll: bool } },

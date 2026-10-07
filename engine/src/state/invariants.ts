@@ -246,6 +246,11 @@ export function checkInvariants(state: GameState): Violation[] {
     if (!placing && (e.unplaced.orbitalMines > 0 || e.unplaced.minefields === null || e.unplaced.minefields.length > 0)) fail("I20", "mines or minefields unplaced in battle");
   }
   if (clock.setupStep === "place_defences" && e === undefined) fail("I20", "place_defences without emplacements");
+  // I19: Surprise Attack's free defences only with the option (state N123)
+  const free = state.meta.options.freeDefences === true;
+  const sa = state.setup.surpriseAttack;
+  if (sa !== undefined && free !== (sa.defenceBudget !== undefined && sa.defencesChosen !== undefined)) fail("I19", "free defences don't match the option");
+  if (clock.setupStep === "choose_defences" && !free) fail("I19", "choose_defences without free defences");
 
   // I10: turnState belongs to this player turn
   if (state.turnState.playerTurn !== clock.playerTurn) {

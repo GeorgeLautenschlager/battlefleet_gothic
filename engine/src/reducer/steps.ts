@@ -57,7 +57,12 @@ const ENGAGEMENT_SETUP_ORDER: readonly SetupStep[] = [
 
 /** The scenario's set-up, with `place_defences` straight before `deploy` when the holder bought mines or minefields (transform T143). */
 export function setupOrder(state: GameState): readonly SetupStep[] {
-  const order = SETUP_ORDERS[state.scenario.id];
+  let order = SETUP_ORDERS[state.scenario.id];
+  // Surprise Attack's free defences are bought after the alert units are chosen (transform T157).
+  if (state.setup.surpriseAttack?.defencesChosen !== undefined) {
+    const k = order.indexOf("choose_alert") + 1;
+    order = [...order.slice(0, k), "choose_defences", ...order.slice(k)];
+  }
   if (state.setup.emplacements === undefined) return order;
   const i = order.indexOf("deploy");
   return [...order.slice(0, i), "place_defences", ...order.slice(i)];
@@ -116,6 +121,8 @@ export function stepComplete(state: GameState): boolean {
         return (setup.raid?.facing ?? null) !== null;
       case "choose_alert":
         return setup.surpriseAttack?.alertChosen === true;
+      case "choose_defences":
+        return setup.surpriseAttack?.defencesChosen !== false;
       case "place_defences": {
         const left = setup.emplacements?.unplaced;
         return left === undefined || (left.orbitalMines === 0 && left.minefields !== null && left.minefields.length === 0);

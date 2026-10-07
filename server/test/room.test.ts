@@ -222,6 +222,9 @@ describe("lobby and start", () => {
     await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }, { name: "Despair", classId: "carnage" }] });
     const state = h.stateOf("b")!;
     expect(state.scenario).toMatchObject({ id: "surprise_attack", attacker: "p2", maxRounds: null });
+    // The planet's free defences (state N123): every new game has them.
+    expect(state.meta.options.freeDefences).toBe(true);
+    expect(state.setup.surpriseAttack).toMatchObject({ defenceBudget: null, defencesChosen: false });
     expect(state.table.features?.[0]).toMatchObject({ kind: "planet", size: "small" });
     expect(state.ships.map((s) => s.status)).toEqual(["undeployed", "undeployed", "reserve", "reserve"]);
   });

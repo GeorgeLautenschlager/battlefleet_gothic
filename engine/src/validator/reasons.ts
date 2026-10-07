@@ -137,6 +137,12 @@ export const REASON_CODES = [
   "MINEFIELD_TOO_FAR",
   "MINEFIELDS_OVERLAP",
   "NOT_A_FIRE_SHIP",
+  // Surprise Attack's free defences (validator spec v0.19)
+  "NOT_A_DEFENCE",
+  "INVALID_NAME",
+  "OVER_BUDGET",
+  "TOO_MANY",
+  "INVALID_SQUADRON",
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

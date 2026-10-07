@@ -1,10 +1,11 @@
 /** Setup transforms (transform spec §4.1). */
-import { otherPlayer, planetaryDefence, squadronOf } from "../../state/derived";
+import { MINE_POINTS, otherPlayer, planetaryDefence, shipValue, squadronOf } from "../../state/derived";
+import { defenceShip, emptyShipTurnState, MINEFIELD_POINTS } from "../../state/newGame";
 import { deploymentDivisions, divisionAt, isSplit, setupBonus, setupOptions } from "../../rules/engagement";
-import type { ChooseAlert, ChooseFacing, ChooseFirstTurn, ChooseFormation, ChooseSetup, DeployShip } from "../../transforms/types";
+import type { ChooseAlert, ChooseDefences, ChooseFacing, ChooseFirstTurn, ChooseFormation, ChooseSetup, DeployShip } from "../../transforms/types";
 import { unitIds, unitShips } from "../../rules/surprise";
 import { blockader, thirdOf } from "../../rules/blockade";
-import type { Third } from "../../state/types";
+import type { GameState, PlayerId, Ship, ShipSquadron, Third } from "../../state/types";
 import type { Ctx } from "../context";
 import { getShip } from "../work";
 
@@ -38,6 +39,14 @@ export function rollLeadership(ctx: Ctx): void {
     const roll = ctx.d6();
     surprise.alertUnits = Math.ceil(roll / 2);
     ctx.log("alert_roll", { rolls: [roll], units: surprise.alertUnits });
+    // Free defences: a D6 per 500 points or part of the defender's fleet, × 10 (state N123, reducer R75).
+    const defender = ctx.state.scenario.attacker === undefined ? null : otherPlayer(ctx.state.scenario.attacker);
+    if (surprise.defenceBudget !== undefined && defender !== null) {
+      const fleetPoints = defenderFleetPoints(ctx.state, defender);
+      const rolls = ctx.nD6(Math.ceil(fleetPoints / 500));
+      surprise.defenceBudget = 10 * rolls.reduce((n, r) => n + r, 0);
+      ctx.log("defence_budget_roll", { player: defender, fleetPoints, rolls, points: surprise.defenceBudget });
+    }
   }
   // Blockade Run: a D6 per blockading unit for the third it deploys in (state N86, reducer R54).
   const blockade = ctx.state.setup.blockade;
@@ -54,6 +63,47 @@ export function rollLeadership(ctx: Ctx): void {
     ctx.log("thirds_roll", { rolls, thirds: { ...thirds } });
   }
   ctx.state.setup.leadershipRolled = true;
+}
+
+/** The defender's fleet in points: every ship's value, plus mines and minefields bought with it (reducer R75). */
+function defenderFleetPoints(state: GameState, player: PlayerId): number {
+  const ships = state.ships.filter((s) => s.owner === player).reduce((n, s) => n + shipValue(s), 0);
+  const e = state.setup.emplacements;
+  return ships + (e !== undefined && e.owner === player ? MINE_POINTS * e.orbitalMines + MINEFIELD_POINTS * e.minefields : 0);
+}
+
+/** Surprise Attack: the defender spends the free defences (transform T157–T162, reducer R76–R77). */
+export function chooseDefences(ctx: Ctx, t: ChooseDefences): void {
+  const { state } = ctx;
+  const surprise = state.setup.surpriseAttack;
+  if (surprise === undefined) return; // unreachable after validation
+  const faction = state.players[t.player].faction;
+  const shipIds: string[] = [];
+  const added: { ship: Ship; squadron?: string }[] = [];
+  for (const entry of t.ships) {
+    const ship = defenceShip(ctx.newId("ship"), t.player, entry.name.trim(), entry.classId, faction);
+    state.ships.push(ship);
+    state.turnState.ships[ship.id] = emptyShipTurnState();
+    shipIds.push(ship.id);
+    added.push({ ship, ...(entry.squadron !== undefined ? { squadron: entry.squadron.trim() } : {}) });
+  }
+  const squadronIds: string[] = [];
+  for (const name of [...new Set(added.flatMap((a) => (a.squadron !== undefined ? [a.squadron] : [])))]) {
+    const members = added.filter((a) => a.squadron === name).map((a) => a.ship);
+    const sq: ShipSquadron = { id: ctx.newId("sq"), owner: t.player, name, type: "escort", shipIds: members.map((m) => m.id), disengaging: false };
+    state.squadrons = [...(state.squadrons ?? []), sq];
+    squadronIds.push(sq.id);
+  }
+  if (t.orbitalMines + t.minefields > 0) {
+    const e = state.setup.emplacements ?? { owner: t.player, orbitalMines: 0, minefields: 0, unplaced: { orbitalMines: 0, minefields: null } };
+    e.orbitalMines += t.orbitalMines;
+    e.minefields += t.minefields;
+    e.unplaced.orbitalMines += t.orbitalMines;
+    state.setup.emplacements = e;
+  }
+  surprise.defencesChosen = true;
+  const points = added.reduce((n, a) => n + a.ship.profile.points, 0) + MINE_POINTS * t.orbitalMines + MINEFIELD_POINTS * t.minefields;
+  ctx.log("defences_chosen", { player: t.player, shipIds, squadronIds, orbitalMines: t.orbitalMines, minefields: t.minefields, points, budget: surprise.defenceBudget ?? 0 });
 }
 
 /** The Raiders: the table edge the defender's fleet faces (T103). */

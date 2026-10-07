@@ -25,6 +25,8 @@ export type ChooseSetup = Base<"choose_setup"> & { map: SetupMap; colour: Colour
 export type ChooseFacing = Base<"choose_facing"> & { heading: Facing };
 /** Surprise Attack: the defender's units on full alert, by ship id (a ship in no squadron) or squadron id (T115). */
 export type ChooseAlert = Base<"choose_alert"> & { units: string[] };
+/** Surprise Attack: the defender spends the free defences (T157–T162). */
+export type ChooseDefences = Base<"choose_defences"> & { ships: { classId: string; name: string; squadron?: string }[]; orbitalMines: number; minefields: number };
 
 // Movement (§4.2)
 export type DriftHulk = Base<"drift_hulk"> & { shipId: string };
@@ -96,6 +98,7 @@ export type Transform =
   | ChooseSetup
   | ChooseFacing
   | ChooseAlert
+  | ChooseDefences
   | DriftHulk
   | DeclareOrder
   | Move

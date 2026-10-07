@@ -134,6 +134,19 @@ function baseCandidates(s: GameState, n: number): Transform[] {
         }
         return out;
       }
+      case "choose_defences": {
+        // Surprise Attack's free defences: platforms and mines, a pair of system ships, or nothing (state N124).
+        const budget = s.setup.surpriseAttack?.defenceBudget ?? 0;
+        const platforms = Math.floor(budget / 30);
+        const mines = Math.floor((budget - 30 * platforms) / 5);
+        const named = (classId: string, k: number, squadron?: string) =>
+          Array.from({ length: k }, (_, i) => ({ classId, name: `Free ${classId} ${i + 1}`, ...(squadron ? { squadron } : {}) }));
+        return [
+          { type: "choose_defences", player: p, ships: named(n % 2 === 0 ? "laser_platform" : "torpedo_platform", platforms), orbitalMines: mines, minefields: 0 },
+          { type: "choose_defences", player: p, ships: named("system_ship", 2, "Free pickets"), orbitalMines: 0, minefields: budget >= 80 ? 1 : 0 },
+          { type: "choose_defences", player: p, ships: [], orbitalMines: 0, minefields: 0 },
+        ];
+      }
       case "choose_facing":
         return [{ type: "choose_facing", player: p, heading: ([0, 90, 180, 270] as const)[n % 4]! }];
       case "choose_alert": {

@@ -72,3 +72,24 @@ describe("the log", () => {
     );
   });
 });
+
+describe("Surprise Attack's free defences (T157–T162)", () => {
+  test("new games have them; the shopping list names ships afresh and squadrons escorts by class", async () => {
+    const { shoppingList } = await import("../src/panels/DefenceShopping");
+    const sa: NewGameOptions = { ...options, scenario: "surprise_attack", attacker: "p2", p1: { name: "Ann", fleet: "imperial_navy", ships: ["Agrippa"] } };
+    const config = cruiserClash(sa, new Date(0));
+    expect(config.options?.freeDefences).toBe(true);
+    let s = newGame(config);
+    s = reduce(s, { type: "roll_leadership", player: "p1" });
+    s = reduce(s, { type: "choose_alert", player: "p1", units: ["ship-1"] });
+    expect(s.clock.setupStep).toBe("choose_defences");
+    const t = shoppingList(s, "p1", { system_ship: 7, laser_platform: 1 }, 2, 0);
+    expect(t).toMatchObject({ type: "choose_defences", orbitalMines: 2, minefields: 0 });
+    const ships = t.type === "choose_defences" ? t.ships : [];
+    expect(ships.map((x) => x.squadron)).toEqual([undefined, ...Array<string>(6).fill("System ships"), "System ships 2"]);
+    expect(new Set(ships.map((x) => x.name)).size).toBe(8);
+    expect(prose(s, { id: "log-1", playerTurn: 0, phase: null, kind: "defences_chosen", actor: null, data: { player: "p1", shipIds: ["ship-9"], squadronIds: [], orbitalMines: 2, minefields: 0, points: 40, budget: 50 } })).toBe(
+      "Ann buys 1 defence, 2 orbital mines (40 of 50 pts)",
+    );
+  });
+});

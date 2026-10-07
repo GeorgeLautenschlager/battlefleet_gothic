@@ -282,7 +282,14 @@ export function cruiserClash(options: NewGameOptions, now = new Date()): GameCon
   return {
     seed: options.seed ?? randomSeed(),
     createdAt: now.toISOString(),
-    options: { ramming: options.ramming, boarding: options.boarding, carriers, ...(lists ? { fleetLists: true } : {}) },
+    options: {
+      ramming: options.ramming,
+      boarding: options.boarding,
+      carriers,
+      ...(lists ? { fleetLists: true } : {}),
+      // Surprise Attack's free defences (state N123): every new game has them.
+      ...(options.scenario === "surprise_attack" ? { freeDefences: true } : {}),
+    },
     ...(options.scenario !== undefined ? { scenario: options.scenario } : {}),
     ...(options.forces !== undefined ? { forces: options.forces } : {}),
     ...(options.scoring !== undefined ? { scoring: options.scoring } : {}),

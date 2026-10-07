@@ -1,6 +1,6 @@
 # Validator Specification
 
-**Status:** draft v0.18, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.23](../game_state/SPEC.md) and [Transforms v0.21](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21). v0.13 adds The Raiders: `choose_facing`, spacing at deployment (`deploy_ship` 6a), and raiders who can't wait (`end_step` in `move_ships`, check 1a) (V22–V23). v0.14 adds planets: blocked lines of fire (§2.7), gravity turns (`move` 6a) and high orbit (`move` 13) (V24–V27). v0.15 adds Surprise Attack: `choose_alert`, headings, standby and the first ship near the planet in `deploy_ship` (3b, 6b–6d), standby and the turn a ship goes on alert in `declare_order`, `move` and shooting, and one entry edge in `arrive` (10a) (V28–V31). v0.16 adds Blockade Run's deployment: the blockaders' thirds and headings through `deploymentDivisions(player, ship)` (V32). v0.17 adds planetary defences: deploying in the gravity well (`deploy_ship` 4a), their orders (`declare_order` 3c), and stationary ones that never move (`move` 3b, `drift_hulk` 3a) (V33–V36). v0.18 adds orbital mines, minefields and fire ships: `place_defence`, `detonate`, minefields in lines of fire and as targets, mines in `move_ordnance`, and the rectangle geometry they need (§2.1, §2.4, §2.5, §2.7, §4.1–4.4, V37–V44).
+**Status:** draft v0.19, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.24](../game_state/SPEC.md) and [Transforms v0.22](../transforms/SPEC.md). v0.4 added the boarding checks. v0.5 adds attack craft: `launch_attack_craft`, attack craft moves and CAP (`move_ordnance`'s `path` and `cap`, `release_cap`), and shooting at waves. v0.6 adds combined battery volleys (`fire` checks 21–25, V9). v0.7 adds the nova cannon (`fire_nova_cannon`, §2.1, §2.4, §2.7, V10–V11), and caps the minimum move of a ship starting on a Blast Marker (`move` check 13, V12). v0.8 adds Fleet Engagement's set-up: `choose_formation`, `choose_setup`, and divisions in `deploy_ship` (§4.1, V13). v0.9 adds the `reroll` checks and the Mark of Nurgle's boarding check (§4.2, §4.3, §4.5, V14). v0.10 refuses Come to New Heading to ships with the `noComeToNewHeading` trait (§4.2, `declare_order` check 8). v0.11 adds squadrons: deploying them (`deploy_ship` 7–9), their orders and moves (`declare_order` 12–13, `move` 5a–5c), shooting by and at them (`fire` 27–35, §2.7), and nine reason codes (V15–V18). v0.12 adds reserves for The Bait: `arrive`, `end_step` in `move_ships`, and refusing to deploy a reserve (§4.1, §4.2, V19–V21). v0.13 adds The Raiders: `choose_facing`, spacing at deployment (`deploy_ship` 6a), and raiders who can't wait (`end_step` in `move_ships`, check 1a) (V22–V23). v0.14 adds planets: blocked lines of fire (§2.7), gravity turns (`move` 6a) and high orbit (`move` 13) (V24–V27). v0.15 adds Surprise Attack: `choose_alert`, headings, standby and the first ship near the planet in `deploy_ship` (3b, 6b–6d), standby and the turn a ship goes on alert in `declare_order`, `move` and shooting, and one entry edge in `arrive` (10a) (V28–V31). v0.16 adds Blockade Run's deployment: the blockaders' thirds and headings through `deploymentDivisions(player, ship)` (V32). v0.17 adds planetary defences: deploying in the gravity well (`deploy_ship` 4a), their orders (`declare_order` 3c), and stationary ones that never move (`move` 3b, `drift_hulk` 3a) (V33–V36). v0.18 adds orbital mines, minefields and fire ships: `place_defence`, `detonate`, minefields in lines of fire and as targets, mines in `move_ordnance`, and the rectangle geometry they need (§2.1, §2.4, §2.5, §2.7, §4.1–4.4, V37–V44). v0.19 adds `choose_defences` (§4.1, V45–V47).
 
 ```ts
 validate(state: GameState, transform: unknown) → ValidationResult
@@ -293,6 +293,18 @@ Run after the gates, in the order listed. "Ship" means `ships.find(id = transfor
 | 2 | `units.length = min(alertUnits, the player's units)` (state N77) | `INVALID_ALERT` |
 
 `INVALID_ALERT.details` is `{ expected, units }`, `units` the ids the player could name.
+
+**`choose_defences`** (G5–G6 make it the defender's, in the step that only `freeDefences` has)
+
+| # | Check | Code |
+|---|---|---|
+| 1 | Every `classId` is a planetary defence class | `NOT_A_DEFENCE` |
+| 2 | Every name is 1–40 characters after trimming, and no two ships in the game (bought or not) share one | `INVALID_NAME` |
+| 3 | The ships' class points + 5 × `orbitalMines` + 40 × `minefields` ≤ `defenceBudget` | `OVER_BUDGET` |
+| 4 | Minefields ≤ 2 and fire ships ≤ 6 with those bought with the fleet (state N125) | `TOO_MANY` |
+| 5 | Escorts name a squadron, stationary defences don't; a named squadron isn't one of the player's, holds one kind, and has 1–6 members (2–6 with fleet lists) | `INVALID_SQUADRON` |
+
+`OVER_BUDGET.details` is `{ points, budget }`; `TOO_MANY.details` `{ kind, count, max }`.
 
 **`choose_setup`**
 
@@ -713,6 +725,11 @@ In `move_ships` (transform T95):
 | `MINEFIELD_TOO_FAR` | A minefield whose nearest point is more than 15 cm from the planet's edge |
 | `MINEFIELDS_OVERLAP` | A minefield overlapping another |
 | `NOT_A_FIRE_SHIP` | `detonate` with a ship that isn't a fire ship |
+| `NOT_A_DEFENCE` | `choose_defences` with a class that isn't a planetary defence |
+| `INVALID_NAME` | `choose_defences` with an empty, too long or repeated ship name |
+| `OVER_BUDGET` | `choose_defences` costing more than the free budget |
+| `TOO_MANY` | more than two minefields or six fire ships in all |
+| `INVALID_SQUADRON` | `choose_defences` with escorts outside a squadron, a stationary defence in one, or a squadron that's taken, mixed or the wrong size |
 | `INVALID_ALERT` | Surprise Attack: `choose_alert` names the wrong units, or the wrong number |
 | `HEADING_REQUIRED` | Surprise Attack: the defender's `deploy_ship` without a heading |
 | `HEADING_NOT_ALLOWED` | `deploy_ship` with a heading where the division sets it |
@@ -861,6 +878,9 @@ All from the round-1 state in state §14: Agrippa at `(85, 15)` heading 0, Uncle
 | V42 | **`detonate` needs no check on `moved`**: a fire ship may go off before or after its move (transform T153), and stationary defences, which can't move, aren't fire ships. |
 | V43 | **A mine's `move_ordnance`** takes no path: the reducer steers it (transform T148), so `PATH_TOO_LONG` and the CAP checks never reach it. |
 | V44 | **Lines of fire touching a minefield's corner are blocked** (inclusive, V2), as a base touching a hulk's blocks. |
+| V45 | **`choose_defences` checks the shopping list as a whole**, in the order above; the first failure wins. `orbitalMines` and `minefields` are whole numbers ≥ 0 (G1, `MALFORMED`). |
+| V46 | **An empty purchase is legal**: the defender may decline the free defences. |
+| V47 | **Squadron kinds** follow `newGame`: escorts only with escorts, system defence ships only with each other. |
 | V32 | **Blockade Run needs no codes of its own**: a blockader outside its third, or within 60 cm of the runners' edge, is `NOT_IN_ZONE`; a missing heading `HEADING_REQUIRED`, a runner's heading `HEADING_NOT_ALLOWED`; and the order of deployment is `NOT_YOUR_TURN` (G5). |
 | V31 | **`ONE_ENTRY_EDGE.details`** is `{ entryEdge: null }`: it's only checked on the first arrival. With `entryEdge` set, check 9 already holds the stems to that edge. |
 | V8 | **An attack craft path is checked for length and table only.** Whatever it meets on the way (Blast Markers, ordnance, a ship that stops it) is the reducer's to resolve. |

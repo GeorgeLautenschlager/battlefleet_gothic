@@ -602,6 +602,7 @@ export function actor(state: GameState): Actor {
         return state.setup.engagement?.setupChooser ?? null;
       case "choose_facing":
       case "choose_alert":
+      case "choose_defences":
         return state.scenario.attacker === undefined ? null : otherPlayer(state.scenario.attacker); // the defender
       case "place_defences":
         return state.setup.emplacements?.owner ?? null;
