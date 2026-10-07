@@ -45,6 +45,8 @@ describe("Surprise Attack from the form", () => {
     const rolled = (seed: number) => play(newGame(cruiserClash({ ...options, seed }, new Date(0))), { type: "roll_leadership", player: "p1" });
     const seed = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].find((n) => rolled(n).setup.surpriseAttack?.alertUnits === 1) ?? 0;
     let s = play(rolled(seed), { type: "choose_alert", player: "p1", units: ["ship-1"] });
+    expect(s.clock.setupStep).toBe("choose_defences"); // the planet's free defences (state N124): none taken
+    s = play(s, { type: "choose_defences", player: "p1", ships: [], orbitalMines: 0, minefields: 0 });
     const [agrippa, invincible] = [s.ships[0]!, s.ships[1]!];
     expect(deployHeading(s, "p1", agrippa, { x: 50, y: 50 }, { facing: 135, planetTo: "port" })).toBe(135);
     // Invincible on standby, 20 cm south of the planet's centre (90, 60): planet to starboard faces east, to port west.

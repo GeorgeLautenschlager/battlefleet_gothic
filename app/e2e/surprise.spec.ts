@@ -30,6 +30,15 @@ test("Surprise Attack: four Lunars caught round a medium planet, and the attacke
   await page.getByRole("button", { name: "Full alert" }).click();
   await expect(page.locator(".log")).toContainText("on full alert");
 
+  // The planet's own defences: four Lunars are 720 pts, two dice, at least 20 pts. Two orbital mines, placed in the gravity well.
+  await expect(page.locator(".log")).toContainText("has defences of its own");
+  await page.getByLabel("Orbital mines").fill("2");
+  await page.getByRole("button", { name: /^Buy \(10 of/ }).click();
+  await expect(page.locator(".log")).toContainText("buys 2 orbital mines");
+  await clickTable(page, 90, 82);
+  await clickTable(page, 90, 38);
+  await expect(page.locator(".mine")).toHaveCount(2);
+
   // Alert ships in the zone, facing up; standby ships broadside round the planet (centre 90, 60), the planet to starboard.
   const alertSpots = [
     [40, 40],
@@ -39,7 +48,7 @@ test("Surprise Attack: four Lunars caught round a medium planet, and the attacke
   const standbySpots = [
     [90, 80],
     [110, 60],
-    [90, 40],
+    [110, 75],
     [70, 60],
   ];
   for (let i = 0; i < 4; i++) {

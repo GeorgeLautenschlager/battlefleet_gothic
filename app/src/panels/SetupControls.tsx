@@ -3,6 +3,7 @@ import { actor, engagement, getSquadron, planetaryDefence, surprise, type Format
 import { Act } from "../controls/Act";
 import { freeHeading, type DeployAim } from "../game/deploy";
 import { DEFAULT_PLACE, kindFor, leftToPlace, type PlaceAim } from "../game/place";
+import { DefenceShopping } from "./DefenceShopping";
 import type { SetupPreview } from "../table/Zones";
 import { sendAs, type Seat } from "../game/source";
 import { pick, undeployed } from "../game/pick";
@@ -176,6 +177,11 @@ export function SetupControls({
         </div>
       </>
     );
+  }
+  if (step === "choose_defences") {
+    const who = actor(state);
+    if (who !== "p1" && who !== "p2") return null;
+    return <DefenceShopping state={state} player={who} onApply={onApply} />;
   }
   if (step === "place_defences") {
     const who = actor(state);

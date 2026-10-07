@@ -25,7 +25,14 @@ export function cruiserClash(
   return {
     seed,
     createdAt,
-    options: { ramming: options.ramming, boarding: options.boarding, carriers: options.carriers, ...(options.fleetLists ? { fleetLists: true } : {}) },
+    options: {
+      ramming: options.ramming,
+      boarding: options.boarding,
+      carriers: options.carriers,
+      ...(options.fleetLists ? { fleetLists: true } : {}),
+      // Surprise Attack's free defences (state N123): every new game has them.
+      ...(options.scenario === "surprise_attack" ? { freeDefences: true } : {}),
+    },
     scenario: options.scenario,
     forces: options.forces,
     scoring: options.scoring,

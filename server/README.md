@@ -21,6 +21,7 @@ Network play's server side ([network/SPEC.md](../network/SPEC.md), [ADR 0003](..
 | Blockade Run: the host names the runners, checked at half the blockader's points | ✅ |
 | Planetary defences: the host names the planet holder where there's no attacker (`planetHolder`); each seat's defences checked against it | ✅ |
 | Orbital mines and minefields: the holder's `emplacements` with their fleet (create and `join`), refused for anyone else, shown in the lobby | ✅ |
+| Surprise Attack's free defences: every new Surprise Attack config has `options.freeDefences` | ✅ |
 
 ## Layout
 
