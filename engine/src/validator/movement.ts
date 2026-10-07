@@ -4,7 +4,7 @@ import { approxEq, approxGe, approxLe, baseRadius, basesTouch, distance, norm } 
 import { gravityTurnProblem, gravityWellAt } from "../rules/planets";
 import { exitDistance, touchesAnyBm, walkShipPath } from "../geometry/path";
 import { allAheadFullEnd, moveParameters, movingOrder } from "../rules/move";
-import { bmsInContact, canBeBoarded, isHulk, onStandby, onTable, rerollFor, squadronOf, wentOnAlert } from "../state/derived";
+import { bmsInContact, canBeBoarded, isDefence, isHulk, onStandby, onTable, planetaryDefence, rerollFor, squadronOf, wentOnAlert } from "../state/derived";
 import type { GameState, Point, Ship } from "../state/types";
 import type { DeclareOrder, DriftHulk, Move } from "../transforms/types";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
@@ -33,6 +33,7 @@ export function checkDriftHulk(state: GameState, t: DriftHulk): ValidationResult
   const ship = ownShip(state, t.shipId, t.player);
   if (isResult(ship)) return ship;
   if (!isHulk(ship)) return reject("NOT_A_HULK", `${ship.name} isn't a hulk`, { shipId: ship.id });
+  if (isDefence(ship)) return reject("STATIONARY", `${ship.name} is a stationary defence's hulk: it stays put`, { shipId: ship.id });
   if (state.turnState.ships[ship.id]?.drifted === true) {
     return reject("ALREADY_DRIFTED", `${ship.name} has already drifted this turn`, { shipId: ship.id });
   }
@@ -45,6 +46,10 @@ export function checkDeclareOrder(state: GameState, t: DeclareOrder): Validation
   // 3a–3b: Surprise Attack's standby, and the turn a ship goes on alert (T117, T120)
   if (onStandby(ship)) return reject("ON_STANDBY", `${ship.name} is on standby: it takes no special orders but Brace`, { shipId: ship.id });
   if (wentOnAlert(state, ship)) return reject("JUST_ALERTED", `${ship.name} went on alert this turn: no special orders`, { shipId: ship.id });
+  // 3c: planetary defences reload and nothing else (state N95)
+  if (planetaryDefence(ship) && t.order !== "reload_ordnance") {
+    return reject("DEFENCE_ORDERS", `${ship.name} is a planetary defence: Reload Ordnance is its only special order`, { shipId: ship.id });
+  }
   if (state.turnState.ships[ship.id]?.moved === true) {
     return reject("ALREADY_MOVED", `${ship.name} has already moved this turn`, { shipId: ship.id });
   }
@@ -98,6 +103,7 @@ export function checkMove(state: GameState, t: Move): ValidationResult {
   const ship = ownActiveShip(state, t.shipId, t.player);
   if (isResult(ship)) return ship;
   if (onStandby(ship)) return reject("ON_STANDBY", `${ship.name} is on standby: it doesn't move`, { shipId: ship.id });
+  if (isDefence(ship)) return reject("STATIONARY", `${ship.name} is a stationary defence: it never moves`, { shipId: ship.id });
   if (state.turnState.ships[ship.id]?.moved === true) {
     return reject("ALREADY_MOVED", `${ship.name} has already moved this turn`, { shipId: ship.id });
   }

@@ -3,7 +3,8 @@ import { EPS, FORMATION_RANGE } from "../geometry/constants";
 import { approxGe, approxLe, baseRadius, bmTouchesBase, distance } from "../geometry/basic";
 import { RAIDERS_SPACING } from "../rules/reserves";
 import { abeamOfPlanet, alertCount, nearPlanet, STANDBY_RANGE, unitIds } from "../rules/surprise";
-import { deploymentUnits, onTable, partlyDeployedSquadron, squadronOf } from "../state/derived";
+import { deploymentUnits, onTable, partlyDeployedSquadron, planetaryDefence, squadronOf } from "../state/derived";
+import { gravityWellAt, onPlanet } from "../rules/planets";
 import { deploymentDivisions, divisionAt, emptyDivisions, setupOptions } from "../rules/engagement";
 import type { GameState, Point } from "../state/types";
 import type { AnswerBrace, ChooseAlert, ChooseSetup, DeployShip, RemoveBlastMarkers, Repair } from "../transforms/types";
@@ -18,25 +19,30 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
   if (ship.status === "reserve") return reject("IN_RESERVE", `${ship.name} is a reinforcement: it arrives during the battle`);
   if (ship.status !== "undeployed") return reject("ALREADY_DEPLOYED", `${ship.name} is already deployed`);
 
-  // 3b: a heading exactly where the division sets none (Surprise Attack's defender, T116)
+  // 3b: a heading exactly where the division sets none (Surprise Attack's defender, T116), and always for planetary defences (T134)
+  const defence = planetaryDefence(ship);
   const divisions = deploymentDivisions(state, t.player, ship);
-  const free = divisions.some((d) => d.heading === null);
+  const free = defence || divisions.some((d) => d.heading === null);
   if (free && t.heading === undefined) return reject("HEADING_REQUIRED", `Give ${ship.name} a heading`);
   if (!free && t.heading !== undefined) return reject("HEADING_NOT_ALLOWED", `${ship.name} faces its division's way: no heading to give`);
   if (t.heading !== undefined && !(t.heading >= 0 && t.heading < 360)) return reject("MALFORMED", "A heading is from 0 up to 360", { field: "heading" });
 
+  // 4a: planetary defences in the gravity well, off the planet (state N93)
+  if (defence && (gravityWellAt(state, t.position) === undefined || onPlanet(state, t.position) !== undefined)) {
+    return reject("NOT_IN_GRAVITY_WELL", `${ship.name} deploys in the planet's gravity well, off the planet itself`);
+  }
   // 4: in one of the player's divisions (Cruiser Clash: its one zone)
   const zoneId = state.setup.zones?.[t.player] ?? null;
-  const division = divisionAt(divisions, t.position);
+  const division = defence ? 0 : divisionAt(divisions, t.position);
   if (division < 0) return reject("NOT_IN_ZONE", `That isn't in your deployment zone${zoneId === null ? "" : ` (${zoneId})`}`, { zone: zoneId });
 
   // 5: every division gets a ship (or squadron) before any gets a second (state N18); a squadron counts once,
   // and its later members follow it instead (check 8)
   const placed = (squadronOf(state, ship)?.shipIds ?? []).flatMap((id) => state.ships.find((s) => s.id === id && s.position !== null) ?? []);
   const lead = placed[0];
-  if (lead === undefined && state.scenario.id !== "surprise_attack" && state.scenario.id !== "blockade_run") {
+  if (lead === undefined && !defence && state.scenario.id !== "surprise_attack" && state.scenario.id !== "blockade_run") {
     const empty = emptyDivisions(state, t.player);
-    const undeployed = deploymentUnits(state).filter((u) => u[0]?.owner === t.player && u.every((s) => s.status === "undeployed")).length;
+    const undeployed = deploymentUnits(state).filter((u) => u[0]?.owner === t.player && !planetaryDefence(u[0]) && u.every((s) => s.status === "undeployed")).length;
     if (undeployed <= empty.length && !empty.includes(division)) {
       return reject("FILL_DIVISIONS_FIRST", "Each division needs a ship before any gets a second", { empty });
     }
@@ -52,11 +58,12 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
   }
 
   // 6a: The Raiders: at least 20 cm from every ship of another unit (state N59)
-  if (state.scenario.id === "raiders") {
+  if (state.scenario.id === "raiders" && !defence) {
     const mine = squadronOf(state, ship);
     const near = state.ships.find(
       (o) =>
         o.position !== null &&
+        !planetaryDefence(o) &&
         o.id !== ship.id &&
         (mine === undefined || !mine.shipIds.includes(o.id)) &&
         !approxGe(distance(t.position, o.position), RAIDERS_SPACING),
@@ -79,7 +86,7 @@ export function checkDeployShip(state: GameState, t: DeployShip): ValidationResu
     return reject("SQUADRON_DEPLOYING", `Finish deploying ${partial.name} first`, { squadronId: partial.id });
   }
   if (lead !== undefined) {
-    const theirs = divisionAt(divisions, lead.position as Point);
+    const theirs = defence ? 0 : divisionAt(divisions, lead.position as Point);
     if (theirs !== division) return reject("SQUADRON_DIVISION", `${ship.name} goes in its squadron's division`, { division: theirs });
     if (!placed.some((s) => approxLe(distance(t.position, s.position as Point), FORMATION_RANGE))) {
       return reject("NOT_IN_FORMATION", `${ship.name} must be within ${FORMATION_RANGE} cm of its squadron`);

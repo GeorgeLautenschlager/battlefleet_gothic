@@ -80,6 +80,7 @@ export default {
             : {}),
           ...(body?.attacker === "p1" || body?.attacker === "p2" ? { attacker: body.attacker as "p1" | "p2" } : {}),
           ...(body?.planet === "small" || body?.planet === "medium" || body?.planet === "large" ? { planet: body.planet as "small" | "medium" | "large" } : {}),
+          ...(body?.planetHolder === "p1" || body?.planetHolder === "p2" ? { planetHolder: body.planetHolder as "p1" | "p2" } : {}),
           ...forcesOf(body?.forces),
           ...(body?.scoring === "victory_points" ? { scoring: "victory_points" as const } : {}),
         },

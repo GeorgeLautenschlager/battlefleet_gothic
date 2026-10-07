@@ -243,6 +243,25 @@ describe("lobby and start", () => {
     expect(state.setup.blockade).toEqual({ thirds: null });
   });
 
+  test("planetary defences: the planet holder fields them, up to a third of the points", async () => {
+    const ann: Fleet = { faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }, { name: "Lumen", classId: "laser_platform" }, { name: "Bastion", classId: "space_station" }] };
+    const opts = { fleet: ann, forces: { kind: "points" as const, limit: 750 }, scoring: "victory_points" as const, planet: "medium" as const };
+    // The host holds the planet; without it named, defences are refused.
+    await expect(Harness.create(opts)).rejects.toThrow("INVALID_FLEET");
+    const h = await Harness.create({ ...opts, planetHolder: "p1" });
+    const [welcome] = await h.hello("a", "p1");
+    expect(welcome).toMatchObject({ lobby: { options: { planet: "medium", planetHolder: "p1" } } });
+    await h.hello("b", "p2");
+    // The guest doesn't hold the planet: no defences for them.
+    expect(rejection(await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }, { name: "Spike", classId: "weapons_platform" }] }))?.reason).toMatchObject({
+      code: "INVALID_FLEET",
+      message: expect.stringContaining("only the planet holder"),
+    });
+    await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }] });
+    const state = h.stateOf("b")!;
+    expect(state.ships.map((s) => [s.profile.type, s.leadership])).toEqual([["cruiser", null], ["defence", 7], ["defence", 7], ["cruiser", null]]);
+  });
+
   test("fleet lists: commanders ride on the ship entries and the engine checks the list", async () => {
     const ann: Fleet = {
       faction: "imperial_navy",

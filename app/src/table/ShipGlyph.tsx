@@ -3,6 +3,8 @@ import { toSvg, type View } from "./view";
 
 /** A cruiser silhouette, nose up, about 7 cm long, centred on the stem. */
 const HULL = "M0,-3.6 L0.9,-1.8 L1.1,2.4 L0.6,3.2 L-0.6,3.2 L-1.1,2.4 L-0.9,-1.8 Z";
+/** A stationary defence (state §7.6): a platform, not a hull. It fires all round, so no bow. */
+const PLATFORM = "M0,-2.2 L2.2,0 L0,2.2 L-2.2,0 Z M-1.2,0 L1.2,0 M0,-1.2 L0,1.2";
 
 type Props = {
   ship: Pick<Ship, "id" | "name" | "owner" | "status" | "profile"> & { position: { x: number; y: number }; heading: number };
@@ -34,9 +36,13 @@ export function ShipGlyph({ ship, view, ghost, selected = false, targeted = fals
       data-ship={ship.id}
     >
       <circle className="base" r={r} />
-      <g transform={`rotate(${ship.heading})`}>
-        <path className="hull" d={HULL} />
-      </g>
+      {ship.profile.type === "defence" ? (
+        <path className="hull platform" d={PLATFORM} />
+      ) : (
+        <g transform={`rotate(${ship.heading})`}>
+          <path className="hull" d={HULL} />
+        </g>
+      )}
       <circle className="stem" r={0.25} />
       {!ghost && (
         <text className="label" y={r + 3.2} textAnchor="middle">

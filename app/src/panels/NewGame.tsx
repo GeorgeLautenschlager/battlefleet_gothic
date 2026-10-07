@@ -1,11 +1,12 @@
 import { useState } from "react";
 import type { PlayerId } from "@bfg/engine";
-import { carriersAllowed, configProblem, defaultNames, listsOn, MAX_SHIPS, pursuedOf, type NewGameOptions, type Side } from "../game/config";
-import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, PlanetField, resize, RulesChecks } from "./FleetForm";
+import { carriersAllowed, configProblem, defaultNames, hasRoles, listsOn, MAX_SHIPS, pursuedOf, type NewGameOptions, type Side } from "../game/config";
+import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, PlanetField, PlanetHolderField, resize, RulesChecks } from "./FleetForm";
 
 const withoutPlanet = (o: NewGameOptions): NewGameOptions => {
   const rest = { ...o };
   delete rest.planet;
+  delete rest.planetHolder;
   return rest;
 };
 
@@ -65,6 +66,9 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
         }}
       />
       {o.scenario !== "surprise_attack" && <PlanetField value={o.planet} onChange={(planet) => setO(planet === undefined ? withoutPlanet(o) : { ...o, planet })} />}
+      {o.planet !== undefined && !hasRoles(o.scenario) && points !== null && (
+        <PlanetHolderField value={o.planetHolder ?? "p1"} onChange={(planetHolder) => setO({ ...o, planetHolder })} />
+      )}
       {points === null && <CountSelect value={count} onChange={setCount} />}
       {PLAYERS.map((p) => (
         <FleetFields

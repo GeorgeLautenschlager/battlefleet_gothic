@@ -6,11 +6,16 @@
  */
 import { bmTouchesBase } from "../geometry/basic";
 import { emptyTurnState } from "../state/newGame";
-import { activePlayer, getShip, isHulk, leadership, novaCannonBarred, onStandby, onTable, otherPlayer, score, squadronLd, squadronOf, victoryPoints, weaponDisabled } from "../state/derived";
+import { activePlayer, bmsInContact, getShip, hasCritical, isDefence, isHulk, leadership, novaCannonBarred, onStandby, onTable, otherPlayer, score, squadronLd, squadronOf, victoryPoints, weaponDisabled } from "../state/derived";
 import type { GameState, Ordnance, Phase, PlayerId, SetupStep, Step } from "../state/types";
 import type { Ctx } from "./context";
 import { anyTeleport, boardingsToFight } from "../rules/boarding";
 import { grappledStayPut, grapplesFight } from "./boarding";
+import { leaveGrapple } from "./grapple";
+import { releaseCap } from "./cap";
+import { planets } from "../rules/planets";
+import { distance } from "../geometry/basic";
+import { EPS } from "../geometry/constants";
 import { canLaunchCraft } from "../rules/craft";
 import { canArrive, eliminated, hasReserves } from "../rules/reserves";
 
@@ -121,12 +126,13 @@ export function stepComplete(state: GameState): boolean {
 
   switch (clock.step) {
     case "hulks_drift":
-      return mine.filter(isHulk).every((s) => shipTurn(s.id)?.drifted === true);
+      // A stationary defence's hulk stays put (state N104).
+      return mine.filter((s) => isHulk(s) && !isDefence(s)).every((s) => shipTurn(s.id)?.drifted === true);
     case "move_ships":
       // While reserves could still arrive, the step waits for them or an end_step (transform T95).
       return (
         state.activation === null &&
-        mine.filter((s) => s.status === "active").every((s) => shipTurn(s.id)?.moved === true) &&
+        mine.filter((s) => s.status === "active" && !isDefence(s)).every((s) => shipTurn(s.id)?.moved === true) &&
         !canArrive(state, active)
       );
     case "direct_fire":
@@ -191,7 +197,10 @@ export function advanceStep(ctx: Ctx): void {
     }
     const i = BATTLE_ORDER.findIndex((s) => s.step === clock.step);
     const next = BATTLE_ORDER[i + 1];
-    if (next === undefined) endPlayerTurn(ctx);
+    if (next === undefined) {
+      defenceBlastMarkers(ctx);
+      endPlayerTurn(ctx);
+    }
     else enterStep(ctx, next.phase, next.step);
   });
 }
@@ -203,6 +212,7 @@ function enterStep(ctx: Ctx, phase: Phase, step: Step): void {
   ctx.log("step", { phase, step });
   switch (step) {
     case "move_ships":
+      orbitFalls(ctx);
       alertTests(ctx);
       grappledStayPut(ctx);
       standbyStayPut(ctx);
@@ -255,6 +265,50 @@ function alertTests(ctx: Ctx): void {
     ctx.log("alert_test", { shipIds: unit.map((s) => s.id), ...(sq !== undefined ? { squadronId: sq.id } : {}), rolls, leadership: ld, passed });
   }
 }
+
+/** Orbit Lost (state N99, transform T136, reducer R59): each of the active player's defences with it falls D6 cm toward the planet. */
+function orbitFalls(ctx: Ctx): void {
+  const { state } = ctx;
+  const planet = planets(state)[0];
+  if (planet === undefined) return;
+  for (const ship of state.ships) {
+    if (ship.owner !== activePlayer(state) || ship.status !== "active" || !hasCritical(ship, "orbit_lost") || ship.position === null) continue;
+    const roll = ctx.d6();
+    const from = ship.position;
+    const gap = distance(from, planet.position);
+    const toEdge = Math.max(0, gap - planet.diameter / 2);
+    if (roll >= toEdge - EPS) {
+      leaveGrapple(ctx, ship);
+      releaseCap(ctx, ship);
+      ship.status = "destroyed";
+      ship.damage = ship.profile.hits;
+      ship.position = null;
+      ship.heading = null;
+      ship.specialOrder = null;
+      ctx.log("orbit_fall", { shipId: ship.id, rolls: [roll], distance: toEdge, position: null, destroyed: true });
+      continue;
+    }
+    const f = roll / gap;
+    ship.position = { x: from.x + (planet.position.x - from.x) * f, y: from.y + (planet.position.y - from.y) * f };
+    ctx.log("orbit_fall", { shipId: ship.id, rolls: [roll], distance: roll, position: { ...ship.position } });
+  }
+}
+
+/** In every End Phase, each stationary defence sheds D6 of the Blast Markers touching it (state N100, transform T137, reducer R60). */
+function defenceBlastMarkers(ctx: Ctx): void {
+  const { state } = ctx;
+  for (const ship of state.ships) {
+    if (!isDefence(ship) || ship.status !== "active") continue;
+    const touching = bmsInContact(state, ship);
+    if (touching.length === 0) continue;
+    const roll = ctx.d6();
+    const removed = [...touching].sort((a, b) => idNumber(a.id) - idNumber(b.id)).slice(0, roll).map((bm) => bm.id);
+    state.blastMarkers = state.blastMarkers.filter((bm) => !removed.includes(bm.id));
+    ctx.log("defence_blast_markers", { shipId: ship.id, rolls: [roll], removed });
+  }
+}
+
+const idNumber = (id: string): number => Number(id.slice(id.lastIndexOf("-") + 1));
 
 /** Ships still on standby stay put this Movement Phase, as grappled ones do (transform T117). */
 function standbyStayPut(ctx: Ctx): void {

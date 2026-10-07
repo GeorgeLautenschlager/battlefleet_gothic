@@ -1,5 +1,5 @@
 /** Setup transforms (transform spec §4.1). */
-import { otherPlayer, squadronOf } from "../../state/derived";
+import { otherPlayer, planetaryDefence, squadronOf } from "../../state/derived";
 import { deploymentDivisions, divisionAt, isSplit, setupBonus, setupOptions } from "../../rules/engagement";
 import type { ChooseAlert, ChooseFacing, ChooseFirstTurn, ChooseFormation, ChooseSetup, DeployShip } from "../../transforms/types";
 import { unitIds, unitShips } from "../../rules/surprise";
@@ -13,6 +13,7 @@ const LEADERSHIP = [0, 6, 7, 7, 8, 8, 9] as const;
 
 export function rollLeadership(ctx: Ctx): void {
   for (const ship of ctx.state.ships) {
+    if (planetaryDefence(ship)) continue; // Ld 7, never rolled (state N94, transform T140)
     // An escort squadron rolls once, at its first member (T78); the rest share it.
     const sq = squadronOf(ctx.state, ship);
     const rolled = sq?.type === "escort" ? sq.shipIds.map((id) => getShip(ctx.state, id)).find((s) => s.leadership !== null) : undefined;
@@ -71,7 +72,7 @@ export function chooseAlert(ctx: Ctx, t: ChooseAlert): void {
   const alert = new Set(t.units.flatMap((u) => unitShips(state, u)));
   const standby: string[] = [];
   for (const ship of state.ships) {
-    if (ship.owner !== t.player || alert.has(ship.id)) continue;
+    if (ship.owner !== t.player || alert.has(ship.id) || planetaryDefence(ship)) continue; // defences are never on standby (N105)
     ship.standby = true;
     standby.push(ship.id);
   }
@@ -110,7 +111,7 @@ export function deployShip(ctx: Ctx, t: DeployShip): void {
   ship.status = "active";
   ship.position = { ...t.position };
   // The division's heading: Cruiser Clash's zone facing, or the map's arrow (p. 142); Surprise Attack's defender gives one (T116).
-  ship.heading = divisions[divisionAt(divisions, t.position)]?.heading ?? t.heading ?? 0;
+  ship.heading = planetaryDefence(ship) ? (t.heading ?? 0) : (divisions[divisionAt(divisions, t.position)]?.heading ?? t.heading ?? 0);
   ctx.log("deploy", { shipId: ship.id, position: { ...t.position }, heading: ship.heading });
 }
 

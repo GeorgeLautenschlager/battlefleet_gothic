@@ -4,7 +4,7 @@
  * classes. Mirror matches are fine. With the carriers option (p. 129), a
  * side may also field its fleet's carrier.
  */
-import { CATALOGUE, commanderPoints, newGame, profileWithOptions, type CommanderConfig, type FactionId, type Mark, type Forces, type GameConfig, type PlanetSize, type PlayerId, type ScenarioId, type Scoring } from "@bfg/engine";
+import { CATALOGUE, commanderPoints, isDefenceClass, newGame, profileWithOptions, type CommanderConfig, type FactionId, type Mark, type Forces, type GameConfig, type PlanetSize, type PlayerId, type ScenarioId, type Scoring } from "@bfg/engine";
 
 export type Fleet = "imperial_navy" | "chaos";
 
@@ -25,6 +25,12 @@ export const FLEETS: Record<Fleet, { name: string; classId: string; classes: str
     names: ["Unclean", "Carrion Hymn", "Woe Eternal", "Flayed Saint", "Hungering Dark", "Ninth Wound", "Red Lament", "Sorrowmaw"],
   },
 };
+
+/** Planetary defences (state §7.6): either fleet may field them, in a points battle, if it holds the planet (N91). */
+export const DEFENCE_CLASSES = ["laser_platform", "torpedo_platform", "weapons_platform", "orbital_dock", "space_station", "blackstone_fortress", "defence_monitor", "system_ship"] as const;
+
+/** System defence ships squadron with each other, never with the fleet's escorts. */
+export const DEFAULT_DEFENCE_SQUADRON = "System ships";
 
 export const MAX_SHIPS = 4;
 /** Ships a side in a points battle: the app's limit (the engine has none). */
@@ -68,6 +74,8 @@ export type NewGameOptions = {
   attacker?: PlayerId;
   /** A planet in the table centre (transform T107). */
   planet?: PlanetSize;
+  /** Without an attacker: who holds the planet and may field planetary defences (state N91). */
+  planetHolder?: PlayerId;
   seed?: number;
 };
 
@@ -106,7 +114,9 @@ export const CRUISER_CLASH_CAP = 185;
 export const classChoices = (fleet: Fleet, carriers: boolean, points = false): string[] => {
   // Cruiser Clash: cruisers only (p. 128), within the cap; escorts and battleships wait for a points battle.
   const cruisers = FLEETS[fleet].classes.filter((id) => points || (cheapest(id) <= CRUISER_CLASH_CAP && CATALOGUE[id]?.profile.type === "cruiser"));
-  return carriers ? [...cruisers, FLEETS[fleet].carrierClassId] : cruisers;
+  // Planetary defences come with points battles; the engine checks there's a planet and the side holds it (N91).
+  const defences = points ? [...DEFENCE_CLASSES] : [];
+  return [...cruisers, ...(carriers ? [FLEETS[fleet].carrierClassId] : []), ...defences];
 };
 
 /** The class of each of a side's ships. One picked before the rules changed (a carrier, a nova cannon) reads as the standard cruiser. */
@@ -184,7 +194,8 @@ export function squadronNames(side: Side, carriers: boolean, points = false): st
   return side.ships.map((_, i) => {
     if (!points) return "";
     const name = (side.squadrons?.[i] ?? "").trim();
-    return name === "" && CATALOGUE[classes[i] ?? ""]?.profile.type === "escort" ? DEFAULT_ESCORT_SQUADRON : name;
+    const profile = CATALOGUE[classes[i] ?? ""]?.profile;
+    return name === "" && profile?.type === "escort" ? (profile.traits?.planetaryDefence === true ? DEFAULT_DEFENCE_SQUADRON : DEFAULT_ESCORT_SQUADRON) : name;
   });
 }
 
@@ -235,12 +246,16 @@ export const roleOf = (scenario: ScenarioId | undefined, attacker: PlayerId | un
  * Why one side's fleet can't play, tried against a mirror of itself (as the server checks it), or null.
  * `role`: The Bait or The Raiders; it plays its part against a lone cruiser of its fleet instead, as the server does (T93, T100).
  */
-export function sideProblem(side: Side, carriers: boolean, forces?: Forces, fleetLists = false, role?: Role): string | null {
+export function sideProblem(side: Side, carriers: boolean, forces?: Forces, fleetLists = false, role?: Role, planet?: PlanetSize, holder = false): string | null {
+  const table = planet !== undefined && role?.scenario !== "surprise_attack" ? { planet } : {};
   if (role === undefined) {
-    return configProblem({ p1: side, p2: { ...side, ships: side.ships.map((_, i) => `mirror ${i}`) }, ramming: true, boarding: false, carriers, fleetLists, ...(forces ? { forces } : {}) });
+    // The mirror leaves out planetary defences: only the planet holder fields them (N91).
+    const kept = side.ships.map((_, i) => i).filter((i) => !isDefenceClass(classIds(side, carriers, forces?.kind === "points")[i] ?? ""));
+    const mirror: Side = { ...side, ships: kept.map((i) => `mirror ${i}`), classes: kept.map((i) => side.classes?.[i] ?? FLEETS[side.fleet].classId), options: kept.map((i) => side.options?.[i] ?? []), squadrons: kept.map((i) => side.squadrons?.[i] ?? "") };
+    return configProblem({ p1: side, p2: mirror, ramming: true, boarding: false, carriers, fleetLists, ...(forces ? { forces } : {}), ...table, ...(planet !== undefined ? { planetHolder: holder ? "p1" : "p2" } : {}) });
   }
   const standIn: Side = { name: "Stand-in", fleet: side.fleet, ships: ["(stand-in)"], classes: [FLEETS[side.fleet].classId] };
-  return configProblem({ p1: side, p2: standIn, ramming: true, boarding: false, carriers, fleetLists, scenario: role.scenario, attacker: role.defender ? "p2" : "p1", ...(forces ? { forces } : {}) });
+  return configProblem({ p1: side, p2: standIn, ramming: true, boarding: false, carriers, fleetLists, scenario: role.scenario, attacker: role.defender ? "p2" : "p1", ...(forces ? { forces } : {}), ...table });
 }
 
 /** The app's fleets are the boxed game's two; anything else reads as Imperial. */
@@ -262,6 +277,8 @@ export function cruiserClash(options: NewGameOptions, now = new Date()): GameCon
     ...(hasRoles(options.scenario) ? { attacker: options.attacker ?? "p2" } : {}),
     // Surprise Attack's planet comes from the points limit (T114).
     ...(options.planet !== undefined && options.scenario !== "surprise_attack" ? { planet: options.planet } : {}),
+    // The form's planet holder defaults to Player 1 (state N91).
+    ...(options.planet !== undefined && !hasRoles(options.scenario) && options.forces?.kind === "points" ? { planetHolder: options.planetHolder ?? "p1" } : {}),
     players: {
       p1: { name: options.p1.name.trim(), faction: options.p1.fleet satisfies FactionId },
       p2: { name: options.p2.name.trim(), faction: options.p2.fleet satisfies FactionId },

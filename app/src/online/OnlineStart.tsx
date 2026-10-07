@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { carriersAllowed, defaultNames, listsOn, MAX_SHIPS, pursuedOf, roleOf, shipEntries, sideProblem, type Side } from "../game/config";
-import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, PlanetField, resize, RulesChecks, type Battle, type Rules } from "../panels/FleetForm";
-import type { PlanetSize } from "@bfg/engine";
+import { carriersAllowed, defaultNames, hasRoles, listsOn, MAX_SHIPS, pursuedOf, roleOf, shipEntries, sideProblem, type Side } from "../game/config";
+import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, PlanetField, PlanetHolderField, resize, RulesChecks, type Battle, type Rules } from "../panels/FleetForm";
+import type { PlanetSize, PlayerId } from "@bfg/engine";
 import { createGame } from "./api";
 import type { MyGame } from "./myGames";
 
@@ -11,6 +11,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
   const [rules, setRules] = useState<Rules>({ ramming: true, boarding: true, carriers: false, fleetLists: true });
   const [battle, setBattle] = useState<Battle>({});
   const [planet, setPlanet] = useState<PlanetSize | undefined>(undefined);
+  const [planetHolder, setPlanetHolder] = useState<PlayerId>("p1");
   const points = battle.forces?.kind === "points" ? battle.forces.limit : null;
   const carriers = carriersAllowed({ carriers: rules.carriers, ...battle });
   const [busy, setBusy] = useState(false);
@@ -20,7 +21,10 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
   // The Bait and The Raiders: you're Player 1, attacking or defending (T93, T100).
   const role = roleOf(battle.scenario, battle.attacker, "p1");
   const reinforcements = pursuedOf(battle) === "p1";
-  const problem = dupes.length > 0 ? null : sideProblem(side, carriers, battle.forces, lists, role);
+  // A planet without an attacker: you name who holds it, and only they field planetary defences (state N91).
+  const table = battle.scenario !== "surprise_attack" ? planet : undefined;
+  const holderNamed = table !== undefined && !hasRoles(battle.scenario) && points !== null;
+  const problem = dupes.length > 0 ? null : sideProblem(side, carriers, battle.forces, lists, role, table, holderNamed && planetHolder === "p1");
   return (
     <form
       className="new-game"
@@ -30,7 +34,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         setBusy(true);
         setError(null);
         const name = side.name.trim();
-        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists, reinforcements), ...rules, fleetLists: lists, ...battle, ...(planet !== undefined && battle.scenario !== "surprise_attack" ? { planet } : {}) })
+        createGame({ name, side: "p1", faction: side.fleet, ships: shipEntries(side, carriers, battle.forces?.kind === "points", lists, reinforcements), ...rules, fleetLists: lists, ...battle, ...(table !== undefined ? { planet: table } : {}), ...(holderNamed ? { planetHolder } : {}) })
           .then((g) => onCreated({ gameId: g.gameId, token: g.token, seat: g.seat, name, joinedAt: new Date().toISOString(), inviteToken: g.inviteToken }))
           .catch((err: unknown) => setError((err as Error).message))
           .finally(() => setBusy(false));
@@ -48,6 +52,7 @@ export function OnlineStart({ onCreated }: { onCreated: (game: MyGame) => void }
         }}
       />
       {battle.scenario !== "surprise_attack" && <PlanetField value={planet} onChange={setPlanet} />}
+      {holderNamed && <PlanetHolderField value={planetHolder} onChange={setPlanetHolder} players={{ p1: "You", p2: "Your opponent" }} />}
       {points === null && <CountSelect value={side.ships.length} onChange={(n) => setSide({ ...side, ships: resize(side.ships, side.fleet, n) })} />}
       <FleetFields
         legend="You"

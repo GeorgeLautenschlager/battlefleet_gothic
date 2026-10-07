@@ -70,6 +70,12 @@ export const hasCritical = (ship: Ship, kind: CriticalKind): boolean =>
 
 export const isBraced = (ship: Ship): boolean => ship.specialOrder?.kind === "brace_for_impact";
 
+/** A stationary planetary defence (state §7.6). */
+export const isDefence = (ship: Ship): boolean => ship.profile.type === "defence";
+
+/** A stationary defence or a system defence ship: Ld 7, Reload Ordnance and Brace only (state N94–N95). */
+export const planetaryDefence = (ship: Ship): boolean => isDefence(ship) || ship.profile.traits?.planetaryDefence === true;
+
 /** Surprise Attack: an active ship still on standby (state §11, N78). */
 export const onStandby = (ship: Ship): boolean => ship.status === "active" && ship.standby === true;
 
@@ -147,7 +153,7 @@ export function speed(ship: Ship): number {
 
 export function maxShields(ship: Ship): number {
   if (isHulk(ship) || hasCritical(ship, "shields_collapse")) return 0;
-  return isCrippled(ship) ? halveUp(ship.profile.shields) : ship.profile.shields;
+  return isCrippled(ship) || hasCritical(ship, "reactors_damaged") ? halveUp(ship.profile.shields) : ship.profile.shields;
 }
 
 /** Blast Markers touching the ship's base. Empty for ships not on the table. */
@@ -165,7 +171,7 @@ export function shieldCapacity(state: GameState, ship: Ship): number {
 /** Turrets: hulks 0, crippled halved. Not affected by Brace. */
 export function turrets(ship: Ship): number {
   if (isHulk(ship)) return 0;
-  return isCrippled(ship) ? halveUp(ship.profile.turrets) : ship.profile.turrets;
+  return isCrippled(ship) || hasCritical(ship, "reactors_damaged") ? halveUp(ship.profile.turrets) : ship.profile.turrets;
 }
 
 export const canTurn = (ship: Ship): boolean => !hasCritical(ship, "engine_room");
@@ -219,6 +225,7 @@ const ARMAMENT_CRITICAL: Partial<Record<Weapon["location"], CriticalKind>> = {
 export function weaponDisabled(state: GameState, ship: Ship, weapon: Weapon): boolean {
   const critical = ARMAMENT_CRITICAL[weapon.location];
   if (critical !== undefined && hasCritical(ship, critical)) return true;
+  if (defenceCriticalDisables(ship, weapon)) return true;
   const turn = state.turnState.ships[ship.id];
   // Grappled ships and ships attempting to board can't fire or launch (p. 89; drawn combats, pp. 90–91).
   return turn?.disengage === "failed" || isGrappled(ship) || (turn?.boardingDeclared ?? null) !== null;
@@ -229,7 +236,22 @@ export function weaponDisabled(state: GameState, ship: Ship, weapon: Weapon): bo
 /** Disabled by its location's armament critical (T31). Launch bays don't care about orders or grapples here. */
 function bayLost(ship: Ship, weapon: Weapon): boolean {
   const critical = ARMAMENT_CRITICAL[weapon.location];
-  return critical !== undefined && hasCritical(ship, critical);
+  return (critical !== undefined && hasCritical(ship, critical)) || defenceCriticalDisables(ship, weapon);
+}
+
+/** The Defences Critical Hits table's weapon results (state N98): lances, batteries, or torpedoes and launch bays. */
+function defenceCriticalDisables(ship: Ship, weapon: Weapon): boolean {
+  switch (weapon.kind) {
+    case "lance":
+      return hasCritical(ship, "lances_damaged");
+    case "battery":
+      return hasCritical(ship, "main_armament_damaged");
+    case "torpedoes":
+    case "launch_bay":
+      return hasCritical(ship, "ordnance_bays_hit");
+    default:
+      return false;
+  }
 }
 
 export const launchBays = (ship: Ship): Weapon[] => ship.profile.weapons.filter((w) => w.kind === "launch_bay");
@@ -306,6 +328,7 @@ export function novaCannonBarred(ship: Ship): "crippled" | "order" | null {
  * A ship that hasn't moved yet is not (state N7).
  */
 export function targetedAsDefences(ship: Ship): boolean {
+  if (isDefence(ship)) return true; // stationary defences, whatever the aspect (state N96)
   return ship.lastMove !== null && ship.lastMove.distance < DEFENCES_MOVE - EPS;
 }
 
@@ -445,6 +468,7 @@ export function shipVP(ship: Ship): ShipVP | null {
   if (ship.profile.type === "escort") return null; // escorts score by squadron (N42)
   const points = shipValue(ship);
   if (destroyedForScoring(ship)) return { shipId: ship.id, vp: points, why: "destroyed" };
+  if (isDefence(ship)) return null; // a defence scores only when destroyed (state N101)
   if (ship.status === "disengaged") return { shipId: ship.id, vp: percent(points, isCrippled(ship) ? 25 : 10), why: "disengaged" };
   if (ship.status === "active" && isCrippled(ship)) return { shipId: ship.id, vp: percent(points, 25), why: "crippled" };
   return null;
@@ -472,8 +496,9 @@ export function runVP(state: GameState, ship: Ship): number {
 
 /** Half of every hulk on the table, friend or foe, if `player` holds the field: no enemy active, one of theirs is (T38). */
 export function holdingTheField(state: GameState, player: PlayerId): number {
-  const mine = state.ships.some((s) => s.owner === player && s.status === "active");
-  const theirs = state.ships.some((s) => s.owner !== player && s.status === "active");
+  // Stationary defences don't hold the field, or stop the enemy holding it (state N102).
+  const mine = state.ships.some((s) => s.owner === player && s.status === "active" && !isDefence(s));
+  const theirs = state.ships.some((s) => s.owner !== player && s.status === "active" && !isDefence(s));
   if (!mine || theirs) return 0;
   return state.ships.filter(isHulk).reduce((n, s) => n + percent(shipValue(s), 50), 0);
 }

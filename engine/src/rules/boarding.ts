@@ -57,12 +57,12 @@ export function teleportProblem(state: GameState, ship: Ship, targetId: string):
   }
   const order = ship.specialOrder?.kind ?? null;
   const reason =
-    ship.profile.type === "escort" ? "escort"
+    ship.profile.type === "escort" || ship.profile.type === "defence" ? "escort" // capital ships only (T139)
     : isCrippled(ship) ? "crippled"
     : order !== null && order !== "lock_on" && order !== "reload_ordnance" ? "orders"
     : null;
   if (reason !== null) {
-    const why = { escort: "escorts can't", crippled: "crippled ships can't", orders: "its special order rules it out" }[reason];
+    const why = { escort: "only capital ships can", crippled: "crippled ships can't", orders: "its special order rules it out" }[reason];
     return reject("CANNOT_TELEPORT", `${ship.name} can't make a teleport attack: ${why}`, { shipId: ship.id, reason });
   }
 

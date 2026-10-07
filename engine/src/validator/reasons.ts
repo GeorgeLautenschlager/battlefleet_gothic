@@ -126,6 +126,10 @@ export const REASON_CODES = [
   "ON_STANDBY",
   "JUST_ALERTED",
   "ONE_ENTRY_EDGE",
+  // Planetary defences (validator spec v0.17)
+  "NOT_IN_GRAVITY_WELL",
+  "STATIONARY",
+  "DEFENCE_ORDERS",
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

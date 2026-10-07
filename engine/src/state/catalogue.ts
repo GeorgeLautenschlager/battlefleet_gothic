@@ -21,6 +21,9 @@ const CHAOS_CRAFT: CraftOption[] = [
   { role: "assault_boat", name: "Dreadclaw", speed: 30 },
 ];
 
+/** A fleet's own attack craft, for a planetary defence's launch bays (transform T131). */
+export const fleetCraft = (faction: FactionId): CraftOption[] => (faction === "chaos" ? CHAOS_CRAFT : IMPERIAL_CRAFT).map((c) => ({ ...c }));
+
 /** Shark assault boats, for the Imperial ships that may carry them (transform T74). */
 const SHARKS: CraftOption = { role: "assault_boat", name: "Shark", speed: 30 };
 
@@ -40,7 +43,8 @@ function launchBays(squadrons: number, craft: CraftOption[]): Weapon[] {
 }
 
 export type CatalogueEntry = {
-  faction: FactionId;
+  /** `any`: planetary defences, open to either fleet (transform T131). */
+  faction: FactionId | "any";
   profile: ShipProfile;
   /** A ship option with its own profile is its own class (transform D13): the class it varies. */
   variantOf?: string;
@@ -174,6 +178,51 @@ function escort(
     },
   };
 }
+/**
+ * A stationary planetary defence (fleets book pp. 506–511, state §7.6): speed 0, armour all round,
+ * weapons firing all round. Launch bays get the owner's attack craft in newGame (transform T131).
+ */
+function defence(
+  classId: string,
+  className: string,
+  page: number,
+  points: number,
+  stats: { hits: number; shields: number; armour: number; turrets: number; baseSize: BaseSize },
+  weapons: Weapon[],
+): CatalogueEntry {
+  const a = stats.armour;
+  return {
+    faction: "any",
+    profile: {
+      classId, className, source: { book: "fleets", page }, points, type: "defence", category: "defence",
+      hits: stats.hits, speed: 0, turns: 45, shields: stats.shields, armour: { front: a, left: a, rear: a, right: a }, turrets: stats.turrets,
+      baseSize: stats.baseSize, weapons,
+    },
+  };
+}
+const ALL_ROUND: Weapon["arcs"] = ["front", "right", "rear", "left"];
+const defenceWeapon = (id: string, name: string, kind: "battery" | "lance", range: number, strength: number): Weapon => ({
+  id, name, kind, location: "dorsal", arcs: [...ALL_ROUND], range, speed: null, strength,
+});
+const defenceTorpedoes = (strength: number): Weapon => ({
+  id: "torpedoes", name: "Torpedoes", kind: "torpedoes", location: "dorsal", arcs: [...ALL_ROUND], range: null, speed: 30, strength,
+});
+const defenceBays = (squadrons: number): Weapon => ({
+  id: "launch_bays", name: "Launch bays", kind: "launch_bay", location: "dorsal", arcs: [], range: null, speed: null, strength: squadrons, craft: [],
+});
+/** A system defence ship (fleets book pp. 514–515): an escort with the planetaryDefence trait, 45° turns. */
+function systemDefenceShip(classId: string, className: string, page: number, points: number, stats: { speed: number; shields: number; armour: number; turrets: number }, weapons: Weapon[]): CatalogueEntry {
+  const a = stats.armour;
+  return {
+    faction: "any",
+    profile: {
+      classId, className, source: { book: "fleets", page }, points, type: "escort", category: "escort",
+      hits: 1, speed: stats.speed, turns: 45, shields: stats.shields, armour: { front: a, left: a, rear: a, right: a }, turrets: stats.turrets, baseSize: "small",
+      weapons, traits: { planetaryDefence: true },
+    },
+  };
+}
+
 const escortBattery = (range: number, strength: number): Weapon => ({
   id: "battery", name: "Weapons battery", kind: "battery", location: "prow", arcs: ["left", "front", "right"], range, speed: null, strength,
 });
@@ -586,6 +635,26 @@ export const CATALOGUE: Readonly<Record<string, CatalogueEntry>> = {
   idolator: escort("chaos", "idolator", "Idolator class raider", 281, 45, { speed: 30, armour: 5, turrets: 2, traits: { noLongRangeShift: true } }, [escortBattery(45, 2), escortLance(1)]),
   infidel: escort("chaos", "infidel", "Infidel class raider", 282, 40, { speed: 30, armour: 5, turrets: 1 }, [escortBattery(30, 2), prowTorpedoes(2)]),
   iconoclast: escort("chaos", "iconoclast", "Iconoclast class destroyer", 283, 30, { speed: 30, armour: 4, turrets: 1 }, [escortBattery(30, 3)]),
+  // Planetary defences, high orbit (fleets book pp. 506–515; transform T131)
+  laser_platform: defence("laser_platform", "Orbital defence laser platform", 509, 30, { hits: 1, shields: 1, armour: 6, turrets: 2, baseSize: "small" }, [defenceWeapon("lances", "Lance battery", "lance", 30, 2)]),
+  torpedo_platform: defence("torpedo_platform", "Orbital torpedo launcher", 510, 30, { hits: 1, shields: 1, armour: 6, turrets: 2, baseSize: "small" }, [defenceTorpedoes(6)]),
+  weapons_platform: defence("weapons_platform", "Orbital weapons platform", 511, 30, { hits: 1, shields: 1, armour: 6, turrets: 2, baseSize: "small" }, [defenceWeapon("battery", "Weapons battery", "battery", 60, 6)]),
+  orbital_dock: defence("orbital_dock", "Orbital dock", 508, 90, { hits: 6, shields: 2, armour: 5, turrets: 3, baseSize: "large" }, [defenceWeapon("battery", "Weapons battery", "battery", 30, 4), defenceBays(4)]),
+  space_station: defence("space_station", "Space station", 507, 150, { hits: 8, shields: 2, armour: 5, turrets: 4, baseSize: "large" }, [
+    defenceWeapon("battery", "Weapons battery", "battery", 60, 12),
+    defenceWeapon("lances", "Lance battery", "lance", 30, 3),
+    defenceBays(4),
+  ]),
+  blackstone_fortress: defence("blackstone_fortress", "Blackstone Fortress", 506, 400, { hits: 16, shields: 6, armour: 5, turrets: 6, baseSize: "large" }, [
+    defenceWeapon("battery", "Weapons battery", "battery", 60, 20),
+    defenceWeapon("lances", "Lance battery", "lance", 60, 4),
+    defenceBays(8),
+  ]),
+  defence_monitor: systemDefenceShip("defence_monitor", "Defence monitor", 514, 60, { speed: 10, shields: 2, armour: 6, turrets: 2 }, [
+    { id: "battery", name: "Weapons battery", kind: "battery", location: "prow", arcs: ["left", "front", "right"], range: 30, speed: null, strength: 8 },
+    { id: "prow_lance", name: "Prow lance", kind: "lance", location: "prow", arcs: ["front"], range: 30, speed: null, strength: 1 },
+  ]),
+  system_ship: systemDefenceShip("system_ship", "System ship", 515, 20, { speed: 15, shields: 1, armour: 5, turrets: 1 }, [escortBattery(30, 3)]),
   styx: chaosHeavy("styx", "Styx", 272, 260, 3, [...launchBays(3, CHAOS_CRAFT), dorsalLances(60), prowBattery(60, 6)]),
   hecate: chaosHeavy("hecate", "Hecate", 273, 230, 3, [...launchBays(2, CHAOS_CRAFT), ...broadside("battery", 45, 4), dorsalLances(60), prowBattery(45, 6)]),
   hades: chaosHeavy("hades", "Hades", 274, 200, 2, [
