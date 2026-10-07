@@ -1,4 +1,4 @@
-import { engagement, geometry, reserves, surprise, type GameState, type PlayerId } from "@bfg/engine";
+import { engagement, geometry, planets, reserves, surprise, type GameState, type PlayerId } from "@bfg/engine";
 import { playerName } from "../players";
 import { toSvg, type View } from "./view";
 
@@ -52,7 +52,7 @@ export function Zones({ state, preview = null }: { state: GameState; preview?: S
     preview !== null ? engagement.SETUP_MAPS[preview.map][preview.colours[p]] : engagement.deploymentDivisions(state, p);
   if (map === null && !bait && !raiders && !surpriseAttack && !blockade) return null;
   // Surprise Attack: ships on standby go broadside to the planet, the first within 15 cm of it (state N74–N75).
-  const planet = surpriseAttack ? state.table.features?.[0] : undefined;
+  const planet = surpriseAttack ? planets.planets(state)[0] : undefined;
   const standbyRing = planet !== undefined && state.ships.some((s) => s.standby === true && s.status === "undeployed") ? planet : undefined;
   return (
     <g className={preview !== null ? "zones preview" : "zones"}>

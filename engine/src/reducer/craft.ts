@@ -2,7 +2,9 @@
  * Attack craft (reducer spec §9.1, §9.4–9.7): launching, flying a wave,
  * intercepts and dogfights, meeting a ship, bombers and assault boats.
  */
-import { BM_RADIUS, EPS } from "../geometry/constants";
+import { BM_RADIUS, EPS, MINE_RADIUS } from "../geometry/constants";
+import { sweptCircleVsRect } from "../geometry/rect";
+import { minefields, minefieldsTouching } from "../rules/minefields";
 import { baseRadius, distance, tableBearing } from "../geometry/basic";
 import { sweptCircleVsCircle, sweptCircleVsSegment } from "../geometry/sweep";
 import { capOf, craftFor, fighters, isFighter, isStriker, strikers, waveRadius } from "../rules/craft";
@@ -100,11 +102,13 @@ export function releaseCapOrder(ctx: Ctx, t: ReleaseCap): void {
 
 type CraftEvent =
   | { kind: "blast_marker"; t: number }
+  | { kind: "minefield"; t: number; id: string }
   | { kind: "salvo"; t: number; id: string }
   | { kind: "wave"; t: number; id: string }
+  | { kind: "mine"; t: number; id: string }
   | { kind: "ship"; t: number; id: string };
 
-const ORDER: Record<CraftEvent["kind"], number> = { blast_marker: 0, salvo: 1, wave: 2, ship: 3 };
+const ORDER: Record<CraftEvent["kind"], number> = { blast_marker: 0, minefield: 1, salvo: 2, wave: 3, mine: 3, ship: 4 };
 
 function earliest(events: CraftEvent[]): CraftEvent | null {
   let best: CraftEvent | null = null;
@@ -114,7 +118,7 @@ function earliest(events: CraftEvent[]): CraftEvent | null {
   return best;
 }
 
-function craftEvents(state: GameState, wave: AttackCraftWave, to: Point, length: number, bmTested: boolean, ignore: string[]): CraftEvent[] {
+function craftEvents(state: GameState, wave: AttackCraftWave, to: Point, length: number, bmTested: boolean, fieldTested: boolean, ignore: string[]): CraftEvent[] {
   const from = wave.position;
   const heading = tableBearing(from, to);
   const r = waveRadius(wave);
@@ -125,9 +129,21 @@ function craftEvents(state: GameState, wave: AttackCraftWave, to: Point, length:
       if (t !== null) events.push({ kind: "blast_marker", t });
     }
   }
+  if (!fieldTested) {
+    // A minefield: one D6 a move, the whole wave going on a 6 (state N117, reducer R69).
+    for (const f of minefields(state)) {
+      const t = sweptCircleVsRect(from, heading, length, r, f.rect);
+      if (t !== null) events.push({ kind: "minefield", t, id: f.id });
+    }
+  }
   for (const o of state.ordnance) {
     if (o.owner === wave.owner) continue; // friendly ordnance is ignored (p. 82)
-    if (o.kind === "torpedo_salvo") {
+    if (o.kind === "orbital_mine") {
+      // Fighters and a mine remove each other; nothing else touches a mine (fleets book p. 512).
+      if (fighters(wave) === 0) continue;
+      const t = sweptCircleVsCircle(from, heading, length, r, o.position, MINE_RADIUS);
+      if (t !== null) events.push({ kind: "mine", t, id: o.id });
+    } else if (o.kind === "torpedo_salvo") {
       if (fighters(wave) === 0) continue;
       const [a, b] = salvoEnds(o);
       const t = sweptCircleVsSegment(from, heading, length, r, a, b);
@@ -159,9 +175,20 @@ export function moveAttackCraft(ctx: Ctx, t: MoveOrdnance): void {
     .filter((s) => s.owner !== wave.owner && onTable(s) && s.position !== null && distance(wave.position, s.position) <= waveRadius(wave) + baseRadius(s.profile.baseSize) + EPS)
     .map((s) => s.id);
   let bmTested = false;
+  let fieldTested = false;
   let stoppedBy: string | null = null;
 
-  flight: for (const waypoint of t.path ?? []) {
+  // A wave staying put inside a minefield still rolls for it (state N117, R69).
+  const path = t.path ?? [];
+  if (path.length === 0) {
+    const f = minefieldsTouching(state, wave.position, waveRadius(wave))[0];
+    if (f !== undefined) {
+      fieldTested = true;
+      minefieldCraftTest(ctx, wave, f.id);
+    }
+  }
+
+  flight: for (const waypoint of path) {
     for (;;) {
       if (!live(state, wave)) break flight;
       const length = distance(wave.position, waypoint);
@@ -169,7 +196,7 @@ export function moveAttackCraft(ctx: Ctx, t: MoveOrdnance): void {
         wave.position = { ...waypoint };
         break;
       }
-      const event = earliest(craftEvents(state, wave, waypoint, length, bmTested, ignore));
+      const event = earliest(craftEvents(state, wave, waypoint, length, bmTested, fieldTested, ignore));
       if (event === null) {
         wave.position = { ...waypoint };
         break;
@@ -184,6 +211,13 @@ export function moveAttackCraft(ctx: Ctx, t: MoveOrdnance): void {
         const roll = ctx.d6();
         ctx.log("bm_test", { entityId: wave.id, rolls: [roll], effect: roll === 6 ? "removed" : "none" });
         if (roll === 6) removeOrdnance(ctx, wave.id, "blast_marker"); // the whole wave (p. 85)
+      } else if (event.kind === "minefield") {
+        fieldTested = true;
+        minefieldCraftTest(ctx, wave, event.id);
+      } else if (event.kind === "mine") {
+        const lost = removeLast(ctx, [wave], isFighter, 1, "intercepted");
+        removeOrdnance(ctx, event.id, "intercepted");
+        ctx.log("mine_intercept", { ordnanceId: wave.id, mineId: event.id, lost });
       } else if (event.kind === "salvo") {
         const salvo = state.ordnance.find((o): o is TorpedoSalvo => o.id === event.id && o.kind === "torpedo_salvo");
         if (salvo !== undefined) intercept(ctx, wave, salvo);
@@ -207,6 +241,13 @@ export function moveAttackCraft(ctx: Ctx, t: MoveOrdnance): void {
   }
   const capShip = t.cap === undefined ? null : state.ships.find((s) => s.id === t.cap);
   if (capShip !== undefined && capShip !== null && capShip.position !== null) goOnCap(ctx, wave, capShip);
+}
+
+/** A wave meeting a minefield: D6, the whole wave removed on a 6 (state N117, R69). */
+function minefieldCraftTest(ctx: Ctx, wave: AttackCraftWave, minefieldId: string): void {
+  const roll = ctx.d6();
+  ctx.log("minefield_craft", { ordnanceId: wave.id, minefieldId, rolls: [roll], effect: roll === 6 ? "removed" : "none" });
+  if (roll === 6) removeOrdnance(ctx, wave.id, "minefield");
 }
 
 /** Split a fighter wave into single CAP fighters on a ship (T28). The first keeps the wave's id. */

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { actor, engagement, getSquadron, planetaryDefence, surprise, type Formation, type GameState, type PlayerId, type Transform } from "@bfg/engine";
 import { Act } from "../controls/Act";
 import { freeHeading, type DeployAim } from "../game/deploy";
+import { DEFAULT_PLACE, kindFor, leftToPlace, type PlaceAim } from "../game/place";
 import type { SetupPreview } from "../table/Zones";
 import { sendAs, type Seat } from "../game/source";
 import { pick, undeployed } from "../game/pick";
@@ -84,6 +85,8 @@ export function SetupControls({
   onPreview = () => {},
   aim,
   onAim = () => {},
+  placeAim = DEFAULT_PLACE,
+  onPlaceAim = () => {},
 }: {
   state: GameState;
   seat: Seat;
@@ -94,6 +97,9 @@ export function SetupControls({
   /** Surprise Attack's defender: the heading or the planet's side for the next ship (T116). */
   aim?: DeployAim;
   onAim?: (aim: DeployAim) => void;
+  /** The planet holder: a mine or the next minefield, and which way round (T144). */
+  placeAim?: PlaceAim;
+  onPlaceAim?: (aim: PlaceAim) => void;
 }) {
   const step = state.clock.setupStep;
   if (step === null) return null;
@@ -167,6 +173,40 @@ export function SetupControls({
               Map {o.map}, {playerName(state, chooser)} {COLOUR[o.colours[chooser]]}
             </button>
           ))}
+        </div>
+      </>
+    );
+  }
+  if (step === "place_defences") {
+    const who = actor(state);
+    if (who !== "p1" && who !== "p2") return null;
+    const { mines, fields } = leftToPlace(state);
+    const kind = kindFor(state, placeAim);
+    const next = fields[0];
+    return (
+      <>
+        <p className="hint">
+          <strong>{playerName(state, who)}</strong>, place your defences before the fleets deploy: click the table.{" "}
+          {kind === "minefield" && next !== undefined
+            ? `This minefield is ${placeAim.turned ? next.height : next.width} × ${placeAim.turned ? next.width : next.height} cm, with an edge within 15 cm of the planet.`
+            : "An orbital mine goes in the planet's gravity well (the dashed ring), off the planet itself."}
+        </p>
+        <p className="muted small">
+          Left to place: {mines} orbital mine{mines === 1 ? "" : "s"}
+          {fields.length > 0 ? `, ${fields.length} minefield${fields.length === 1 ? "" : "s"} (${fields.map((f) => `${f.width} × ${f.height} cm`).join(", ")})` : ""}.
+        </p>
+        <div className="buttons" role="group" aria-label="Placing">
+          <button type="button" aria-pressed={kind === "minefield"} disabled={fields.length === 0} onClick={() => onPlaceAim({ ...placeAim, kind: "minefield" })}>
+            Minefield
+          </button>
+          <button type="button" aria-pressed={kind === "orbital_mine"} disabled={mines === 0} onClick={() => onPlaceAim({ ...placeAim, kind: "orbital_mine" })}>
+            Orbital mine
+          </button>
+          {kind === "minefield" && (
+            <button type="button" aria-pressed={placeAim.turned} onClick={() => onPlaceAim({ ...placeAim, turned: !placeAim.turned })}>
+              Turn it
+            </button>
+          )}
         </div>
       </>
     );

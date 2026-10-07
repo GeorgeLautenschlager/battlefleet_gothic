@@ -1,6 +1,6 @@
 # Reducer Specification
 
-**Status:** draft v0.17, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.22](../game_state/SPEC.md), [Transforms v0.20](../transforms/SPEC.md) and [Validator v0.17](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end). v0.8 adds the nova cannon (§3, §4.4, §5.3, §11, §12, R26–R29). v0.9 logs Fleet Engagement's set-up (§12) and ends a game on rounds only when `maxRounds` is set. v0.10 adds fleet commander re-rolls (§2.2), the targeting matrix (§4.1), the Mark of Khorne in boarding, and losing re-rolls to Bridge Smashed (§6, §10.4, §12, R30–R32). v0.11 adds escorts and squadrons: escort losses (§3, §6, §10.5), squadron Leadership tests (§2.2), fire by and at squadrons (§4.5), squadron moves and disengaging (§8.1, §8.2), and their log entries (§11, §12, R33–R41). v0.12 adds The Bait's reserves: `arrive`, `end_step` in `move_ships`, reserves given up, and the game end that waits for them (§8.1, §12, R42–R44). v0.13 adds The Raiders' surprise roll and facing (§12, R45–R46). v0.14 adds planets: gravity turns in `continue_move`, torpedoes and drifting hulks meeting a planet (§8, §9.2, §12, R47–R49). v0.15 adds Surprise Attack: the alert roll and choice, the tests to go on alert, standby ships staying put, and the attackers' edge (§12, R50–R53). v0.16 adds Blockade Run: the thirds roll, the edge a ship leaves by, and the runners' victory points at game end (§8, §12, R54–R56). v0.17 adds planetary defences: the Defences Critical Hits table, Defence/1 losses, Orbit Lost, their Blast Marker removal, a stationary Reload, and hulks that stay put (§3, §6, §7, §8, §10, §12, R57–R62).
+**Status:** draft v0.18, for discussion (v0.4 is implemented in [`engine/`](../engine/README.md)). v0.4 added boarding actions, grapples and teleport attacks (§6, §7.4, §8, §10.4–10.5, §11, §12, R11–R15). v0.5 adds attack craft, Combat Air Patrol and massed turrets (§3, §4.3, §7.5, §8, §9, §11, §12, R16–R24). **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.23](../game_state/SPEC.md), [Transforms v0.21](../transforms/SPEC.md) and [Validator v0.18](../validator/SPEC.md). v0.6 adds combined battery volleys (§4, §11, §12, R25) and class All Ahead Full dice (§8.1). v0.7 scores victory points when the scenario says so (§12, game end). v0.8 adds the nova cannon (§3, §4.4, §5.3, §11, §12, R26–R29). v0.9 logs Fleet Engagement's set-up (§12) and ends a game on rounds only when `maxRounds` is set. v0.10 adds fleet commander re-rolls (§2.2), the targeting matrix (§4.1), the Mark of Khorne in boarding, and losing re-rolls to Bridge Smashed (§6, §10.4, §12, R30–R32). v0.11 adds escorts and squadrons: escort losses (§3, §6, §10.5), squadron Leadership tests (§2.2), fire by and at squadrons (§4.5), squadron moves and disengaging (§8.1, §8.2), and their log entries (§11, §12, R33–R41). v0.12 adds The Bait's reserves: `arrive`, `end_step` in `move_ships`, reserves given up, and the game end that waits for them (§8.1, §12, R42–R44). v0.13 adds The Raiders' surprise roll and facing (§12, R45–R46). v0.14 adds planets: gravity turns in `continue_move`, torpedoes and drifting hulks meeting a planet (§8, §9.2, §12, R47–R49). v0.15 adds Surprise Attack: the alert roll and choice, the tests to go on alert, standby ships staying put, and the attackers' edge (§12, R50–R53). v0.16 adds Blockade Run: the thirds roll, the edge a ship leaves by, and the runners' victory points at game end (§8, §12, R54–R56). v0.17 adds planetary defences: the Defences Critical Hits table, Defence/1 losses, Orbit Lost, their Blast Marker removal, a stationary Reload, and hulks that stay put (§3, §6, §7, §8, §10, §12, R57–R62). v0.18 adds orbital mines, minefields and fire ships: placing them (§10.0), mines' moves and attacks (§9.8), minefield detection (§9.9), the minefield test in a move (§8.2), torpedoes, craft and hulks meeting minefields (§8.4, §9.2, §9.4), shooting at minefields (§5.4), fire ship detonation (§8.5), and minefields shedding Blast Markers (§10.6) (R63–R74).
 
 ```ts
 reduce(state: GameState, transform: Transform) → GameState
@@ -129,12 +129,12 @@ The target is the same for the re-roll (nothing between the two can change it). 
 Every way of hurting a ship ends here.
 
 ```
-inflict(target, hits, src):     // src: { source: AttackSource, origin: Point, shieldable, braceable }
+inflict(target, hits, src):     // src: { source: AttackSource, origin: Point, shieldable, braceable, markers? }
   if hits = 0 or target isn't on the table: return
   if isHulk(target): hulkHit(target, src); return                                  // §7.3
   if src.shieldable:
     absorbed = min(hits, shieldCapacity(target))
-    placeShieldBlastMarkers(target, absorbed, src.origin)                          // §5.1
+    if src.markers ≠ false: placeShieldBlastMarkers(target, absorbed, src.origin)  // §5.1; a minefield's hits place none (R67)
     hits −= absorbed
   if hits > 0 and src.braceable and isBraced(target):
     rolls = nD6(hits); hits −= count(rolls, r ≥ 4)                                 // 4+ save (p. 66)
@@ -169,6 +169,8 @@ escortLost(ship, cause):                         // 0 hits, or any critical (p. 
 | Nova cannon | yes | yes |
 | Explosions | yes | yes |
 | Torpedoes | no | yes |
+| Orbital mines | yes | yes |
+| A failed minefield test | yes, **no Blast Markers** (`markers: false`) | yes |
 | Bombers | no | yes |
 | Rams | no | yes |
 | 0-shield ship crossing a BM | no | yes |
@@ -363,6 +365,20 @@ placeCluster(centre, n):
 | Ship becomes a hulk | 1 BM at its stem |
 | Hulk finishes a drift | 1 BM on the ring `ρ` at bearing `heading + 180` (trailing). If occupied, use the §5.1 slot order. |
 | Nova cannon touches nothing | 1 BM at the template's centre, if that's on the table (transform T46) |
+| A fire ship detonates | 1 BM at its stem, `cause: "fire_ship"` (§8.5) |
+
+### 5.4 Hits on a minefield
+
+```
+placeMinefieldBlastMarkers(field, n, from):        // from: the shooter's stem (state N119)
+  p0 = edgePoint(field.rect, from)                 // where the minefield faces the shooter
+  out = the outward normal of the side p0 is on (at a corner, the unit vector from p0 to from; if from = p0, +y)
+  along = out turned 90° clockwise
+  slots = p0 + out·BM_RADIUS + along·(2·BM_RADIUS·k) for k = 0, +1, −1, +2, −2, … (|k| ≤ 20)
+  each marker goes in the first slot that overlaps no existing BM; if none is free, in the first (stacked)
+```
+
+Each marker's circle touches the minefield's edge (its centre `BM_RADIUS` out from the side), fanned along it from the point facing the shooter. `cause: "minefield"`.
 
 ---
 
@@ -531,7 +547,7 @@ continue_move:
 
 `advance(d)` moves the stem `d` cm along `headingVector(heading)`, and adds `d` to `distanceMoved` and `distanceSinceTurn`. The ship's CAP fighters move with it: every wave with `cap = ship.id` gets `position = ship.position` after each advance, so they're in place if the move stops for a brace (R21).
 
-**Events.** Ties are ordered: table exit, ram target, salvo and attack craft wave (in `ordnance` order), Blast Marker. An event counts at any `t ≥ 0` along the leg, so contact the ship starts in counts as soon as it moves. Nothing fires twice, because each event is gated by state rather than by distance: a ram resolves once (`a.ram.resolved`), a salvo attacks a given ship once per round (its `attacks`), a wave's meeting leaves nothing that would meet again (see the row), and only the first BM contact of the move is an event (`slowedByBlastMarkers`).
+**Events.** Ties are ordered: table exit, ram target, salvo and attack craft wave (in `ordnance` order), Blast Marker, minefield. An event counts at any `t ≥ 0` along the leg, so contact the ship starts in counts as soon as it moves. Nothing fires twice, because each event is gated by state rather than by distance: a ram resolves once (`a.ram.resolved`), a salvo attacks a given ship once per round (its `attacks`), a wave's meeting leaves nothing that would meet again (see the row), and only the first BM contact of the move is an event (`slowedByBlastMarkers`).
 
 | Event | Condition | Items / effect |
 |---|---|---|
@@ -539,6 +555,7 @@ continue_move:
 | Ram target | `a.ram.testPassed`, not `resolved`, swept base meets the target's base | `brace_offer(target)`, `brace_offer(rammer)`, `ram { rammerId, targetId }` |
 | Torpedo salvo | swept base meets a salvo's segment. Skip a salvo that already attacked this ship this round, and one this ship launched this player turn (T4). | `torpedo_attack { ordnanceId, targetId: ship, bmTested: false }` |
 | Attack craft wave | swept base meets an **enemy** wave's footprint (`sweptCircleVsCircle`, `R = baseRadius + waveRadius`). Skip CAP fighters, and skip a wave that can't do anything here: one with no bombers or assault boats, when the ship has no CAP fighters. | `craft_meets_ship { ordnanceId, targetId: ship, bmTested: false }` |
+| Minefield | the swept base first meets a minefield's rectangle this move (`!minefieldTested`; swept circle vs rectangle, validator §2.5) | Immediately set `minefieldTested`; item `minefield_test { shipId, minefieldId }` (R66) |
 | Blast Marker | first BM contact this move | Immediately: if `!slowedByBlastMarkers`, `maxDistance −= BM_SLOWDOWN` and set the flag. If `maxShields(ship) = 0` and `!zeroShieldBMTestDone`, set it and add items `brace_offer(ship)`, `zero_shield_bm { shipId }`. If the order is All Ahead Full, the BM is new (met at `t > EPS`, not started on), and `distanceMoved ≥ maxDistance − BM_SLOWDOWN`, end the move here (`remainingPath = []`). Log `blast_marker_contact`. |
 
 **`finish_move`:**
@@ -582,11 +599,31 @@ The `drift_hulk` handler draws `sum(nD6(4))` and enqueues `hulk_drift { shipId, 
 hulk_drift:
   move straight ahead, using the event loop of §8.2 with only two events:
     table exit (status "destroyed", position null, log hulk_lost; stop)
+    a planet's template or a minefield, reached by the stem (status "destroyed" there; log planet_contact or minefield_contact, then hulk_lost { reason: "planet" | "minefield" }; stop) (state N70, N116)
     torpedo salvo (insert [torpedo_attack…, hulk_drift (with updated travelled)] and return)
   (attack craft waves are ignored: they attack hulks only by flying into them, R17)
   at the end: 1 trailing BM (§5.3); if blazing, catastrophic re-roll as §7.3 with a fresh source
   turnState.ships[id].drifted = true
 ```
+
+### 8.5 Fire ships
+
+The `detonate` handler (state N121, transform T153):
+
+```
+detonate { shipId }:
+  radiusRolls = nD6(3); r = sum(radiusRolls); c = ship.position
+  releaseCap(ship); leave any grapple; status = "destroyed", damage = hits, position, heading, specialOrder null
+  bm = 1 BM at c, cause "fire_ship"
+  for s in ships, in order, s ≠ ship, s.status = "active", approxLe(distance(s.position, c), r):   // stem to stem, as R9
+    if s is an escort or a Defence/1: escortLost(s, "fire_ship"); entry { shipId, lost: true }
+    else: roll = d6(); fires = ceil(roll / 2); push fires × { kind: "fire" } onto s.criticals; entry { shipId, rolls: [roll], fires }
+  removed = every ordnance o (in order, CAP fighters too) with approxLe(distance(o.position, c), r); drop them
+  log detonation { shipId, radiusRolls, radius: r, blastMarkerId: bm, ships: entries, ordnanceIds: removed }
+  then afterSquadronLoss as for any destroyed squadron member
+```
+
+No brace and no `inflict`: the fires are criticals, not hits, and burn in their owner's End Phase as usual. They're logged in the `detonation` entry only, with no `critical` entries: there's no table roll.
 
 ---
 
@@ -642,12 +679,16 @@ ordnance_move:
         table exit | another salvo | an enemy wave with fighters, not on CAP (sweptSegmentVsCircle, R = waveRadius)
         | a ship base (skip: launcher during launch turn; ships already attacked this round)
         | a Blast Marker (only if !bmTested)
+        | a planet's template (state N66) or a minefield's rectangle (swept segment vs rectangle; state N117)
+        (orbital mines are never events: they and torpedoes pass each other by, state N110)
     if none: advance the rest; travelled = speed; break
     advance to e.t; travelled += e.t
     table exit   → remove salvo; break
     other salvo  → remove both; break
     enemy wave   → intercept(wave, salvo); break                               // §9.5
     Blast Marker → bmTested = true; if d6() = 6: remove salvo; break           // p. 75
+    planet       → log planet_contact; remove salvo (reason "planet"); break
+    minefield    → log minefield_contact { minefieldId, ordnanceId }; remove salvo (reason "minefield"); break
     ship         → insert [torpedo_attack { ordnanceId, targetId, bmTested }, ordnance_move { …, travelled, bmTested: true }]
                    return
   ordnanceMoved += ordnanceId (if the salvo still exists, or was removed this move)
@@ -703,7 +744,8 @@ The `move_ordnance` handler, for a wave, flies it at once. Everything on the way
 fly(w, path, cap):
   if w.cap ≠ null: w.cap = null; log cap_released { shipId, ordnanceIds: [w.id], reason: "moved" }   // inactive_ordnance only (validator)
   ignore = enemy ships whose base touches w's footprint now                       // R16
-  bmTested = false; stoppedBy = null
+  bmTested = false; fieldTested = false; stoppedBy = null
+  if w touches a minefield now and path is empty: as the minefield event below, at the start (state N117)
   for each waypoint p in path, while w exists and stoppedBy = null:
     loop:
       L = distance(w.position, p); if L ≤ EPS: break
@@ -712,6 +754,8 @@ fly(w, path, cap):
           a Blast Marker, if !bmTested                       (sweptCircleVsCircle, R = r + BM_RADIUS)
           an enemy torpedo salvo, if fighters(w) non-empty   (sweptCircleVsSegment)
           an enemy wave v, not on CAP, if fighters(w) or fighters(v) is non-empty   (R = r + waveRadius(v))
+          an enemy orbital mine, if fighters(w) is non-empty   (R = r + MINE_RADIUS)
+          a minefield, if !fieldTested                        (swept circle vs rectangle; one it starts touching counts at t = 0)
           an enemy ship base (hulks included) not in ignore  (R = r + baseRadius)
           (salvoes and waves in ordnance order, ships in ships order)
       if none: w.position = p; break
@@ -719,6 +763,8 @@ fly(w, path, cap):
       Blast Marker → bmTested = true; roll d6; log bm_test; on a 6: remove w (reason "blast_marker"); stop
       salvo        → intercept(w, salvo)                      // §9.5; w loses a fighter
       wave         → dogfight(w, v)                           // §9.5
+      mine         → removeLast(w, fighter, 1); remove the mine (reason "intercepted"); log mine_intercept { ordnanceId: w.id, mineId, lost }
+      minefield    → fieldTested = true; roll d6; log minefield_craft { ordnanceId, minefieldId, rolls, effect }; on a 6: remove w (reason "minefield"); stop
       ship         → stoppedBy = ship; break
       if w was removed: stop
       // otherwise re-evaluate the rest of this leg: the radius may have shrunk, and nothing fires twice (R16)
@@ -731,6 +777,8 @@ fly(w, path, cap):
 ```
 
 Each event is self-limiting: the BM test happens once a move; an intercept removes the salvo; and after a dogfight, at least one of the two waves has no fighters left, and if the other still has any, it's the only one left. So nothing is met twice.
+
+(The minefield test covers a wave that stays put inside one, `path = []`: it rolls once, as craft that "remain inside" do, p. 110.)
 
 ### 9.5 Dogfights and intercepts
 
@@ -804,7 +852,86 @@ hit_and_run { ordnanceId, targetId }:                 // an assault boat (p. 85)
 
 ---
 
+### 9.8 Orbital mines
+
+```
+mineQuarry(m) = the enemy "active" ship whose stem is nearest m.position (ties: ships order), or none     // state N110
+
+move_ordnance, for a mine m (state N110, transform T148):
+  ordnanceMoved += m.id
+  touching = enemy "active" ships whose base touches m's marker (circlesTouch, MINE_RADIUS), in ships order
+  if touching non-empty: enqueue mine_attack { ordnanceId: m.id, targetId: touching[0], bmTested: false }; return
+  q = mineQuarry(m); if none: log mine_move { ordnanceId, to: m.position, quarryId: null }; return
+  heading = tableBearing(m.position, q.position)
+  L = min(MINE_SPEED, the first t at which the swept marker touches q's base)          // stops at contact
+  e = earliest event along the leg (ties in this order), swept circle radius MINE_RADIUS:
+      a Blast Marker (the first; once this move)
+      an enemy wave with fighters, not on CAP                 (R = MINE_RADIUS + waveRadius)
+      an enemy ship's base (hulks excluded: only active ships stop it) (R = MINE_RADIUS + baseRadius)
+  if none: advance L; log mine_move { ordnanceId, to, quarryId }; if it now touches q: enqueue mine_attack { …, targetId: q, bmTested: false }; return
+  advance to e.t
+  Blast Marker → roll d6; log bm_test; on a 6: remove m (reason "blast_marker"); return
+                 otherwise carry on from here with the rest of L, no more BM events
+  enemy wave   → removeLast(wave, fighter, 1); remove m (reason "intercepted"); log mine_intercept; return
+  enemy ship   → log mine_move { ordnanceId, to, quarryId }; enqueue mine_attack { ordnanceId, targetId: that ship, bmTested }; return
+
+mine_attack { ordnanceId, targetId, bmTested }:                 // state N111
+  if the mine is gone or the target isn't active: log skipped; return
+  if capOf(target) non-empty: remove the last CAP fighter and the mine; log cap_screen { shipId, ordnanceId, capIds }; return
+  if !bmTested and bmsInContact(target) non-empty: roll d6; log bm_test; on a 6: remove the mine (reason "blast_marker"); return
+  insert at the front: [brace_offer { shipId: target, source: { kind: "ordnance", id } }, mine_hit { ordnanceId, targetId }]
+
+mine_hit { ordnanceId, targetId }:
+  { own, massed, dice } = turretDice(target, "torpedoes")          // shares the torpedoes budget (T151)
+  turretRolls = nD6(dice); hit = any(r ≥ 4); if dice > 0: log turrets { …, against: "mine", stopped: hit ? 1 : 0 }
+  facing = armourFacing(target, m.position)                        // lower armour on a boundary (R7)
+  rolls = nD6(hit ? 4 : 8); hits = count(r ≥ facing.armour)
+  log attack { source: { kind: "ordnance", id }, targetId, weapon: "mine", facing, need, rolls, rerolls: [], hits }
+  remove the mine (reason "detonated")
+  inflict(target, hits, { source: ordnance, origin: m.position, shieldable: true, braceable: true, cause: "mine" })
+```
+
+A bought mine's removal is all its victory points need: `minesLost` counts the bought mines that are gone (state §11).
+
+### 9.9 Minefield detection
+
+Entry housekeeping for `active_ordnance`, after `ordnanceMoved` is reset (state N118, transform T152):
+
+```
+for each minefield f of the active player's, in features order:
+  checks = []
+  suppressed = some Blast Marker touches f.rect (circleTouchesRect, BM_RADIUS)
+  for each enemy "active" ship s in ships order with approxLe(pointRectDistance(s.position, f.rect), DETECTION_RANGE):
+    roll = d6()
+    modifier = (AAF ? +1 : 0) − (Burn Retros ? 1 : 0) − (escort ? 1 : 0) − (suppressed ? 1 : 0)
+    detected = roll + modifier ≥ 5
+    if detected: push { id: newId("ord"), kind: "orbital_mine", owner: f.owner, position: edgePoint(f.rect, s.position), source: "minefield" }
+    checks += { shipId: s.id, roll, modifier, detected, mineId? }
+  if checks non-empty: log minefield_detection { minefieldId: f.id, rolls, checks }
+```
+
+The new mines aren't in `ordnanceMoved`, so they move in this step like the rest of the player's ordnance.
+
 ## 10. End Phase
+
+### 10.0 Placing mines and minefields (setup)
+
+These run before the battle, in `place_defences` (transform T143–T146), but belong with the rest of the defences' housekeeping.
+
+```
+entering place_defences:                                   // only in a game with emplacements
+  sizes = []
+  repeat emplacements.minefields times:
+    w = ceil(d6() / 2) × 5; h = ceil(d6() / 2) × 5; sizes += { width: w, height: h }
+  unplaced.minefields = sizes; log minefield_sizes { rolls, sizes }
+
+place_defence { kind, position, turned }:
+  orbital_mine → push { id: newId("ord"), kind: "orbital_mine", owner, position, source: "bought" }; unplaced.orbitalMines −= 1
+  minefield    → size = shift(unplaced.minefields); (w, h) = turned ? (size.height, size.width) : (size.width, size.height)
+                 push { kind: "minefield", id: newId("mf"), owner, rect: { x: position.x − w/2, y: position.y − h/2, width: w, height: h } }
+                 onto table.features
+  log defence_placed { kind, id, position, rect? }
+```
 
 ### 10.1 `repair`
 
@@ -833,6 +960,16 @@ roll = d6(); remove the first min(roll, |priority|) BMs in priority; blastMarker
 ```
 
 If nothing is removable, the step is complete on entry and no die is rolled.
+
+### 10.3a Minefields shed Blast Markers (leaving `blast_marker_removal`)
+
+After the stationary defences shed theirs (R60), in every End Phase (state N120, transform T155):
+
+```
+for each minefield f, in features order:
+  touching = Blast Markers whose circle touches f.rect, lowest id first
+  if touching non-empty: roll = d6(); remove the first min(roll, |touching|); log minefield_blast_markers { minefieldId, rolls: [roll], removed }
+```
 
 ### 10.4 Boarding
 
@@ -950,6 +1087,9 @@ type WorkItem =
   | { kind: "hit_and_run", ordnanceId: string, targetId: string }
   | { kind: "nova_cannon", shooterId: string, weaponId: string, aim: Point, dice: number }
   | { kind: "nova_hit", shooterId: string, shipId: string, hits: number, origin: Point }
+  | { kind: "minefield_test", shipId: string, minefieldId: string }
+  | { kind: "mine_attack", ordnanceId: string, targetId: string, bmTested: boolean }
+  | { kind: "mine_hit", ordnanceId: string, targetId: string }
 ```
 
 | Item | Does |
@@ -965,6 +1105,8 @@ type WorkItem =
 | `craft_attack`, `hit_and_run` | §9.7 |
 | `nova_cannon`, `nova_hit` | §4.4 |
 | `explosion_hit` | §7.2 |
+| `minefield_test` | R66: the Leadership test and any D6 hits |
+| `mine_attack`, `mine_hit` | §9.8 |
 | `hulk_drift` | §8.4 |
 | `fire_damage` | §10.2 |
 | `boarding_fight`, `boarding_critical` | §10.4 |
@@ -1012,7 +1154,7 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `move` | `shipId, from, to, distance, truncated` |
 | `order_set` | `shipId, order` (a squadron-mate taking the squadron's order) |
 | `left_squadron` | `shipId, squadronId` (a capital ship that failed to disengage) |
-| `escort_lost` | `shipId, cause: "damage" \| "critical" \| "hit_and_run" \| "boarding", blastMarkerId` |
+| `escort_lost` | `shipId, cause: "damage" \| "critical" \| "hit_and_run" \| "boarding" \| "fire_ship", blastMarkerId` |
 | `grappled` | `shipId` (stays put this Movement Phase) |
 | `boarding_declared` | `shipId, targetId` |
 | `boarding_lapsed` | `shipId, targetId, reason: "truncated" \| "no_contact" \| "target_gone"` |
@@ -1028,11 +1170,11 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `damage` | `shipId, cause, damageAfter` (one entry per point; `cause` includes `"boarding"`) |
 | `critical` | `shipId, rolls, rolled, applied, kind, extraRolls` |
 | `catastrophic` | `shipId, rolls, result, blastMarkerIds, radiusRolls?, radius?` |
-| `turrets` | `shipId, ordnanceId, against: "torpedoes" \| "attack_craft", own, massed: shipIds, rolls, stopped` |
+| `turrets` | `shipId, ordnanceId, against: "torpedoes" \| "attack_craft" \| "mine", own, massed: shipIds, rolls, stopped` (a mine: 1 if any die hit) |
 | `bm_test` | `entityId, rolls, effect: "none" \| "removed" (salvo or wave) \| "damage" (zero-shield ship)` |
 | `ordnance_launch` | `ordnanceId, shipId, position, heading, strength` |
 | `ordnance_move` | `ordnanceId, to` (only if the salvo survives the move) |
-| `ordnance_removed` | `ordnanceId, reason: "left_table" \| "collision" \| "blast_marker" \| "turrets" \| "spent" \| "shot" \| "intercepted" \| "dogfight" \| "cap" \| "recalled" \| "nova_cannon"` |
+| `ordnance_removed` | `ordnanceId, reason: "left_table" \| "collision" \| "blast_marker" \| "turrets" \| "spent" \| "shot" \| "intercepted" \| "dogfight" \| "cap" \| "recalled" \| "nova_cannon" \| "planet" \| "minefield" \| "detonated" \| "fire_ship"` |
 | `craft_launch` | `shipId, ordnanceIds, recalled` |
 | `craft_move` | `ordnanceId, to, stoppedBy: shipId \| null` |
 | `intercept` | `ordnanceId, salvoId, lost` |
@@ -1044,10 +1186,21 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `craft_attack` | `ordnanceId, targetId, bombers, escorts, own, bomberRolls, attacks, need, attackRolls, hits, boats` |
 | `hit_and_run` | `ordnanceId, targetId, rolls, saveRolls?, result: "failed" \| "saved" \| "critical" \| "destroyed"` |
 | `hulk_drift` | `shipId, rolls, distance` |
-| `hulk_lost` | `shipId, reason: "table_edge"` |
+| `hulk_lost` | `shipId, reason: "table_edge" \| "planet" \| "minefield"` |
 | `disengaged` | `shipId, reason: "table_edge" \| "test"`, plus `edge` (the inward heading of the edge) for `table_edge` |
 | `orbit_fall` | `shipId, rolls, distance, position` (the new stem), plus `destroyed: true` when it reaches the planet |
 | `defence_blast_markers` | `shipId, rolls, removed` (the Blast Marker ids it shed) |
+| `minefield_sizes` | `rolls, sizes: { width, height }[]` (each minefield's two D6, halved and × 5) |
+| `defence_placed` | `kind: "orbital_mine" \| "minefield", id, position`, plus `rect` for a minefield |
+| `minefield_test` | `shipId, minefieldId, leadership, rolls, rerolls?, passed, hitRolls?` (`rerolls`: an escort's second try; `hitRolls`: the D6 hits on a fail) |
+| `minefield_contact` | `minefieldId`, and `ordnanceId` (a torpedo salvo destroyed) or `shipId` (a drifting hulk destroyed) |
+| `minefield_craft` | `ordnanceId, minefieldId, rolls, effect: "none" \| "removed"` |
+| `minefield_detection` | `minefieldId, rolls, checks: { shipId, roll, modifier, detected, mineId? }[]` |
+| `minefield_blast_markers` | `minefieldId, rolls, removed` |
+| `minefield_hit` | `minefieldId, hits, blastMarkerIds` (a shot at a minefield, after its `attack` entry) |
+| `mine_move` | `ordnanceId, to, quarryId: shipId \| null` |
+| `mine_intercept` | `ordnanceId` (the wave), `mineId, lost` (the fighter's name) |
+| `detonation` | `shipId, radiusRolls, radius, blastMarkerId, ships: { shipId, lost?: true, rolls?, fires? }[], ordnanceIds` |
 | `thirds_roll` | `rolls, thirds` (Blockade Run: the D6 per blockading unit, and each unit id's third, 0–2) |
 | `repair` | `shipId, rolls, repaired` |
 | `fire_damage` | `shipId, fires` |
@@ -1061,7 +1214,7 @@ Shape as in state §10.4. `data` by `kind`; `rolls` always lists the dice in dra
 | `teleport` | `shipId, targetId, rolls, saveRolls?, result: "failed" \| "saved" \| "critical" \| "destroyed"` |
 | `bm_removal` | `rolls, removed` |
 | `skipped` | `item` |
-| `game_end` | `reason, scores, winner`; with victory points also `scoring: "victory_points"` and `breakdown: { p1, p2 }`, each `{ ships: { shipId, vp, why: "destroyed" \| "crippled" \| "disengaged" }[], squadrons: { squadronId, vp, why: "destroyed" \| "disengaged" }[], field }` |
+| `game_end` | `reason, scores, winner`; with victory points also `scoring: "victory_points"` and `breakdown: { p1, p2 }`, each `{ ships: { shipId, vp, why: "destroyed" \| "crippled" \| "disengaged" \| "ran_the_blockade" }[], squadrons: { squadronId, vp, why: "destroyed" \| "disengaged" }[], field }`, plus `mines` (the VP for the enemy's lost bought mines, state N113) when it isn't 0 |
 
 `actor` is the player whose transform led to the entry, or `null` for housekeeping.
 
@@ -1149,6 +1302,18 @@ Round 2, Unclean's turn (`playerTurn: 3`). Unclean is at `(100, 50)` heading 180
 | R60 | **Defence Blast Marker removal** (state N100, transform T137): for each stationary defence on the table in `ships` order, if any Blast Markers touch its base, one D6 and that many of them removed, lowest id first. |
 | R61 | **A stationary Reload** (transform T135): the Command check as usual; on a pass the order is set and the defence marked `moved`, with no activation; on a fail the fleet's orders lock as usual. |
 | R62 | **Defence hulks don't drift**: catastrophic damage to a large defence makes a hulk (or explodes) as for ships, but `hulks_drift` and its work never move it. |
+| R63 | **Minefield sizes** (transform T143): two D6 per minefield, in order, each halved rounding up and × 5: width, then height. Drawn on entering `place_defences`, so the holder sees them before placing. |
+| R64 | **A mine's move** (state N110): straight at its quarry's stem, fixed at the start, up to 10 cm, stopping at the first enemy base it touches. It doesn't re-aim mid-move. A mine whose quarry is out of reach still moves its full 10 cm. |
+| R65 | **A mine's attack** (state N111): CAP, then the Blast Marker test, then the Brace offer, then turrets (as torpedoes, massed outside the Movement Phase), then 8D6 or 4D6 against the armour it's on. Shields absorb and place BMs. The mine goes either way. |
+| R66 | **The minefield test** (state N115): `minefield_test` runs at the contact point, before anything further along the path. Leadership is `squadronLd` for a squadron member, else `leadership`; `nD6(aaf ? 3 : 2)`, pass if the sum ≤ it. An escort failing draws the same number again (logged `rerolls`). On a fail, `d6()` hits through `inflict` with `shieldable: true, markers: false, braceable: true, cause: "minefield"`, origin the ship's stem. |
+| R67 | **No Blast Markers for minefield shield hits** (p. 110): `inflict` takes `markers: false`, and shields still count the hits they absorb against capacity this once (they're simply not marked). |
+| R68 | **Torpedoes and minefields**: a salvo touching a minefield is removed there, like a planet's edge (R48), whoever owns either. |
+| R69 | **Attack craft and minefields**: one D6 per move for a wave that touches one, on the way or where it starts (a wave staying put inside rolls too), the whole wave going on a 6. |
+| R70 | **Detection** (state N118): on entering the owner's `active_ordnance`, D6 + modifiers ≥ 5 per enemy ship in reach, in `ships` order; a mine for each at `edgePoint(rect, stem)`, which moves in that step. A ship can be detected by both minefields. |
+| R71 | **Fire ship detonation** (state N121): 3D6 radius, then the ships in `ships` order (a D6 each for those that take fires), then the ordnance. Escorts and Defence/1s within it are lost as to a critical (cause `fire_ship`), hulks untouched. The fire ship is destroyed and leaves one BM at its stem. |
+| R72 | **Minefield Blast Markers** (state N119–N120): hits on a minefield place BMs along the edge facing the shooter (§5.4); every End Phase each minefield sheds D6 of the BMs touching it, after the stationary defences. |
+| R73 | **Hulks into minefields** (state N116): the stem reaching a minefield's rectangle destroys the hulk there, like a planet (R49). |
+| R74 | **Mines in the log**: `mine_move` for each move, `attack` with `weapon: "mine"` for its dice, and `ordnance_removed` with `reason: "detonated"` when it goes off. |
 | R54 | **The thirds are the last dice of `roll_leadership`** in Blockade Run (as R45), one per blockading unit in `ships` order. |
 | R55 | **A ship that moves off the table** gets `exitEdge = arrivalEdge({ position, heading + 180 })` at the point it crosses (state N87), before its position is cleared; `disengaged` logs it as `edge`. |
 | R56 | **The runners' points** go in the `game_end` breakdown with the ships, each `{ shipId, vp, why: "ran_the_blockade" }`. |

@@ -2,14 +2,14 @@
 import { createHash } from "node:crypto";
 import type { FactionId, Forces, GameState, PlanetSize, PlayerId, ScenarioId, Scoring } from "@bfg/engine";
 import { GameRoom, createRoom, type Deps } from "../src/room";
-import { PROTOCOL, type ServerMessage, type ShipEntry } from "../src/protocol";
+import { PROTOCOL, type Emplacements, type ServerMessage, type ShipEntry } from "../src/protocol";
 
 export const ENGINE = "test-engine";
 
 /** The host's default fleet (one Lunar) and the guest's join (one Murder). */
 export const HOST_FLEET = { faction: "imperial_navy", ships: [{ name: "Agrippa", classId: "lunar" }] } as const;
 export const GUEST_FLEET = { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }] } as const;
-export type Fleet = { faction: FactionId; ships: readonly ShipEntry[] };
+export type Fleet = { faction: FactionId; ships: readonly ShipEntry[]; emplacements?: Emplacements };
 
 /** Deterministic deps: a seeded byte stream, real SHA-256, and a clock the test moves. */
 export function testDeps(seed = 1): Deps & { clock: { t: number } } {
@@ -43,9 +43,9 @@ export class Harness {
     opts: { side?: PlayerId; seed?: number; fleet?: Fleet; ramming?: boolean; boarding?: boolean; carriers?: boolean; fleetLists?: boolean; scenario?: ScenarioId; forces?: Forces; scoring?: Scoring; attacker?: PlayerId; planet?: PlanetSize; planetHolder?: PlayerId } = {},
   ): Promise<Harness> {
     const deps = testDeps(opts.seed);
-    const fleet = opts.fleet ?? HOST_FLEET;
+    const fleet: Fleet = opts.fleet ?? HOST_FLEET;
     const created = await createRoom(
-      { name: "Ann", side: opts.side ?? "p1", faction: fleet.faction, ships: [...fleet.ships], ramming: opts.ramming ?? true, boarding: opts.boarding ?? false, carriers: opts.carriers ?? false, ...(opts.scenario ? { scenario: opts.scenario } : {}), ...(opts.fleetLists ? { fleetLists: true } : {}), ...(opts.forces ? { forces: opts.forces } : {}), ...(opts.scoring ? { scoring: opts.scoring } : {}), ...(opts.attacker ? { attacker: opts.attacker } : {}), ...(opts.planet ? { planet: opts.planet } : {}), ...(opts.planetHolder ? { planetHolder: opts.planetHolder } : {}) },
+      { name: "Ann", side: opts.side ?? "p1", faction: fleet.faction, ships: [...fleet.ships], ramming: opts.ramming ?? true, boarding: opts.boarding ?? false, carriers: opts.carriers ?? false, ...(opts.scenario ? { scenario: opts.scenario } : {}), ...(opts.fleetLists ? { fleetLists: true } : {}), ...(opts.forces ? { forces: opts.forces } : {}), ...(opts.scoring ? { scoring: opts.scoring } : {}), ...(opts.attacker ? { attacker: opts.attacker } : {}), ...(opts.planet ? { planet: opts.planet } : {}), ...(opts.planetHolder ? { planetHolder: opts.planetHolder } : {}), ...(fleet.emplacements ? { emplacements: fleet.emplacements } : {}) },
       deps,
     );
     if ("error" in created) throw new Error(created.error);
@@ -85,7 +85,7 @@ export class Harness {
   }
 
   join(conn: string, seat: PlayerId, name: string, fleet: Fleet) {
-    return this.send(conn, { type: "join", token: this.tokens[seat], name, faction: fleet.faction, ships: fleet.ships });
+    return this.send(conn, { type: "join", token: this.tokens[seat], name, faction: fleet.faction, ships: fleet.ships, ...(fleet.emplacements ? { emplacements: fleet.emplacements } : {}) });
   }
 
   nextId(): string {

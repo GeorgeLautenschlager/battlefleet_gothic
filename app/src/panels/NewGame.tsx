@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { PlayerId } from "@bfg/engine";
-import { carriersAllowed, configProblem, defaultNames, hasRoles, listsOn, MAX_SHIPS, pursuedOf, type NewGameOptions, type Side } from "../game/config";
+import { carriersAllowed, configProblem, defaultNames, hasRoles, holdsPlanet, listsOn, MAX_SHIPS, pursuedOf, type NewGameOptions, type Side } from "../game/config";
 import { BattleFields, CountSelect, duplicates, DuplicateNames, FleetFields, FleetProblem, PlanetField, PlanetHolderField, resize, RulesChecks } from "./FleetForm";
 
 const withoutPlanet = (o: NewGameOptions): NewGameOptions => {
@@ -83,6 +83,7 @@ export function NewGame({ onStart, onCancel, cancelLabel = "Cancel" }: { onStart
           taken={o[p === "p1" ? "p2" : "p1"].ships}
           lists={listsOn(o)}
           reinforcements={pursuedOf(o) === p}
+          holdsPlanet={holdsPlanet(o, p)}
         />
       ))}
       <RulesChecks value={{ ...o, carriers: o.carriers === true, fleetLists: o.fleetLists === true }} onChange={(rules) => setO({ ...o, ...rules })} points={points !== null} />

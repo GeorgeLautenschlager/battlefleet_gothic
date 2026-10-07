@@ -23,3 +23,5 @@ export { FLEET_LISTS, commanderPoints, fleetListProblem, type CommanderConfig, t
 export * as reserves from "./rules/reserves";
 export * as planets from "./rules/planets";
 export * as surprise from "./rules/surprise";
+export * as minefields from "./rules/minefields";
+export * as rect from "./geometry/rect";

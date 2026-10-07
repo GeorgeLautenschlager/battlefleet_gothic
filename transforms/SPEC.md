@@ -1,6 +1,6 @@
 # Transform Specification
 
-**Status:** draft v0.20, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.22](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16). v0.9 adds the nova cannon (pp. 63–64): `fire_nova_cannon` and the ship options that carry one (§2.3, §2.6, §4.3, §5, T40–T48, D17–D19). v0.10 adds the Fleet Engagement scenario (pp. 142–143): `choose_formation`, `roll_setup`, `choose_setup`, divisions at deployment, and no round limit (§2.3, §2.5, §3, §4.1, §5, T49–T55, D20–D23). v0.11 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders, re-rolls (`reroll` on four transforms) and the Marks of Chaos (§2.7, §3, §4.2–4.3, §4.5, §5, T56–T66, D24–D27). v0.12 adds the Gothic War lists' grand and light cruisers, the Repulsive and the Dauntless, with their options and the grand cruisers' ratio (§5, T67–T70, D28–D29). v0.13 adds the Gothic War lists' battleships, their options (some exclusive), the battleship ratio, and the ban on Come to New Heading (§4.2, §5, T71–T74, D30–D31). v0.14 adds escorts and squadrons, escort and capital: squadron Leadership, deployment, orders, moves, brace, disengaging, shooting by and at squadrons (`fire.withShips`, `fire.targetAspect`), escorts in boarding and teleport attacks, and the six Gothic War escorts (§2.6, §4.1–4.3, §4.5–4.6, §5, T75–T92, D32–D35). v0.15 adds The Bait (p. 130) and reserves: `arrive`, `end_step` in `move_ships` while reserves wait, and a game that isn't over while they do (§2.3, §2.5, §3, §4.1, §4.2, §5, T93–T99, D36–D37). v0.16 adds The Raiders (p. 131): `choose_facing`, the surprise roll, spacing at deployment, and raiders who must all arrive in their first turn (§2.3, §3, §4.1, §4.2, §5, T100–T106, D38). v0.17 adds a planet (pp. 112–113): `planet` in the config, `gravity_turn` path steps and high orbit in `move`, planets blocking fire, destroying torpedoes and drifting hulks (§4.2–4.4, §5, T107–T113, D39). v0.18 adds Surprise Attack (p. 132): the alert roll, `choose_alert`, a heading in `deploy_ship`, standby and the Leadership tests to go on alert, and attackers who all arrive from one edge (§2.3, §2.5, §3, §4.1–4.3, §5, T114–T122, D40). v0.19 adds Blockade Run (p. 133): the thirds rolled with Leadership, the blockader's free headings and deployment order, the edge a ship leaves by, and the runners' victory points (§2.3, §4.1, §4.2, §5, T123–T130, D41). v0.20 adds planetary defences, first slice: the defence profiles and the planet holder's allowance in the config, deployment in the gravity well, defences' orders, Orbit Lost and Blast Marker removal at step boundaries, and hulks that don't drift (§2.3, §4.1–4.3, §4.6, §5, T131–T142, D42).
+**Status:** draft v0.21, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side; one carrier each as an option). Builds on [Game State v0.23](../game_state/SPEC.md). v0.5 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.6 adds attack craft (pp. 73–87): `launch_attack_craft`, attack craft moves, Combat Air Patrol and `release_cap`, massed turrets, and the carriers option (§2.3, §2.6, §4.2–4.4, §5, T17–T31, D8–D12). v0.7 adds combined battery fire (`fire.combineWith`, T32–T33), the remaining Cruiser Clash cruisers, and class traits (§5, T34–T35, D13–D14). v0.8 adds points battles and the scoring choice (§5, T36–T39, D15–D16). v0.9 adds the nova cannon (pp. 63–64): `fire_nova_cannon` and the ship options that carry one (§2.3, §2.6, §4.3, §5, T40–T48, D17–D19). v0.10 adds the Fleet Engagement scenario (pp. 142–143): `choose_formation`, `roll_setup`, `choose_setup`, divisions at deployment, and no round limit (§2.3, §2.5, §3, §4.1, §5, T49–T55, D20–D23). v0.11 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders, re-rolls (`reroll` on four transforms) and the Marks of Chaos (§2.7, §3, §4.2–4.3, §4.5, §5, T56–T66, D24–D27). v0.12 adds the Gothic War lists' grand and light cruisers, the Repulsive and the Dauntless, with their options and the grand cruisers' ratio (§5, T67–T70, D28–D29). v0.13 adds the Gothic War lists' battleships, their options (some exclusive), the battleship ratio, and the ban on Come to New Heading (§4.2, §5, T71–T74, D30–D31). v0.14 adds escorts and squadrons, escort and capital: squadron Leadership, deployment, orders, moves, brace, disengaging, shooting by and at squadrons (`fire.withShips`, `fire.targetAspect`), escorts in boarding and teleport attacks, and the six Gothic War escorts (§2.6, §4.1–4.3, §4.5–4.6, §5, T75–T92, D32–D35). v0.15 adds The Bait (p. 130) and reserves: `arrive`, `end_step` in `move_ships` while reserves wait, and a game that isn't over while they do (§2.3, §2.5, §3, §4.1, §4.2, §5, T93–T99, D36–D37). v0.16 adds The Raiders (p. 131): `choose_facing`, the surprise roll, spacing at deployment, and raiders who must all arrive in their first turn (§2.3, §3, §4.1, §4.2, §5, T100–T106, D38). v0.17 adds a planet (pp. 112–113): `planet` in the config, `gravity_turn` path steps and high orbit in `move`, planets blocking fire, destroying torpedoes and drifting hulks (§4.2–4.4, §5, T107–T113, D39). v0.18 adds Surprise Attack (p. 132): the alert roll, `choose_alert`, a heading in `deploy_ship`, standby and the Leadership tests to go on alert, and attackers who all arrive from one edge (§2.3, §2.5, §3, §4.1–4.3, §5, T114–T122, D40). v0.19 adds Blockade Run (p. 133): the thirds rolled with Leadership, the blockader's free headings and deployment order, the edge a ship leaves by, and the runners' victory points (§2.3, §4.1, §4.2, §5, T123–T130, D41). v0.20 adds planetary defences, first slice: the defence profiles and the planet holder's allowance in the config, deployment in the gravity well, defences' orders, Orbit Lost and Blast Marker removal at step boundaries, and hulks that don't drift (§2.3, §4.1–4.3, §4.6, §5, T131–T142, D42). v0.21 adds the second slice: orbital mines and minefields bought by number and placed in `place_defences` (`place_defence`), mines moving and attacking as ordnance, minefields' lines of fire, tests, detection and shooting, and fire ships' `detonate` (§2.3, §3, §4.1–4.4, §5, T143–T156, D43–D44).
 
 A **transform** is plain data describing one proposed change to the game state: one player decision. This document lists every transform, says when each one is legal, and summarises what the reducer does with it.
 
@@ -64,21 +64,22 @@ check for game end
 | setup / `choose_facing` | the defender | `choose_facing` | no | `raid.facing` set | — |
 | setup / `choose_alert` | the defender | `choose_alert` | no | `surpriseAttack.alertChosen` | — |
 | setup / `roll_deploy_order` | either | `roll_deploy_order` | no | `firstDeployer` set | — |
+| setup / `place_defences` | the planet holder | `place_defence` | no | `emplacements.unplaced` is empty (T143) | each minefield's size is rolled (T143) |
 | setup / `deploy` | next deployer | `deploy_ship` | no | no `undeployed` ships (reserves aren't deployed) | — |
 | setup / `roll_first_turn` | either | `roll_first_turn` | no | `firstTurnChooser` set | — |
 | setup / `choose_first_turn` | chooser | `choose_first_turn` | no | `firstPlayer` set | on leaving the last setup step: start the battle (§2.5) |
 | movement / `hulks_drift` | active | `drift_hulk` | no | every active-player hulk but a stationary defence's has `drifted` (T138) | — |
-| movement / `move_ships` | active | `declare_order`, `move`, `release_cap`, `arrive` | **while reserves can arrive** | every active-player `active` ship has `moved`, and the player can't bring reserves on (`canArrive`, state §11); else on `end_step`, where reserves may wait (T95, T104) | Orbit Lost falls (T136); Surprise Attack: units on standby test to go on alert (T118); then grappled ships, and ships still on standby, stay put (state §6, N78). Stationary defences never move and the step doesn't wait for them (T135) |
+| movement / `move_ships` | active | `declare_order`, `move`, `release_cap`, `arrive`, `detonate` | **while reserves can arrive** | every active-player `active` ship has `moved`, and the player can't bring reserves on (`canArrive`, state §11); else on `end_step`, where reserves may wait (T95, T104) | Orbit Lost falls (T136); Surprise Attack: units on standby test to go on alert (T118); then grappled ships, and ships still on standby, stay put (state §6, N78). Stationary defences never move and the step doesn't wait for them (T135) |
 | shooting / `direct_fire` | active | `fire`, `fire_nova_cannon` | **yes** | no active-player ship has an unfired, undisabled battery, lance or nova cannon it could fire (a nova cannon can't while `novaCannonBarred`, state §11) | a player with nothing `active` gives up their waiting reserves (state N52) |
 | shooting / `launch_ordnance` | active | `launch_torpedoes`, `launch_attack_craft` | **yes** | no active-player ship can launch torpedoes or attack craft (§4.3) | — |
-| ordnance / `active_ordnance` | active | `move_ordnance` | no | every active-player salvo and wave (CAP aside) moved this step | reset `ordnanceMoved` |
-| ordnance / `inactive_ordnance` | inactive | `move_ordnance` | no | every inactive-player salvo and wave (CAP aside) moved this step | reset `ordnanceMoved` |
+| ordnance / `active_ordnance` | active | `move_ordnance` | no | every active-player salvo, wave (CAP aside) and mine moved this step | reset `ordnanceMoved`; the active player's minefields detect enemy ships (T152) |
+| ordnance / `inactive_ordnance` | inactive | `move_ordnance` | no | every inactive-player salvo, wave (CAP aside) and mine moved this step | reset `ordnanceMoved` |
 | end / `boarding` | active | `board`, `teleport` | **yes** | `options.boarding` is off; or no boarding action is left to fight (§4.6) and no ship can teleport | **grapples fight** (§4.6) |
 | end / `damage_control` | ship owners | `repair` | no | every ship needing repair has `repaired` (§4.6) | — |
-| end / `blast_marker_removal` | active | `remove_blast_markers` | no | `blastMarkersRemoved`, or nothing is removable | **fires burn** (§4.6). On leaving: stationary defences shed Blast Markers (T137) |
+| end / `blast_marker_removal` | active | `remove_blast_markers` | no | `blastMarkersRemoved`, or nothing is removable | **fires burn** (§4.6). On leaving: stationary defences shed Blast Markers (T137), then minefields (T155) |
 | leaving `blast_marker_removal` | | | | | end the player turn (§2.5) |
 
-Cruiser Clash goes `roll_leadership` → `roll_zones` → `roll_deploy_order`. Fleet Engagement replaces `roll_zones` with `choose_formation` → `roll_setup` → `choose_setup`; the rest is the same (p. 142: lowest roll deploys first, alternating; first turn by roll-off). The Bait goes `roll_leadership` → `deploy`, then the battle: the bait deploys first and the pursued player goes first, so nothing else is rolled (state N55). The Raiders go `roll_leadership` (with the surprise roll) → `choose_facing` → `deploy`, then the battle, the raiders first. Surprise Attack goes `roll_leadership` (with the alert roll) → `choose_alert` → `deploy`, then the battle, the attackers first. Blockade Run goes `roll_leadership` (with the thirds) → `deploy` (the blockader, then the runners) → `roll_first_turn` → `choose_first_turn`.
+Cruiser Clash goes `roll_leadership` → `roll_zones` → `roll_deploy_order`. Fleet Engagement replaces `roll_zones` with `choose_formation` → `roll_setup` → `choose_setup`; the rest is the same (p. 142: lowest roll deploys first, alternating; first turn by roll-off). The Bait goes `roll_leadership` → `deploy`, then the battle: the bait deploys first and the pursued player goes first, so nothing else is rolled (state N55). The Raiders go `roll_leadership` (with the surprise roll) → `choose_facing` → `deploy`, then the battle, the raiders first. Surprise Attack goes `roll_leadership` (with the alert roll) → `choose_alert` → `deploy`, then the battle, the attackers first. Blockade Run goes `roll_leadership` (with the thirds) → `deploy` (the blockader, then the runners) → `roll_first_turn` → `choose_first_turn`. A game whose planet holder bought orbital mines or minefields has `place_defences` straight before `deploy`, whatever the scenario (T143); others never enter it.
 
 Movement and Ordnance steps have no `end_step`, save `move_ships` while reserves wait (T95): every ship must move (p. 53), torpedoes must move their full speed (p. 201), and an attack craft wave that stays put still sends a `move_ordnance` with an empty path. CAP fighters don't count: they stay with their ship unless their owner moves them off CAP (§4.4).
 
@@ -131,6 +132,7 @@ Each failed test of the transform uses one re-roll, from `rerollFor(ship)` (stat
 | `choose_facing` | `heading` | setup / `choose_facing` |
 | `choose_alert` | `units` | setup / `choose_alert` |
 | `roll_deploy_order` | — | setup / `roll_deploy_order` |
+| `place_defence` | `kind`, `position`, `turned?` | setup / `place_defences` |
 | `deploy_ship` | `shipId`, `position` | setup / `deploy` |
 | `roll_first_turn` | — | setup / `roll_first_turn` |
 | `choose_first_turn` | `goFirst` | setup / `choose_first_turn` |
@@ -139,7 +141,8 @@ Each failed test of the transform uses one re-roll, from `rerollFor(ship)` (stat
 | `move` | `shipId`, `path`, `disengage`, `boardTargetId?`, `reroll?` | movement / `move_ships` |
 | `release_cap` | `ordnanceId` | movement / `move_ships` |
 | `arrive` | `placements` | movement / `move_ships` |
-| `fire` | `shipId`, `weaponId`, `combineWith?`, `target`, `arc?`, `aspect?`, `reroll?`, `withShips?`, `targetAspect?` | shooting / `direct_fire` |
+| `detonate` | `shipId` | movement / `move_ships` |
+| `fire` | `shipId`, `weaponId`, `combineWith?`, `target` (a ship, ordnance or a minefield), `arc?`, `aspect?`, `reroll?`, `withShips?`, `targetAspect?` | shooting / `direct_fire` |
 | `fire_nova_cannon` | `shipId`, `weaponId`, `aim` | shooting / `direct_fire` |
 | `launch_torpedoes` | `shipId`, `weaponId`, `bearing` | shooting / `launch_ordnance` |
 | `launch_attack_craft` | `shipId`, `waves`, `recall` | shooting / `launch_ordnance` |
@@ -201,6 +204,15 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 - **Legal when:** Surprise Attack, and `player` is the defender (state §12). `units` names distinct units of the player's, as many as `min(alertUnits, the player's units)` (state N77, T115).
 - **Reducer:** every ship of the player's in a unit not named gets `standby`. Sets `alertChosen`. Logged `alert_choice { player, units, standby }`, `standby` the ship ids on standby. No dice.
 
+#### `place_defence`
+```ts
+{ type: "place_defence", player, kind: "orbital_mine" | "minefield", position: Point, turned?: boolean }   // position: the mine's or the minefield's centre
+```
+- **Legal when:** `player` is `emplacements.owner` (state §12), and one of `kind` is still unplaced (T144).
+  - **An orbital mine:** its centre is on the table, in the planet's gravity well and off its template (state N108, as N93).
+  - **A minefield:** the next one, `unplaced.minefields[0]`: `width` × `height`, or `height` × `width` if `turned`. Its rectangle, centred on `position`, lies wholly on the table, overlaps no placed minefield (touching is fine), and its nearest point is within 15 cm of the planet template's edge, inclusive (state N108). `turned` is refused for a mine.
+- **Reducer:** a mine: push an `OrbitalMine` (`source: "bought"`) at `position`, with the next id, and take one from `unplaced.orbitalMines`. A minefield: push a `Minefield` feature with the next id and its rectangle, and shift its size off `unplaced.minefields`. Logged `defence_placed { kind, id, position, rect? }`. No dice.
+
 #### `roll_deploy_order`
 - **Reducer:** draw 1D6 for p1, then 1D6 for p2; append to `deployOrderRolls`. If they differ, the **lower** roller is `firstDeployer`. A tie leaves the step open for another `roll_deploy_order`.
 
@@ -233,7 +245,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 { type: "drift_hulk", player, shipId: string }
 ```
 - **Legal when:** the ship is the active player's, a hulk, and hasn't `drifted` this turn.
-- **Reducer:** draw 4D6; the hulk moves that far straight ahead, resolving contacts along the way like a ship move (torpedoes attack it; hulks can't brace). If it leaves the table, or its stem reaches a planet's template (state N70), it becomes `destroyed` there. Otherwise place 1 Blast Marker in contact with its base. If it's a `blazing_hulk`, then draw 2D6 on the Catastrophic Damage table and apply the result (an explosion offers brace to each ship in range). Sets `drifted`.
+- **Reducer:** draw 4D6; the hulk moves that far straight ahead, resolving contacts along the way like a ship move (torpedoes attack it; hulks can't brace). If it leaves the table, or its stem reaches a planet's template (state N70) or a minefield (N116), it becomes `destroyed` there. Otherwise place 1 Blast Marker in contact with its base. If it's a `blazing_hulk`, then draw 2D6 on the Catastrophic Damage table and apply the result (an explosion offers brace to each ship in range). Sets `drifted`.
 
 #### `declare_order`
 ```ts
@@ -279,6 +291,13 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - **Surprise Attack** (T119): the first unit to arrive picks the attackers' edge (`arrivalEdge` of its first ship, state N76), and all its stems are on that edge; after that `entryEdges` offers only that edge.
 - **Reducer:** each ship: `status = "active"`, `position` and `heading` as given. No dice. Surprise Attack: the first arrival sets `surpriseAttack.entryEdge` to the inward heading of its edge. The ships haven't moved: like any other `active` ship, each must now move this Movement Phase, its move measured from the edge (state N51).
 
+#### `detonate`
+```ts
+{ type: "detonate", player, shipId: string }
+```
+- **Legal when:** the ship is the active player's, `active`, a fire ship (`traits.fireShip`), and `activation` is null: before its move or after it, not in the middle (state N121, T153). A squadron part-way through its move doesn't stop it.
+- **Reducer:** draw **3D6** for the radius. The fire ship is destroyed (`status = "destroyed"`, damage full, off the table) with a Blast Marker at its stem (`cause: "fire_ship"`). Then, in `ships` order, every other `active` ship whose stem is within the radius of the fire ship's: an escort or a Defence/1 is lost as to a critical (`escort_lost`, cause `fire_ship`); any other draws **1D6**, halved rounding up, and gains that many `fire` criticals. Then every ordnance marker whose `position` is within the radius is removed. No brace. Logged `detonation { shipId, radiusRolls, radius, blastMarkerId, ships: [{ shipId, rolls?, fires? , lost? }], ordnanceIds }`. A squadron that loses its member this way carries on as after any loss.
+
 #### `move`
 ```ts
 {
@@ -311,6 +330,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - **Enemy attack craft wave** (not CAP): the wave meets the ship as in §4.4: CAP screens, turrets fire (unmassed: massing never helps during the Movement Phase, p. 80), and bombers and assault boats attack. A fighters-only wave has no effect and stays where it is (p. 82).
   - **CAP fighters ride along:** when the ship's move ends (or it pauses), its CAP fighters' `position` is set to its stem.
   - **Blast Marker, first contact:** if the ship has 0 shields, offer brace, then draw **1D6**; a 6 is 1 damage (once per move).
+  - **Minefield, first contact** (state N115, T150): unless `minefieldTested`, set it and take a Leadership test there: draw **2D6** (**3D6** on All Ahead Full) against `leadership` (`squadronLd` in a squadron); pass if the total ≤ it. An escort that fails draws the dice again, and the second result stands. On a fail, draw **1D6** for the hits, taken as from direct fire but with no Blast Markers for the shield hits: shields, brace saves, damage with critical checks. Logged `minefield_test { shipId, minefieldId, leadership, rolls, rerolls?, passed, hitRolls? }`. If the ship's still `active`, the move carries on.
   - **Table edge:** `status = "disengaged"`, `position`/`heading` null, stop.
   - **Gravity turns:** a `gravity_turn` step turns the ship in place. One that's no longer legal when reached (the ship was stopped short of where it was planned) is skipped.
 
@@ -336,7 +356,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   shipId: string,
   weaponId: string,           // a battery or lance
   combineWith?: string[],     // more of this ship's weapons batteries, fired in the same volley (T32)
-  target: { kind: "ship" | "ordnance", id: string },
+  target: { kind: "ship" | "ordnance" | "minefield", id: string },
   arc?: Quadrant,             // required only when the target is on an arc boundary of the firer
   aspect?: Quadrant,          // required only when the firer is on a quadrant boundary of the target ship
   reroll?: boolean,           // re-roll a failed target-priority test (§2.7)
@@ -347,19 +367,21 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 - **Legal when:**
   - **Shooter:** the active player's, `active`, its disengage test didn't fail this turn, it isn't grappled, and it hasn't declared a boarding action this turn (p. 89; drawn combats, pp. 90–91).
   - **Weapon:** a `battery` or `lance` not in `weaponsFired` and not disabled by a critical.
-  - **Target:** an enemy ship on the table (hulks included), an enemy torpedo salvo, or an enemy attack craft wave that isn't on CAP (T27). Never a friendly hulk.
+  - **Target:** an enemy ship on the table (hulks included), an enemy torpedo salvo, an enemy attack craft wave that isn't on CAP (T27), an enemy orbital mine, or an enemy minefield (T154). Never a friendly hulk.
   - **Range:** stem-to-stem distance ≤ `range`.
   - **Arc:** the target's bearing from the shooter falls in one of the weapon's `arcs`. On a boundary, `arc` must be supplied, must be one of the two adjacent quadrants, and must be one of the weapon's arcs. `aspect` follows the same rule for the target's quadrant facing the shooter.
-  - **Line of fire:** the stem-to-stem line doesn't cross the base of a hulk other than the target (p. 71).
+  - **Line of fire:** the stem-to-stem line doesn't cross the base of a hulk other than the target (p. 71), a planet (N65) or a minefield (state N114).
+  - **A minefield target** (T154): range, arc and line of fire go to `nearestPoint(rect, stem)` (state §11), and other minefields and planets block it. No `withShips`, `targetAspect` or `aspect`.
   - **Combined batteries** (`combineWith`, T32): only with a battery as `weaponId`. Each id names another of the ship's weapons batteries, once, not fired and not disabled, with the target in its range and in one of its arcs.
   - **Squadron targets** (T83): a target ship in formation in a squadron means the squadron: its members in formation. At least one must be in range and arc of the volley. `targetAspect`, if given, must be the aspect of at least one such member. A stray, or a ship in no squadron, is a target on its own; `targetAspect` is refused for it.
   - **Squadron fire** (`withShips`, T84): the shooter is in formation in a squadron, and each entry names another member in formation, once, with weapons of the volley's kind (all batteries, or all lances), each once, not fired, not disabled, with the target in range and arc.
-  - **Target priority:** if `priorityTest = "failed"`, the target must be **nearest** for this weapon (and for each combined battery). For a squadron target, it's nearest if any of its members in formation is. That's the nearest non-hulk enemy ship (or enemy salvo, when shooting at ordnance) that this weapon could legally engage. See [validator §2.7](../validator/SPEC.md#27-lines-of-fire-and-targeting) and ruling V1 (p. 60, p. 75).
+  - **Target priority:** if `priorityTest = "failed"`, the target must be **nearest** for this weapon (and for each combined battery). For a squadron target, it's nearest if any of its members in formation is. That's the nearest non-hulk enemy ship (or enemy ordnance or minefield, when shooting at ordnance or a minefield) that this weapon could legally engage. See [validator §2.7](../validator/SPEC.md#27-lines-of-fire-and-targeting) and ruling V1 (p. 60, p. 75).
 - **Reducer:**
   1. **Priority test** (Ld test on **2D6**, no modifiers; pass if ≤ Ld): only if the target isn't the nearest (for any weapon in the volley) and `priorityTest` is null. On a fail, record `"failed"`. The shot doesn't happen and the weapon isn't spent, so the player can fire it at the nearest target instead. On a pass, record `"passed"` and carry on.
   2. **Offer brace** (target), if it's a ship.
   3. **To hit:** draw the dice. Batteries roll the Gunnery Table result with column shifts, for the **sum** of the volley's firepower (T32); lances roll 1D6 per point of strength. Strength is `effectiveStrength` (state §11), each battery halved on its own before they're added. A hit is ≥ armour on the aspect facing (batteries), 4+ (lances), or 6 (any weapon against ordnance). Lock On re-rolls the misses, drawn straight after the first roll.
-  4. **Against ordnance:** any hit removes the salvo, or the **whole** attack craft wave (p. 85). A wave's range and bearing are measured to its centre.
+  4. **Against ordnance:** any hit removes the salvo, the mine, or the **whole** attack craft wave (p. 85). A wave's range and bearing are measured to its centre.
+     **Against a minefield** (state N119): as against ordnance, but each hit places one Blast Marker touching the minefield where it faces the shooter (`cause: "minefield"`).
   5. **Against a ship:**
      - Shields absorb hits up to `shieldCapacity`; a Blast Marker is placed for each.
      - If braced, draw **1D6 per remaining hit**; each 4+ is saved.
@@ -438,7 +460,7 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
 }
 ```
 - **Legal when:** the ordnance belongs to the acting player (the active player in `active_ordnance`, the other one in `inactive_ordnance`) and isn't in `ordnanceMoved`.
-  - **Torpedo salvo:** no `path`, no `cap`.
+  - **Torpedo salvo** or **orbital mine:** no `path`, no `cap`.
   - **Attack craft wave:** `path` is required (`[]` stays put). Its total length is ≤ the wave's speed (its slowest squadron's), and it stays on the table (T20). A CAP fighter may move only in its owner's part of the **opponent's** Ordnance Phase (`inactive_ordnance`), which takes it off CAP (p. 82).
   - **`cap`:** the wave is all fighters, and at the end of `path` its footprint touches the base of `cap`, a friendly `active` ship (p. 82).
 - **Reducer, torpedo salvo:** move the salvo its full `speed` straight along `heading`. The swept segment resolves contacts in the order it meets them:
@@ -446,15 +468,24 @@ Each entry: **payload**, **legal when** (beyond the gates in §2.2), and **reduc
   - **Another torpedo salvo:** both are removed.
   - **An enemy wave with fighters:** one fighter and the whole salvo are removed (p. 82). A wave without fighters doesn't stop torpedoes, and they don't stop it.
   - **A ship base** (friend, foe or hulk; never the launcher in the launch turn; never a ship it has already attacked this round): the salvo **meets the ship** (below), then continues its move if it survives.
+  - **A planet's template, or a minefield** (state N66, N117): the salvo is removed.
   - **Table edge:** the salvo is removed.
+  Orbital mines don't stop torpedoes, and torpedoes don't stop them (state N110).
 - **Reducer, attack craft wave:** fly the footprint along `path`, leg by leg. Contacts resolve in the order the footprint meets them:
   - **Blast Marker, first one this move:** draw **1D6**; on a 6 the **whole** wave is removed (p. 75, p. 85).
   - **An enemy torpedo salvo:** if the wave has fighters, one fighter and the whole salvo are removed. Otherwise nothing.
   - **An enemy wave** (not on CAP): the two **dogfight** (below), and whatever survives flies on.
+  - **An enemy orbital mine:** if the wave has fighters, one fighter and the mine are removed (fleets book p. 512). Otherwise nothing.
+  - **A minefield, first one this move** (or one it starts touching, state N117): draw **1D6**; on a 6 the **whole** wave is removed.
   - **An enemy ship base:** the wave stops there (it can't fly through, p. 79) and **meets the ship** (below). Hulks count as ships: bombers and assault boats attack them, which can only re-roll catastrophic damage (reducer R3).
   - Friendly ships and ordnance are ignored (p. 82).
 
   After the move: if `cap` is given, the fighters go on CAP for that ship, one CAP fighter per squadron. Add the wave to `ordnanceMoved`.
+- **Reducer, orbital mine** (state N110, T148): its quarry is `mineQuarry(mine)`, fixed at the start of the move; with none, it stays put. If it already touches an enemy ship's base, it **meets** that ship at once (the first in `ships` order). Otherwise it moves up to 10 cm straight toward the quarry's stem, stopping when its marker touches the quarry's base. Contacts resolve in the order it meets them:
+  - **Blast Marker, first one this move:** draw **1D6**; on a 6 the mine is removed.
+  - **An enemy wave with fighters** (not on CAP): one fighter and the mine are removed.
+  - **An enemy ship base:** the mine stops and **meets the ship** (below).
+  Torpedoes, other mines, bombers, assault boats, planets and minefields are passed by. Add the mine to `ordnanceMoved`.
 
 #### Dogfights: waves meeting waves
 
@@ -468,16 +499,18 @@ No dice. Which squadrons go within a role is the wave's launch order, last first
 
 #### Ordnance meeting a ship
 
-When a torpedo salvo contacts any ship, or an attack craft wave contacts an enemy ship (by its own move or the ship's), in this order:
+When a torpedo salvo contacts any ship, an attack craft wave contacts an enemy ship (by its own move or the ship's), or an orbital mine moves into an enemy ship (state N112), in this order:
 
-1. **CAP screens** (enemy ordnance only; never the protected ship's own torpedoes, p. 82). CAP fighters sit at their ship's stem, so ordnance always meets the ship's base, and its CAP, before anything else of it. Against a salvo, one CAP fighter and the whole salvo are removed. Against a wave, the ship's CAP fighters dogfight it as one wave. A wave with no bombers or assault boats left stops here: fighters alone have no effect on a ship and stay where they are (p. 82).
+1. **CAP screens** (enemy ordnance only; never the protected ship's own torpedoes, p. 82). CAP fighters sit at their ship's stem, so ordnance always meets the ship's base, and its CAP, before anything else of it. Against a salvo or a mine, one CAP fighter and the whole salvo, or the mine, are removed. Against a wave, the ship's CAP fighters dogfight it as one wave. A wave with no bombers or assault boats left stops here: fighters alone have no effect on a ship and stay where they are (p. 82).
 2. **Blast Markers:** if the target has BMs in base contact and the ordnance hasn't rolled for BMs this move, draw **1D6**; on a 6 it's removed (p. 75).
 3. **Offer brace** (target), unless it's a hulk.
 4. **Turrets** (p. 80): the target's `turrets(ship)`, plus **massed** dice: +1 for each friendly ship in base contact that is `active`, not crippled and has turrets, up to +3 (p. 80). Massing never applies during the Movement Phase. Turrets fire at torpedoes **or** at attack craft in one phase, not both: a ship (target or helper) whose `turrets` this phase is already set to the other kind doesn't fire; one that fires is set to this kind.
    - Against a salvo: **1D6 per die**; each 4+ reduces strength by 1.
+   - Against a mine (as against torpedoes, state N109): **1D6 per die**; any 4+ means it has been hit.
    - Against a wave: **1D6 per die**, once for the whole wave; each 4+ removes one squadron, **fighters first** (p. 85).
 5. **The attack.**
    - **Torpedoes:** **1D6 per strength** against the armour of the facing struck first; shields are ignored. Brace saves, damage and criticals as for `fire`. Strength drops by the hits inflicted; record the attack in `attacks`.
+   - **An orbital mine** (state N111): **8D6**, or **4D6** if turrets hit it, against the armour of the facing it's on. Shields absorb hits and place Blast Markers, then brace saves, damage and criticals as for `fire`. The mine is removed.
    - **Bombers:** each surviving bomber makes **D6 − the target's own turrets** attacks, minimum 0 (massed turrets don't count, and turrets always count, even if they fired at torpedoes this phase, p. 83). Each fighter in the wave adds **+1 attack**, whether or not turrets shot it down, up to the number of surviving bombers (turret suppression, p. 83). Draw **1D6 per bomber** for its attacks, in order, then **1D6 per attack** against the target's **lowest armour**; each hit is 1 damage. Shields are ignored; Brace saves on 4+.
    - **Assault boats:** each surviving assault boat makes a **Hit-and-Run** attack, in order: as a teleport attack (§4.6), D6, 1 fails, 2–6 a critical, Brace saves on 4+ (p. 85).
    - The whole wave is then removed: fighters with it (p. 85).
@@ -608,6 +641,8 @@ type GameConfig = {
   attacker?: PlayerId                        // The Bait: the pursuers (state N47); The Raiders: the raiders (N56); Surprise Attack: the attackers (N72); Blockade Run: the runners (N81). Required there, refused elsewhere
   planet?: "small" | "medium" | "large"     // a planet in the table centre (T107); default none. Surprise Attack sets its own (T114)
   planetHolder?: PlayerId                    // who fields planetary defences in a game without an attacker (state N91, T133)
+  orbitalMines?: number                      // the planet holder's orbital mines, 5 pts each (state N107, T149)
+  minefields?: number                        // the planet holder's minefields, 40 pts each, 0–2 (T149)
   forces?: Forces                            // default { kind: "cruiser_clash" } (state §4)
   scoring?: "cruiser_clash" | "victory_points"   // default "cruiser_clash"
   players: {
@@ -677,6 +712,7 @@ type CommanderConfig =
 - **Surprise Attack** (`scenario: "surprise_attack"`, p. 132, T114): forces must be `points`, scoring `victory_points` (the default; anything else throws), and `attacker` names the attackers. Both fleets field up to `L = forces.limit`, at least one ship each. No ship config carries `reserve`: every attacker starts `reserve` (they all move on, N76). The table gets the planet the limit sets (state N73): `small` up to 500, `medium` up to 1,500, `large` above; a `planet` in the config must be that size or absent, or it throws. `maxRounds` is null, `setup.surpriseAttack` starts `{ alertUnits: null, alertChosen: false, entryEdge: null }`, `setup.firstDeployer` is the defender and `setup.firstPlayer` the attackers.
 - **Blockade Run** (`scenario: "blockade_run"`, p. 133, T123): forces must be `points`, scoring `victory_points` (the default; anything else throws), and `attacker` names the runners. With `L = forces.limit`, the blockader fields up to `L` points and the runners up to ⌊`L`/2⌋, at least one ship each. No ship config carries `reserve`. `maxRounds` is 6, `setup.blockade` starts `{ thirds: null }`, `setup.firstDeployer` is the blockader; the first turn is rolled off as in Cruiser Clash. A `planet` may be added as in any scenario.
 - **Planetary defences** (T131–T133): ship configs of the defence classes (state §7.6). Allowed only with a planet on the table and points forces, and only for the planet holder: the defender in The Raiders, Surprise Attack and Blockade Run, `planetHolder` in Cruiser Clash by points and Fleet Engagement, and nobody in The Bait. `planetHolder` is refused where the scenario has an attacker, and where it's needed it's required. The holder's defences cost at most ⌊`limit`/3⌋ points between them, inside the side's limit. Stationary defences take no `squadron`, `reserve`, options or commander; system defence ships squadron as escorts. Their `leadership` starts at 7. With fleet lists, defences are allowed beside the list and count towards no ratio.
+- **Orbital mines and minefields** (T149, state N107): `orbitalMines` and `minefields` are whole numbers, 0 by default, minefields at most 2. Any at all need what other defences need (a planet, points forces, a planet holder), cost 5 and 40 points each, inside the holder's limit and their third, and need the holder to field a ship besides stationary defences. They give `setup.emplacements` with `unplaced` holding all of them and `minefields: null` sizes (state §5). **Fire ships** (`fire_ship`, fleets book p. 516, 10 pts) are a defence class like the system ship, at most six a side.
 - **A planet** (`planet: "small" | "medium" | "large"`, pp. 112–113, T107): any scenario may put one planet in the table centre, `(90, 60)`, at the size's diameter and gravity well (state N64). It's `table.features[0]`, with the next id from the shared counter after the ships and squadrons.
 - The result is at `stage: "setup"`, `setupStep: "roll_leadership"`, `playerTurn: 0`. Ships are `undeployed` (The Bait's reinforcements, The Raiders' raiders and Surprise Attack's attackers `reserve`), with ids `ship-1 … ship-n` in config order, then the squadrons'. `rng.state = seed`.
 
@@ -816,6 +852,20 @@ type CommanderConfig =
 | T140 | **No Leadership roll for defences** (state N94): `roll_leadership` skips them, so their dice don't exist; the other ships' rolls are drawn as before. |
 | T141 | **A side of platforms alone is eliminated** (state N102), checked like any other elimination. |
 | T142 | **Defences and the work so far**: Surprise Attack's alert choice, standby and thirds of Blockade Run leave planetary defences out (state N105). |
+| T143 | **`place_defences`** (state N108) sits straight before `deploy` in every scenario's set-up, only in a game with `emplacements`: other games never enter it, so their logs and dice are unchanged. On entering it, each minefield's size is drawn in order: **1D6** halved rounding up, × 5, for the width, then the same for the height. Its actor is the planet holder; it's complete when nothing is left to place. |
+| T144 | **Placing order**: mines and minefields in any order the holder likes, minefields in the order their sizes were rolled. A placement can't be taken back. |
+| T145 | **Where a mine goes**: in the gravity well and off the template, as the other high orbit defences (state N93); mines may touch or overlap each other. |
+| T146 | **Where a minefield goes** (state N108): wholly on the table, its nearest point at most 15 cm from the planet template's edge (it may overlap the template or the well), and not overlapping another minefield, edges touching allowed. |
+| T147 | **Fire ships** are a planetary defence class (`fire_ship`), Escort/1, no weapons (state N121). Escorts squadron, so a fire ship is always in a squadron, of fire ships or with the holder's other system defence ships. |
+| T148 | **Moving a mine** is `move_ordnance` with no `path`: the reducer steers it (state N110). Its owner still orders their ordnance, so when several mines and salvoes move the order is theirs (§2.4). |
+| T149 | **The config counts mines and minefields** (`orbitalMines`, `minefields`): they're not ships, so they take no `ships` entry, id, Leadership or deployment turn (state N107, N122). |
+| T150 | **The minefield test happens at contact**, mid-move, as a Blast Marker's does: the ship stops there for it and carries on with the rest of its path (state N115). A ship destroyed by it ends its move there. |
+| T151 | **A mine's turret dice** count as fire at torpedoes for p. 80's "torpedoes or attack craft, not both": a ship that fired its turrets at a mine can't fire them at attack craft that phase, and the other way round (state N109). |
+| T152 | **Detection is housekeeping** on entering the owner's `active_ordnance`: no transform, since there's nothing to choose (state N118). The mines it places join the step's ordnance to move. |
+| T153 | **Detonating "at any point in its movement phase"**: before its move, or after it with the move ending wherever the player wants it (any legal path). Not halfway through a path: the end of a shorter path is the same place. A fire ship that has detonated has nothing left to move (state N121). |
+| T154 | **Shooting at a minefield** (state N119): range, arc and line of fire to its nearest point; as ordnance for target priority; batteries on column E, 6s to hit, lances 6s; each hit a Blast Marker. No aspect, squadron volley or nova cannon. |
+| T155 | **Minefields shed D6 Blast Markers** in every End Phase, after the stationary defences (state N120). |
+| T156 | **Minefields and mines in the scenarios**: wherever the defender may field defences (state N105). Surprise Attack's ships on standby still deploy anywhere; a minefield doesn't stop a ship deploying on it. |
 | T70 | **The Dauntless's torpedoes** are an option at 0 points (p. 77, like the Vigilant and Havock), so it's offered in Cruiser Clash too. |
 | T35 | **Rarity limits** count the side's whole fleet: "two per 750 points or part" allows two in any Cruiser Clash fleet (4 × 185 = 740). |
 | T31 | **Launch bays** are weapons at a location (port, starboard): that side's armament critical disables them (p. 67), which lowers the fleet's limit too. |
@@ -870,6 +920,8 @@ type CommanderConfig =
 | D37 | Who chooses The Bait's roles? | The host, in the new-game form or the lobby (T93). The book leaves it to the players (p. 121). |
 | D38 | The Raiders next? | Yes (George's call), on the reserves The Bait brought in. |
 | D39 | Planets before Surprise Attack? | Yes (George's call): planets first, then the scenario; planetary defences later, before Planetary Assault. |
+| D44 | Minefield mines: placed by the player or the reducer? | The reducer (state N118): at the point of the edge nearest the ship detected, which is where any player would put one. A choice would mean a decision in the middle of housekeeping for no real gain. |
+| D43 | Orbital mines and minefields: ships in the config, or counts? | Counts (`orbitalMines`, `minefields`, T149). They're not ships: no Leadership, hits or deployment turn, and a mine is ordnance once placed. Fire ships are ships, and are configured as ships. |
 | D42 | Planetary defences: which, and how bought? | George's call: all of high orbit but the Ramilies, in three PRs (this one the units; then mines, minefields and fire ships; then Surprise Attack's free budget), bought both ways: from the fleet's points in the forms, and Surprise Attack's rolled bonus in a setup step. |
 | D41 | Which scenario after Surprise Attack? | Blockade Run (George's call: "start the next scenario"), the next in the book that needs nothing new beyond its own rules. |
 | D40 | Surprise Attack without planetary defences? | Yes, for now (state N80): the defences come in their own slice, before Planetary Assault, and Surprise Attack picks them up then. |

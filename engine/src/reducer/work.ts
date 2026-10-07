@@ -12,6 +12,7 @@ import { ordnanceMove, torpedoAttack, torpedoHit } from "./torpedoes";
 import { boardingCritical, boardingFight, teleportAttack } from "./boarding";
 import { craftAttack, craftMeetsShip, hitAndRun } from "./craft";
 import { novaCannon, novaHit } from "./nova";
+import { mineAttack, mineHit, minefieldTest } from "./defences";
 
 export { enqueueFront } from "./queue";
 
@@ -73,6 +74,12 @@ export function runWorkItem(ctx: Ctx, item: WorkItem): void {
       return novaCannon(ctx, item);
     case "nova_hit":
       return novaHit(ctx, item);
+    case "minefield_test":
+      return minefieldTest(ctx, item.shipId, item.minefieldId);
+    case "mine_attack":
+      return mineAttack(ctx, item.ordnanceId, item.targetId, item.bmTested);
+    case "mine_hit":
+      return mineHit(ctx, item.ordnanceId, item.targetId);
   }
 }
 

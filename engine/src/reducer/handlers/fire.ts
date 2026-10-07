@@ -1,6 +1,7 @@
 /** The fire transform (reducer spec §4, transform §4.3). */
 import { distance, quadrantsOfPoint } from "../../geometry/basic";
-import { eligibleAt, isNearest, squadronTarget, tookFire, volleyAspect, type Target } from "../../geometry/targeting";
+import { eligibleAt, isNearest, squadronTarget, targetPosition, tookFire, volleyAspect, type Target } from "../../geometry/targeting";
+import { minefields } from "../../rules/minefields";
 import { formation, getShip, inFormation, priorityLd, squadronOf } from "../../state/derived";
 import type { Point, Quadrant, Ship, Weapon } from "../../state/types";
 import type { Fire } from "../../transforms/types";
@@ -16,8 +17,15 @@ export function fire(ctx: Ctx, t: Fire): void {
 
   const targetShip = t.target.kind === "ship" ? getShip(state, t.target.id) : null;
   const targetSalvo = t.target.kind === "ordnance" ? state.ordnance.find((o) => o.id === t.target.id) ?? null : null;
+  const targetField = t.target.kind === "minefield" ? minefields(state).find((f) => f.id === t.target.id) ?? null : null;
   const target: Target | null =
-    targetShip !== null ? { kind: "ship", ship: targetShip } : targetSalvo !== null ? { kind: "ordnance", salvo: targetSalvo } : null;
+    targetShip !== null
+      ? { kind: "ship", ship: targetShip }
+      : targetSalvo !== null
+        ? { kind: "ordnance", salvo: targetSalvo }
+        : targetField !== null
+          ? { kind: "minefield", field: targetField }
+          : null;
   if (target === null) return; // unreachable after validation
 
   // A combined volley (T32): the other batteries firing with this one; and squadron-mates' weapons (T84).
@@ -50,7 +58,7 @@ export function fire(ctx: Ctx, t: Fire): void {
 
   for (const v of volley) state.turnState.ships[v.ship.id]?.weaponsFired.push(v.weapon.id);
   const from = ship.position as Point;
-  const at = targetShip !== null ? (targetShip.position as Point) : (targetSalvo?.position as Point);
+  const at = targetPosition(target, from);
   // Validation guarantees a single option wherever the transform left a choice out.
   const arc: Quadrant = t.arc ?? quadrantsOfPoint(from, ship.heading as number, at).find((q) => weapon.arcs.includes(q)) ?? "front";
   const aspect: Quadrant | null =

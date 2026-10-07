@@ -262,6 +262,29 @@ describe("lobby and start", () => {
     expect(state.ships.map((s) => [s.profile.type, s.leadership])).toEqual([["cruiser", null], ["defence", 7], ["defence", 7], ["cruiser", null]]);
   });
 
+  test("orbital mines and minefields ride with the holder's fleet; fire ships are ships (state N107)", async () => {
+    const ann: Fleet = {
+      faction: "imperial_navy",
+      ships: [{ name: "Agrippa", classId: "lunar" }, ...[1, 2].map((i) => ({ name: `Torch ${i}`, classId: "fire_ship", squadron: "Torches" }))],
+      emplacements: { orbitalMines: 4, minefields: 2 },
+    };
+    const opts = { fleet: ann, forces: { kind: "points" as const, limit: 750 }, scoring: "victory_points" as const, planet: "medium" as const };
+    await expect(Harness.create({ ...opts, planetHolder: "p2" })).rejects.toThrow("INVALID_FLEET");
+    const h = await Harness.create({ ...opts, planetHolder: "p1" });
+    const [welcome] = await h.hello("a", "p1");
+    expect(welcome).toMatchObject({ lobby: { seats: { p1: { emplacements: { orbitalMines: 4, minefields: 2 } } } } });
+    await h.hello("b", "p2");
+    // The guest doesn't hold the planet; and a malformed count is no message at all.
+    expect(rejection(await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }], emplacements: { orbitalMines: 2, minefields: 0 } }))?.reason).toMatchObject({
+      code: "INVALID_FLEET",
+      message: expect.stringContaining("Only the planet holder"),
+    });
+    await h.join("b", "p2", "Bo", { faction: "chaos", ships: [{ name: "Unclean", classId: "murder" }] });
+    const state = h.stateOf("b")!;
+    expect(state.setup.emplacements).toEqual({ owner: "p1", orbitalMines: 4, minefields: 2, unplaced: { orbitalMines: 4, minefields: null } });
+    expect(state.ships.map((s) => s.profile.classId)).toEqual(["lunar", "fire_ship", "fire_ship", "murder"]);
+  });
+
   test("fleet lists: commanders ride on the ship entries and the engine checks the list", async () => {
     const ann: Fleet = {
       faction: "imperial_navy",

@@ -21,10 +21,16 @@ export const MAX_POINTS_SHIPS = 16;
 /** `options`: the class's option ids (transform §5, T57); `commander`: aboard, with fleet lists (T60); `squadron`: its squadron's name (T76); `reserve`: The Bait's reinforcements (T93). */
 export type ShipEntry = { name: string; classId: string; options?: string[]; commander?: CommanderConfig; squadron?: string; reserve?: boolean };
 
+/** The planet holder's orbital mines and minefields, bought by number with their fleet (state N107, transform T149). */
+export type Emplacements = { orbitalMines: number; minefields: number };
+/** Most mines a seat may bring: a third of the largest limit wouldn't buy more. */
+export const MAX_MINES = 200;
+
 // --- Client → server (§4.1)
 
 export type Hello = { type: "hello"; token: string; protocol: number; engine: string };
-export type Join = { type: "join"; token: string; name: string; faction: FactionId; ships: ShipEntry[] };
+/** `emplacements`: the holder's mines and minefields; absent: none (older clients). */
+export type Join = { type: "join"; token: string; name: string; faction: FactionId; ships: ShipEntry[]; emplacements?: Emplacements };
 export type Propose = { type: "propose"; id: string; base: number; transform: Transform };
 export type Undo = { type: "undo"; id: string; seq: number };
 export type Ping = { type: "ping" };
@@ -33,7 +39,7 @@ export type ClientMessage = Hello | Join | Propose | Undo | Ping;
 
 // --- Server → client (§4.2)
 
-export type SeatInfo = { name: string | null; faction: FactionId | null; ships: ShipEntry[]; joined: boolean };
+export type SeatInfo = { name: string | null; faction: FactionId | null; ships: ShipEntry[]; joined: boolean; emplacements?: Emplacements };
 /**
  * The game's rules. `carriers`: one carrier each over the 185-point cap (p. 129).
  * `scenario`: Cruiser Clash or Fleet Engagement; `forces`: Cruiser Clash or a points battle; `scoring`: Cruiser Clash or victory points (transform §5).
@@ -133,6 +139,17 @@ function isCommander(v: unknown): boolean {
   return false;
 }
 
+/** Mines and minefields, shape only: the engine checks the rules (0–2 minefields, a third of the limit). */
+export function isEmplacements(v: unknown): v is Emplacements {
+  return isObject(v) && isCount(v["orbitalMines"]) && v["orbitalMines"] <= MAX_MINES && isCount(v["minefields"]) && v["minefields"] <= 2 && Object.keys(v).length === 2;
+}
+
+/** `{ emplacements }` when there are any, else nothing: a fleet without them looks as it always has. */
+export function emplacementsOf(v: unknown): { emplacements?: Emplacements } {
+  if (!isEmplacements(v) || v.orbitalMines + v.minefields === 0) return {};
+  return { emplacements: { orbitalMines: v.orbitalMines, minefields: v.minefields } };
+}
+
 export function isShipList(v: unknown): v is ShipEntry[] {
   return (
     Array.isArray(v) &&
@@ -166,13 +183,14 @@ export function parseClientMessage(raw: string): ClientMessage | { error: ErrorC
         ? { type: "hello", token: v["token"], protocol: v["protocol"], engine: v["engine"] }
         : { error: "MALFORMED_MESSAGE" };
     case "join":
-      return isString(v["token"]) && isString(v["name"]) && isString(v["faction"], 40) && isShipList(v["ships"])
+      return isString(v["token"]) && isString(v["name"]) && isString(v["faction"], 40) && isShipList(v["ships"]) && (v["emplacements"] === undefined || isEmplacements(v["emplacements"]))
         ? {
             type: "join",
             token: v["token"],
             name: v["name"],
             faction: v["faction"] as FactionId,
             ships: v["ships"].map(shipEntry),
+            ...emplacementsOf(v["emplacements"]),
           }
         : { error: "MALFORMED_MESSAGE" };
     case "propose":

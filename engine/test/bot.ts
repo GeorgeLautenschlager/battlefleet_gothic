@@ -15,6 +15,8 @@ import { canArrive, entryEdges } from "../src/rules/reserves";
 import { exitDistance, walkShipPath } from "../src/geometry/path";
 import { allAheadFullEnd, moveParameters, movingOrder } from "../src/rules/move";
 import type { AttackCraftWave, CraftRole, GameState, PathStep, PlayerId, Point } from "../src/state/types";
+import { planets } from "../src/rules/planets";
+import { minefields } from "../src/rules/minefields";
 import type { Transform } from "../src/transforms/types";
 
 const a = (distance: number): PathStep => ({ kind: "advance", distance });
@@ -61,7 +63,7 @@ function baseCandidates(s: GameState, n: number): Transform[] {
         const ship = waiting[n % 2 === 0 ? 0 : waiting.length - 1]!;
         const mates = (squadronOf(s, ship)?.shipIds ?? []).flatMap((id) => s.ships.find((x) => x.id === id && x.position !== null) ?? []);
         // Surprise Attack's defender gives a heading: broadside to the planet on standby, any way on alert.
-        const planet = s.table.features?.[0];
+        const planet = planets(s)[0];
         const headed = (position: Point): Transform => {
           const free = planetaryDefence(ship) || deploymentDivisions(s, p, ship).some((d) => d.heading === null);
           const heading = !free ? undefined : ship.standby === true && planet !== undefined ? (tableBearing(position, planet.position) + (n % 2 === 0 ? 90 : 270)) % 360 : (n * 45) % 360;
@@ -110,6 +112,28 @@ function baseCandidates(s: GameState, n: number): Transform[] {
           [15, 30, 90, 105].map((y): Transform => ({ type: "deploy_ship", player: p, shipId: ship.id, position: { x: 50 + ((k * 13 + n) % 80), y } })),
         );
       }
+      case "place_defences": {
+        // Mines on rings in the gravity well; minefields round the planet, either way round (state N108).
+        const planet = planets(s)[0];
+        const left = s.setup.emplacements?.unplaced;
+        if (planet === undefined || left === undefined) return [];
+        const r0 = planet.diameter / 2;
+        const ring = (r: number, step: number) =>
+          [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((k) => {
+            const b = ((k * 30 + n * step) % 360) * (Math.PI / 180);
+            return { x: planet.position.x + r * Math.sin(b), y: planet.position.y + r * Math.cos(b) };
+          });
+        const out: Transform[] = [];
+        if ((left.minefields ?? []).length > 0) {
+          for (const at of [...ring(r0 + 12, 13), ...ring(r0 + 16, 17)]) {
+            out.push({ type: "place_defence", player: p, kind: "minefield", position: at }, { type: "place_defence", player: p, kind: "minefield", position: at, turned: true });
+          }
+        }
+        if (left.orbitalMines > 0) {
+          for (const at of [...ring(r0 + 4, 11), ...ring(r0 + planet.well - 3, 7)]) out.push({ type: "place_defence", player: p, kind: "orbital_mine", position: at });
+        }
+        return out;
+      }
       case "choose_facing":
         return [{ type: "choose_facing", player: p, heading: ([0, 90, 180, 270] as const)[n % 4]! }];
       case "choose_alert": {
@@ -142,6 +166,12 @@ function baseCandidates(s: GameState, n: number): Transform[] {
       // Reserves (The Bait): usually bring the next unit on before moving, now and then after, or leave it waiting.
       const arrivals = canArrive(s, p) ? arrivalCandidates(s, p, n) : [];
       if (n % 4 !== 3) out.push(...arrivals);
+      // A fire ship goes off when an enemy is within about 10 cm (state N121), before or after its move.
+      if (s.activation === null) {
+        for (const torch of mine.filter((x) => x.status === "active" && x.profile.traits?.fireShip === true)) {
+          if (enemies.some((e) => e.status === "active" && distance(e.position!, torch.position!) < 10 + (n % 3) * 2)) out.push({ type: "detonate", player: p, shipId: torch.id });
+        }
+      }
       for (const ship of mine.filter((x) => x.status === "active" && !s.turnState.ships[x.id]?.moved)) {
         if (s.activation === null && ship.specialOrder === null && !s.turnState.commandCheckFailed) {
           const { x, y } = ship.position!;
@@ -192,10 +222,13 @@ function baseCandidates(s: GameState, n: number): Transform[] {
         }
         for (const w of ship.profile.weapons.filter((x) => (x.kind === "battery" || x.kind === "lance") && !done(ship.id, x.id))) {
           if (weaponDisabled(s, ship, w)) continue;
-          // Enemy attack craft first, now and then.
+          // Enemy attack craft and mines first, now and then, and an enemy minefield (state N119).
           if (n % 4 === 0) {
             for (const o of s.ordnance.filter((x) => x.owner !== p)) {
               for (const arc of ARCS) out.push({ type: "fire", player: p, shipId: ship.id, weaponId: w.id, target: { kind: "ordnance", id: o.id }, ...(arc === undefined ? {} : { arc }) });
+            }
+            for (const f of minefields(s).filter((x) => x.owner !== p)) {
+              for (const arc of ARCS) out.push({ type: "fire", player: p, shipId: ship.id, weaponId: w.id, target: { kind: "minefield", id: f.id }, ...(arc === undefined ? {} : { arc }) });
             }
           }
           // A squadron volley first, now and then (T84): every squadron-mate's unfired weapon of this kind, at each target and aspect.

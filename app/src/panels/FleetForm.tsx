@@ -1,6 +1,6 @@
 /** Pieces of the fleet forms: hot-seat New game, Online, and the online lobby's join. */
 import { CATALOGUE, isDefenceClass, surprise, type CommanderConfig, type Mark, type PlanetSize, type PlayerId } from "@bfg/engine";
-import { classChoices, classIds, commandPoints, DEFAULT_ESCORT_SQUADRON, defaultCommand, defaultNames, FLEETS, MAX_POINTS_SHIPS, MAX_SHIPS, mostExpensive, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, withOption, type Command, type Fleet, type NewGameOptions, type Side } from "../game/config";
+import { classChoices, classIds, commandPoints, DEFAULT_ESCORT_SQUADRON, defaultCommand, defaultNames, emplacementPoints, FLEETS, MAX_MINEFIELDS, MAX_POINTS_SHIPS, MAX_SHIPS, MINE_POINTS, MINEFIELD_POINTS, mostExpensive, NO_EMPLACEMENTS, optionIds, POINTS_LIMITS, profileOf, shipProfileOf, withOption, type Command, type Emplacements, type Fleet, type NewGameOptions, type Side } from "../game/config";
 
 /** Every name used more than once (names are how the log and the cards tell ships apart). */
 export function duplicates(names: string[]): string[] {
@@ -356,13 +356,15 @@ type FieldsProps = {
   lists?: boolean;
   /** The Bait's pursued side: each ship is the bait or a reinforcement (T93). */
   reinforcements?: boolean;
+  /** The side holds the planet in a points battle: it may buy orbital mines and minefields (state N107). */
+  holdsPlanet?: boolean;
 };
 
 /** Short names for options in summaries: "nova cannon", "targeting matrix"… */
 const optionLabel = (id: string): string => id.replaceAll("_", " ");
 
 /** "2 × Lunar class cruiser, 1 × Lunar class cruiser + nova cannon · 580 pts"; with fleet lists, commanders count too. */
-function fleetSummary(side: Side, carriers: boolean, limit: number | null = null, lists = false): string {
+function fleetSummary(side: Side, carriers: boolean, limit: number | null = null, lists = false, holdsPlanet = false): string {
   const counts = new Map<string, { n: number; points: number }>();
   side.ships.forEach((_, i) => {
     const p = shipProfileOf(side, i, carriers, limit !== null);
@@ -371,13 +373,21 @@ function fleetSummary(side: Side, carriers: boolean, limit: number | null = null
     counts.set(name, { ...c, n: c.n + 1 });
   });
   const command = lists ? commandPoints(side, carriers, limit !== null) : 0;
-  const total = [...counts.values()].reduce((t, c) => t + c.n * c.points, 0) + command;
+  // Mines and minefields, the holder's only (state N107).
+  const e = holdsPlanet && limit !== null ? side.emplacements : undefined;
+  const mines = emplacementPoints(e);
+  const total = [...counts.values()].reduce((t, c) => t + c.n * c.points, 0) + command + mines;
   const ships = [...counts].map(([name, c]) => `${c.n} × ${name} (${c.points} pts)`);
+  const extras = [
+    ...(command > 0 ? [`commanders (${command} pts)`] : []),
+    ...((e?.orbitalMines ?? 0) > 0 ? [`${e?.orbitalMines} × orbital mine (${MINE_POINTS} pts)`] : []),
+    ...((e?.minefields ?? 0) > 0 ? [`${e?.minefields} × minefield (${MINEFIELD_POINTS} pts)`] : []),
+  ];
   // Planetary defences: up to a third of the limit (p. 100, state N91).
   const classes = classIds(side, carriers, limit !== null);
-  const defences = side.ships.reduce((n, _, i) => n + (isDefenceClass(classes[i] ?? "") ? shipProfileOf(side, i, carriers, true).points : 0), 0);
+  const defences = side.ships.reduce((n, _, i) => n + (isDefenceClass(classes[i] ?? "") ? shipProfileOf(side, i, carriers, true).points : 0), 0) + mines;
   const defenceNote = defences > 0 && limit !== null ? ` · defences ${defences} of ${Math.floor(limit / 3)} pts` : "";
-  return `${[...ships, ...(command > 0 ? [`commanders (${command} pts)`] : [])].join(", ")} · ${total}${limit === null ? "" : ` of ${limit}`} pts${defenceNote}`;
+  return `${[...ships, ...extras].join(", ")} · ${total}${limit === null ? "" : ` of ${limit}`} pts${defenceNote}`;
 }
 
 /** The Bait's pursued side (N48): "Bait 180 of 250 pts · reinforcements 285 of 500 pts". */
@@ -393,7 +403,7 @@ function baitSummary(side: Side, carriers: boolean, limit: number): string {
 }
 
 /** One side: commander, fleet, and a name and class per ship. */
-export function FleetFields({ legend, className, side, onChange, dupes, carriers = false, pointsLimit = null, taken = [], lists = false, reinforcements = false }: FieldsProps) {
+export function FleetFields({ legend, className, side, onChange, dupes, carriers = false, pointsLimit = null, taken = [], lists = false, reinforcements = false, holdsPlanet = false }: FieldsProps) {
   const count = side.ships.length;
   const choices = classChoices(side.fleet, carriers, pointsLimit !== null);
   const classes = classIds(side, carriers, pointsLimit !== null);
@@ -422,7 +432,7 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
           ))}
         </select>
       </label>
-      <p className="muted small">{reinforcements && pointsLimit !== null ? baitSummary(side, carriers, pointsLimit) : fleetSummary(side, carriers, pointsLimit, lists)}</p>
+      <p className="muted small">{reinforcements && pointsLimit !== null ? baitSummary(side, carriers, pointsLimit) : fleetSummary(side, carriers, pointsLimit, lists, holdsPlanet)}</p>
       {lists && <CommandFields side={side} carriers={carriers} onChange={(command) => onChange({ command })} />}
       {side.ships.map((name, i) => (
         <div key={i} className="ship-row">
@@ -484,6 +494,7 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
           )}
         </div>
       ))}
+      {holdsPlanet && pointsLimit !== null && <EmplacementFields value={side.emplacements ?? NO_EMPLACEMENTS} onChange={(emplacements) => onChange({ emplacements })} />}
       {pointsLimit !== null && (
         <div className="buttons">
           <button type="button" disabled={count >= MAX_POINTS_SHIPS} onClick={() => onChange({ ships: resize(side.ships, side.fleet, count + 1, taken) })}>
@@ -497,6 +508,33 @@ export function FleetFields({ legend, className, side, onChange, dupes, carriers
     </fieldset>
   );
 }
+
+/** The planet holder's orbital mines and minefields, bought by number (fleets book pp. 512–513, state N107). */
+function EmplacementFields({ value, onChange }: { value: Emplacements; onChange: (e: Emplacements) => void }) {
+  const count = (raw: string, max: number) => Math.max(0, Math.min(max, Math.floor(Number(raw) || 0)));
+  return (
+    <fieldset className="emplacements">
+      <legend className="muted small">Mines (placed round the planet before deployment)</legend>
+      <label>
+        Orbital mines ({MINE_POINTS} pts each)
+        <input type="number" min={0} max={MAX_MINES} value={value.orbitalMines} onChange={(e) => onChange({ ...value, orbitalMines: count(e.target.value, MAX_MINES) })} />
+      </label>
+      <label>
+        Minefields ({MINEFIELD_POINTS} pts each)
+        <select value={value.minefields} onChange={(e) => onChange({ ...value, minefields: count(e.target.value, MAX_MINEFIELDS) })}>
+          {Array.from({ length: MAX_MINEFIELDS + 1 }, (_, n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </label>
+    </fieldset>
+  );
+}
+
+/** Most mines the form offers: a third of the largest limit buys 100. */
+const MAX_MINES = 100;
 
 /** The engine's reason this fleet can't play, if there is one. */
 export function FleetProblem({ problem }: { problem: string | null }) {

@@ -95,9 +95,10 @@ export function checkMoveOrdnance(state: GameState, t: MoveOrdnance): Validation
     return reject("ORDNANCE_ALREADY_MOVED", "That ordnance has already moved this step", { ordnanceId: o.id });
   }
   // 4
-  if (o.kind === "torpedo_salvo") {
+  if (o.kind === "torpedo_salvo" || o.kind === "orbital_mine") {
     if (t.path !== undefined || t.cap !== undefined) {
-      return reject("WRONG_ORDNANCE_MOVE", "Torpedoes move straight ahead: no path or CAP", { ordnanceId: o.id });
+      const what = o.kind === "torpedo_salvo" ? "Torpedoes move straight ahead" : "A mine steers itself (T148)";
+      return reject("WRONG_ORDNANCE_MOVE", `${what}: no path or CAP`, { ordnanceId: o.id });
     }
     return OK;
   }

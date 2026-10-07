@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { constants, craft, formation, geometry, planets, type AttackCraftWave, type GameState, type PlayerId, type Point } from "@bfg/engine";
+import { constants, craft, formation, geometry, minefields, planets, type AttackCraftWave, type GameState, type PlayerId, type Point } from "@bfg/engine";
 import { capOffset, markerOffset, ROLE_LETTER } from "../craft/craft";
 import { EntryEdges, Zones, type SetupPreview } from "./Zones";
 import { ShipGlyph } from "./ShipGlyph";
@@ -112,9 +112,54 @@ export function Table({ state, ghost = null, ghosts = [], selectedShipId = null,
         );
       })}
 
+      {minefields.minefields(state).map((f) => {
+        // A minefield (fleets book p. 513): its rectangle, hatched, in its owner's colour.
+        const corner = toSvg(view, { x: f.rect.x, y: f.rect.y + f.rect.height });
+        return (
+          <rect
+            key={f.id}
+            className={`minefield ${f.owner}${highlight.includes(f.id) ? " highlight" : ""}`}
+            data-minefield={f.id}
+            x={corner.x}
+            y={corner.y}
+            width={f.rect.width}
+            height={f.rect.height}
+            onClick={
+              onSelectSalvo
+                ? (e) => {
+                    if (onSelectSalvo(f.id)) e.stopPropagation();
+                  }
+                : undefined
+            }
+          />
+        );
+      })}
+
       {state.ordnance.map((o) => {
         const p = toSvg(view, o.position);
         if (o.kind === "attack_craft") return null; // drawn above the ships, below
+        if (o.kind === "orbital_mine") {
+          return (
+            <g
+              key={o.id}
+              className={`mine ${o.owner}${highlight.includes(o.id) ? " highlight" : ""}`}
+              data-mine={o.id}
+              transform={`translate(${p.x} ${p.y})`}
+              onClick={
+                onSelectSalvo
+                  ? (e) => {
+                      if (onSelectSalvo(o.id)) e.stopPropagation();
+                    }
+                  : undefined
+              }
+            >
+              <circle r={constants.MINE_RADIUS} />
+              <text y={0.4} textAnchor="middle">
+                M
+              </text>
+            </g>
+          );
+        }
         return (
           <g
             key={o.id}

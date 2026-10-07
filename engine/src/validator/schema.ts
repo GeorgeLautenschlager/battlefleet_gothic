@@ -70,13 +70,14 @@ const pathStep: FieldCheck = (v, path) => {
   return `${path}.kind`;
 };
 
-const target = shape({ kind: oneOf(["ship", "ordnance"]), id: str });
+const target = shape({ kind: oneOf(["ship", "ordnance", "minefield"]), id: str });
 
 /** Required and optional payload fields per transform type (transform spec §3). */
 const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>; optional?: Record<string, FieldCheck> }> = {
   roll_leadership: { required: {} },
   roll_zones: { required: {} },
   roll_deploy_order: { required: {} },
+  place_defence: { required: { kind: oneOf(["orbital_mine", "minefield"]), position: point }, optional: { turned: bool } },
   deploy_ship: { required: { shipId: str, position: point }, optional: { heading: num } },
   roll_first_turn: { required: {} },
   choose_first_turn: { required: { goFirst: bool } },
@@ -90,6 +91,7 @@ const PAYLOADS: Record<Transform["type"], { required: Record<string, FieldCheck>
   move: { required: { shipId: str, path: arrayOf(pathStep), disengage: bool }, optional: { boardTargetId: str, reroll: bool } },
   release_cap: { required: { ordnanceId: str } },
   arrive: { required: { placements: arrayOf(shape({ shipId: str, position: point, heading: num })) } },
+  detonate: { required: { shipId: str } },
   fire: {
     required: { shipId: str, weaponId: str, target },
     optional: {

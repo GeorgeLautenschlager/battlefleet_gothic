@@ -130,6 +130,13 @@ export const REASON_CODES = [
   "NOT_IN_GRAVITY_WELL",
   "STATIONARY",
   "DEFENCE_ORDERS",
+  // Mines, minefields and fire ships (validator spec v0.18)
+  "NOTHING_TO_PLACE",
+  "CANT_TURN_MINE",
+  "OFF_TABLE",
+  "MINEFIELD_TOO_FAR",
+  "MINEFIELDS_OVERLAP",
+  "NOT_A_FIRE_SHIP",
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

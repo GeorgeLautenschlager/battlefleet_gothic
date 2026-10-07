@@ -134,7 +134,7 @@ describe("nearest target per weapon (V1)", () => {
     s.ordnance.push(salvo("ord-10", 90, 50), salvo("ord-11", 80, 50), salvo("ord-12", 95, 50, "p2"), salvo("ord-13", 120, 50));
     s.nextId = 20;
     const starboard = weapon(unclean, "starboard_battery");
-    expect(nearestOrdnanceTargets(s, unclean, starboard).map((o) => o.id)).toEqual(["ord-10"]);
+    expect(nearestOrdnanceTargets(s, unclean, starboard).map((o) => (o.kind === "ordnance" ? o.salvo.id : null))).toEqual(["ord-10"]);
     expect(isNearest(s, unclean, starboard, { kind: "ordnance", salvo: s.ordnance[1]! })).toBe(false);
   });
 });

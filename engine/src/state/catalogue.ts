@@ -223,6 +223,12 @@ function systemDefenceShip(classId: string, className: string, page: number, poi
   };
 }
 
+function fireShip(): CatalogueEntry {
+  const entry = systemDefenceShip("fire_ship", "Fire ship", 516, 10, { speed: 15, shields: 1, armour: 5, turrets: 1 }, []);
+  entry.profile.traits = { planetaryDefence: true, fireShip: true };
+  return entry;
+}
+
 const escortBattery = (range: number, strength: number): Weapon => ({
   id: "battery", name: "Weapons battery", kind: "battery", location: "prow", arcs: ["left", "front", "right"], range, speed: null, strength,
 });
@@ -655,6 +661,8 @@ export const CATALOGUE: Readonly<Record<string, CatalogueEntry>> = {
     { id: "prow_lance", name: "Prow lance", kind: "lance", location: "prow", arcs: ["front"], range: 30, speed: null, strength: 1 },
   ]),
   system_ship: systemDefenceShip("system_ship", "System ship", 515, 20, { speed: 15, shields: 1, armour: 5, turrets: 1 }, [escortBattery(30, 3)]),
+  // A fire ship (fleets book p. 516, state N121): a system ship with no guns that can detonate.
+  fire_ship: fireShip(),
   styx: chaosHeavy("styx", "Styx", 272, 260, 3, [...launchBays(3, CHAOS_CRAFT), dorsalLances(60), prowBattery(60, 6)]),
   hecate: chaosHeavy("hecate", "Hecate", 273, 230, 3, [...launchBays(2, CHAOS_CRAFT), ...broadside("battery", 45, 4), dorsalLances(60), prowBattery(45, 6)]),
   hades: chaosHeavy("hades", "Hades", 274, 200, 2, [

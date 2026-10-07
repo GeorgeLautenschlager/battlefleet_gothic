@@ -1,6 +1,6 @@
 # Game State Specification
 
-**Status:** draft v0.22, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29). v0.15 adds battleships: the `battleship` category, the traits that bar Come to New Heading and raise Leadership, and options that exclude each other (§7.1, §11, N30–N33). v0.16 adds escorts and squadrons, escort and capital: §3, §7.5, §8, §9.1, §11, §13, N34–N45. v0.17 adds the second scenario, The Bait (p. 130), and with it reserves: ships that start off the table and arrive along an entry edge during the battle (§4, §5, §6, §7, §11, §13, N47–N55). v0.18 adds the third scenario, The Raiders (p. 131): the defender's facing and spacing, raiders arriving from any edge in their first turn, and the defenders' surprise (§4, §5, §11, §13, N56–N63). v0.19 adds the first celestial phenomenon, a planet in the table centre (pp. 112–113): its template, line of sight, torpedoes and drifting hulks, and its gravity well's free turns and high orbit (§4, §9.1, §11, §13, N64–N71). v0.20 adds the fourth scenario, Surprise Attack (p. 132): units on full alert and on standby, going on alert, the planet by points, and attackers who all move on from one edge (§4, §5, §7, §8, §11, §13, N72–N80). v0.21 adds the fifth scenario, Blockade Run (p. 133): the blockaders in their rolled thirds, the runners along their edge, the edge a ship leaves by, and the runners' victory points for getting through (§4, §5, §7, §11, §13, N81–N89). v0.22 adds planetary defences, first slice (pp. 100–101; fleets book pp. 496–517): stationary defences (the `defence` type) and system defence ships, their Leadership, orders, deployment in the gravity well, the Defences Critical Hits table with Orbit Lost, Blast Marker removal, and how they score (§7, §7.2, §7.6, §11, §13, N90–N105).
+**Status:** draft v0.23, for discussion. **Scope:** Cruiser Clash (1–4 cruisers a side, hot-seat or online), with room to grow. v0.7 added boarding actions, grapples and teleport attacks (pp. 89–92). v0.8 adds attack craft, launch bays, Combat Air Patrol and massed turrets (pp. 73–87): §4, §7, §8, §10.2, §11, §13. v0.9 adds class traits from the fleet book (§7.1, N10). v0.10 adds points battles and standard victory points (§4, §11, §13, N11–N12). v0.11 adds the nova cannon (pp. 63–64): §7.1, §10.1, §11, N13–N14. v0.12 adds the Fleet Engagement scenario (pp. 142–143): formations, set-up maps and divisions, and no round limit (§4, §5, §6, §11, N15–N19). v0.13 adds battlecruisers and heavy cruisers, per-ship options, the Gothic War fleet lists, fleet commanders with their re-rolls, and the Marks of Chaos (§4, §7, §7.1, §7.4, §11, N20–N27). v0.14 adds grand and light cruisers, and options that add a shield or a large base (§7.1, N27–N29). v0.15 adds battleships: the `battleship` category, the traits that bar Come to New Heading and raise Leadership, and options that exclude each other (§7.1, §11, N30–N33). v0.16 adds escorts and squadrons, escort and capital: §3, §7.5, §8, §9.1, §11, §13, N34–N45. v0.17 adds the second scenario, The Bait (p. 130), and with it reserves: ships that start off the table and arrive along an entry edge during the battle (§4, §5, §6, §7, §11, §13, N47–N55). v0.18 adds the third scenario, The Raiders (p. 131): the defender's facing and spacing, raiders arriving from any edge in their first turn, and the defenders' surprise (§4, §5, §11, §13, N56–N63). v0.19 adds the first celestial phenomenon, a planet in the table centre (pp. 112–113): its template, line of sight, torpedoes and drifting hulks, and its gravity well's free turns and high orbit (§4, §9.1, §11, §13, N64–N71). v0.20 adds the fourth scenario, Surprise Attack (p. 132): units on full alert and on standby, going on alert, the planet by points, and attackers who all move on from one edge (§4, §5, §7, §8, §11, §13, N72–N80). v0.21 adds the fifth scenario, Blockade Run (p. 133): the blockaders in their rolled thirds, the runners along their edge, the edge a ship leaves by, and the runners' victory points for getting through (§4, §5, §7, §11, §13, N81–N89). v0.22 adds planetary defences, first slice (pp. 100–101; fleets book pp. 496–517): stationary defences (the `defence` type) and system defence ships, their Leadership, orders, deployment in the gravity well, the Defences Critical Hits table with Orbit Lost, Blast Marker removal, and how they score (§7, §7.2, §7.6, §11, §13, N90–N105). v0.23 adds the second slice: orbital mines, minefields and fire ships (fleets book pp. 512–513, 516): mines as ordnance that home on the enemy, minefields placed by the planet holder before deployment that act as asteroid fields and activate mines, and fire ships that detonate (§4, §5, §6, §7.6, §8, §10, §11, §13, N106–N122). v0.23 adds the second slice: orbital mines, minefields and fire ships (fleets book pp. 512–513, 516): mines as ordnance that home on the enemy, minefields placed by the planet holder before deployment that act as asteroid fields and activate mines, and fire ships that detonate (§4, §5, §6, §7.6, §8, §10, §11, §13, N106–N122).
 
 This document defines the **game state**: a self-contained, machine-readable snapshot of a game of *Battlefleet Gothic Remastered* (rulebook v1.10). It's the first of four rules-engine pieces:
 
@@ -158,7 +158,7 @@ type Table = {
   features?: Feature[]                           // celestial phenomena (pp. 102–116); absent: an empty table
 }
 
-type Feature = Planet                            // more kinds (gas clouds, asteroid fields, moons…) to come
+type Feature = Planet | Minefield                // more kinds (gas clouds, asteroid fields, moons…) to come
 
 type Planet = {
   kind: "planet"
@@ -167,6 +167,14 @@ type Planet = {
   size: "small" | "medium" | "large"
   diameter: number                               // cm: small 15, medium 25, large 35 (N64)
   well: number                                   // gravity well, cm beyond the template's edge: small 10, medium 15, large 30 (p. 112)
+}
+
+// A planetary defence (fleets book p. 513, §7.6): placed by the planet holder in `place_defences` (N108)
+type Minefield = {
+  kind: "minefield"
+  id: string
+  owner: PlayerId
+  rect: Rect                                     // axis-aligned, D3 × 5 by D3 × 5 cm
 }
 
 type Player = {
@@ -210,6 +218,8 @@ Reinforcements arrive along the pursued player's **entry edges** (`entryEdges`, 
 **Surprise Attack (p. 132, N72–N80).** The defender deploys everything; the attackers (`scenario.attacker`) start in **reserve**. Both fleets are up to the points limit, and the table has a planet in its centre whose size the limit sets (N73). The defender's units are on **full alert** or on **standby** (`choose_alert`, §5; `standby`, §7). A ship on alert deploys in one division, `30, 30, 120, 60` (every stem at least 30 cm from every edge), at any heading the defender gives it. A ship on standby deploys anywhere on the table, at a heading that has the planet's centre in its port or starboard arc ("abeam of the planet's surface", N74); the defender's first ship on standby goes with its stem within 15 cm of the template's edge (N75). The attackers all arrive in their first Movement Phase, from one table edge (N76): `entryEdges` is all four edges until the first unit arrives, then only the edge it came in on (`surpriseAttack.entryEdge`), and none after player turn 1.
 
 **Blockade Run (p. 133, N81–N89).** The runners (`scenario.attacker`) run from the bottom long edge (y = 0, their edge) to the top one (y = 120, the blockader's edge) (N83). The table's length is cut into thirds, `x` 0–60, 60–120 and 120–180 (N82). Each of the blockader's units (a ship in no squadron, or a squadron) deploys in the third it rolled (`blockade.thirds`, §5), with its stem at least 60 cm from the runners' edge: the division `60k, 60, 60, 60` for third *k*, at any heading the blockader gives it. The runners deploy in one division, `0, 0, 180, 15`, facing the blockader's edge (heading 0) (N84). The blockader deploys everything first, then the runners (N85).
+
+**Minefields (fleets book p. 513, N108, N114–N120).** A minefield is an axis-aligned rectangle, `rect`, placed by the planet holder before the fleets deploy. Its rectangle blocks lines of fire (N114), tests ships that touch it (N115), destroys drifting hulks (N116) and torpedoes (N117), and activates orbital mines against enemy ships near it (N118). It's a feature the holder owns, not a ship: it's never eliminated, scored or deployed in turn (N122).
 
 **Planets (pp. 112–113, N64–N71).** A game can have one planet, its template centred on the table. Its **template** is the circle of radius `diameter / 2` around `position`; its **gravity well** reaches `well` cm beyond that edge. A stem *on the planet* is inside the template, edge included; a stem *in the gravity well* is within `diameter / 2 + well` of the centre, template included (N67).
 
@@ -267,6 +277,22 @@ Surprise Attack fills them in the same way: the defender deploys, the attackers 
 
 Blockade Run has the blockader deploy first, all of their fleet, then the runners (N85); `firstDeployer` is the blockader and `firstPlayer` comes from the usual roll-off. `SetupState` gains `blockade?: { thirds: Record<string, 0 | 1 | 2> | null }`, present exactly in Blockade Run: for each of the blockader's units, by unit id (a squadron's id, or a ship's in none), the third it deploys in, rolled with Leadership (N86).
 
+A game with orbital mines or minefields (§7.6) has `SetupState.emplacements?: Emplacements`, present exactly when the planet holder bought some:
+
+```ts
+type Emplacements = {
+  owner: PlayerId                     // the planet holder (N91)
+  orbitalMines: number                // bought, 5 pts each: each one no longer in play scores 5 VP for the enemy (N113)
+  minefields: number                  // bought, 40 pts each, 0–2
+  unplaced: {
+    orbitalMines: number              // still to place
+    minefields: { width: number, height: number }[] | null   // the sizes still to place, rolled on entering place_defences; null before
+  }
+}
+```
+
+They're placed in the `place_defences` step, before anyone deploys a ship (N108).
+
 Who deploys next during `deploy` is derived: start with `firstDeployer`, then alternate, skipping a player who has no undeployed ships left. A squadron is one placement: while a player has a squadron partly deployed, they deploy next (transform T80).
 
 ---
@@ -287,6 +313,7 @@ type SetupStep =
   | "choose_formation" | "roll_setup" | "choose_setup"          // Fleet Engagement, in place of roll_zones
   | "choose_facing"                                             // The Raiders: the defender's facing, before deploying
   | "choose_alert"                                              // Surprise Attack: the defender's units on full alert
+  | "place_defences"                                            // the planet holder's minefields and mines, before deploying (N108)
   | "deploy" | "roll_first_turn" | "choose_first_turn"
 
 type Phase = "movement" | "shooting" | "ordnance" | "end"
@@ -313,9 +340,11 @@ Steps advance automatically once they're complete; steps with optional actions e
 | Start of a player turn | `turnState` reset (§8). |
 | Start of the owner's Movement Phase | Remove that player's special orders whose `expires.at = "movement_start"` and `expires.playerTurn ≤ now` (p. 51). |
 | Entering `move_ships` | Each of the active player's **grappled** ships stays put: `moved = true`, `lastMove = { playerTurn, distance: 0 }` (drawn combats, pp. 90–91). |
+| Entering `place_defences` | Each bought minefield's size is rolled: D3 × 5 cm wide, then D3 × 5 cm high (N108). |
+| Entering `active_ordnance` | Each of the active player's minefields looks for enemy ships within 30 cm, placing a mine for each one detected (N118). |
 | Entering `boarding` | Every grapple fights again (transform §4.6). |
 | Entering `blast_marker_removal` | Each of the **active player's** ships takes 1 damage per `fire` critical still burning. Fires burn once per round, in their owner's End Phase, after both players have had their repair rolls. |
-| End of a player turn | Remove orders whose `expires.at = "turn_end"` for this player turn (Brace For Impact!). |
+| End of a player turn | Stationary defences shed Blast Markers (N100), then minefields (N120). Remove orders whose `expires.at = "turn_end"` for this player turn (Brace For Impact!). |
 | Entering `direct_fire` | If the active player has no `active` ship but has ships in `reserve`, those reserves disengage: they never arrived (N52). |
 | End of round `maxRounds` (when it's set), or a fleet has no `active` ships and none in `reserve` left (D6, N52) | `stage = "ended"`, `result` filled in. |
 
@@ -397,6 +426,7 @@ type ShipTraits = {
   leadershipBonus?: number           // added to its Leadership, max 10 (the Emperor's +1, N32)
   noLongRangeShift?: boolean         // its batteries take no column shift for firing over 30 cm (the Idolator, p. 281)
   planetaryDefence?: boolean         // a system defence ship (defence monitor, system ship): Ld 7, Reload and Brace only (§7.6)
+  fireShip?: boolean                 // a fire ship: it can detonate in its Movement Phase (N121)
 }
 
 type ShipCategory = "cruiser" | "light_cruiser" | "heavy_cruiser" | "battlecruiser" | "grand_cruiser" | "battleship" | "escort" | "defence"   // escorts and defences count in no ratio (transform T77, T133)
@@ -525,6 +555,12 @@ Planetary defences (pp. 100–101; fleets book pp. 496–517) are ships in the s
 
 Both kinds are the **planet holder's** (N91), deploy with their stems in the planet's gravity well (N93), have a fixed Leadership of 7 that's never rolled (N94), and are bought from the side's points, up to a third of its limit (N91).
 
+The second slice (N106) adds three more, all the planet holder's and all within the same third:
+
+- **Fire ships**, escorts with `traits.planetaryDefence` and `traits.fireShip` (Escort/1, 15 cm, no weapons): system defence ships that can **detonate** in their own Movement Phase, setting fires aboard every ship within 3D6 cm and destroying escorts and ordnance there (N121).
+- **Orbital mines**, bought by number (`emplacements.orbitalMines`, §5), are **ordnance**, not ships: `OrbitalMine` markers (§10.2) placed in the gravity well before the fleets deploy, that home on the nearest enemy ship and detonate against it (N109–N113).
+- **Minefields**, bought by number (`emplacements.minefields`, 0–2), are **features** (`Minefield`, §4) placed near the planet before the fleets deploy. They act as asteroid fields toward every ship and activate mines against enemy ships nearby (N114–N120).
+
 ---
 
 ## 8. Turn state (scratch for the current player turn)
@@ -603,6 +639,7 @@ type Activation = {
   remainingPath: PathStep[]          // empty while stage = "ordered"
   slowedByBlastMarkers: boolean      // the −5 cm has been applied (once per move)
   zeroShieldBMTestDone: boolean      // 0-shield ship already rolled for moving through BMs
+  minefieldTested?: boolean          // it has taken this move's minefield Leadership test (N115); absent: false
   disengage: boolean                 // the move asked for a disengage test at its end
   boardTargetId: string | null       // the move declares a boarding action against this ship (transform §4.2)
   squadronId: string | null          // the ship moves as part of this squadron's move (turnState.squadronMove); absent in older saves: null
@@ -659,6 +696,8 @@ type BlastMarker = {
   position: Point                    // centre
   placed: number                     // playerTurn
   cause: "shield_hit" | "hulk" | "explosion" | "nova_miss" | "escort_lost"
+       | "minefield"                 // a hit on a minefield (N119)
+       | "fire_ship"                 // where a fire ship detonated (N121)
 }
 ```
 
@@ -667,10 +706,10 @@ type BlastMarker = {
 - A lost escort leaves a single BM at its stem, `cause: "escort_lost"` (p. 68, N34).
 - Placement (in the line of fire, fanned around the base without stacking, p. 68) is the reducer's job. The state only stores where they ended up. BMs never move once placed.
 
-### 10.2 Ordnance: torpedo salvoes and attack craft
+### 10.2 Ordnance: torpedo salvoes, attack craft and orbital mines
 
 ```ts
-type Ordnance = TorpedoSalvo | AttackCraftWave
+type Ordnance = TorpedoSalvo | AttackCraftWave | OrbitalMine
 
 type TorpedoSalvo = {
   id: string
@@ -710,6 +749,19 @@ type Squadron = { role: CraftRole, name: string, speed: number }
 - **Footprint:** a circle of radius `CRAFT_RADIUS × √n` for `n` squadrons, centred on `position` (ruling N8). Contact is that circle touching a ship's base, a salvo's segment or another wave's circle.
 - **CAP:** a fighter on Combat Air Patrol (pp. 81–82) has `cap` set to the ship it screens. Its `position` is that ship's stem, updated whenever the ship moves, and it doesn't move in the Ordnance Phase. CAP fighters are always single squadrons ("independent markers, not a wave", p. 82).
 - **Marker to marker:** interactions remove squadrons one for one (p. 85), fighters first where the rules say so. When a wave's last squadron goes, the wave is removed from the array.
+
+```ts
+type OrbitalMine = {
+  id: string
+  kind: "orbital_mine"
+  owner: PlayerId
+  position: Point                    // centre of the marker, a circle of radius MINE_RADIUS = 1 cm (N109)
+  source: "bought" | "minefield"     // bought by the holder (scores when lost, N113), or activated by a minefield (N118)
+}
+```
+
+- An orbital mine moves 10 cm in **every** Ordnance Phase, in its owner's step, toward the nearest enemy ship, and detonates against the first enemy ship it touches (N110–N111).
+- It's removed when it detonates, is shot, meets enemy fighters, fails a Blast Marker test, or is caught by a fire ship. A bought mine no longer in `ordnance` is a lost one for victory points (N113).
 
 ### 10.3 Random numbers
 
@@ -766,6 +818,13 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `onPlanet(p)` | the planet whose template holds point `p` (`distance(p, position) ≤ diameter/2`, within `EPS`), or none |
 | `gravityWellAt(p)` | the planet whose gravity well holds `p` (`distance(p, position) ≤ diameter/2 + well`, within `EPS`), or none (N67) |
 | `planetBlocks(from, to)` | some planet's template lies across the line from `from` to `to` (it passes closer than `diameter/2 − EPS` to the centre), and neither end is on that planet (N65) |
+| `minefields()` | the `Minefield` features, in order |
+| `minefieldTouches(c, r)` | the minefields whose rectangle a circle of radius `r` at `c` touches or overlaps (within `EPS`); `r = 0` for a point |
+| `minefieldBlocks(from, to, except?)` | some minefield (other than `except`) has a point of its rectangle on the segment from `from` to `to`, ends included (N114) |
+| `nearestPoint(rect, p)` | the point of the rectangle (edge or inside) nearest `p`; `p` itself when it's inside |
+| `edgePoint(rect, p)` | the point on the rectangle's boundary nearest `p`, from inside or out (N118) |
+| `mineQuarry(mine)` | the nearest enemy `active` ship to the mine, stem to marker centre; on a tie the first in `ships`; or none (N110) |
+| `minesLost(player)` | `emplacements.orbitalMines − unplaced.orbitalMines` − the `player`'s bought mines still in `ordnance`, for the emplacements' owner; 0 for anyone else (N113) |
 | `eliminated(player)` | no ship of `player`'s is `active` or in `reserve`, stationary defences (`type = "defence"`) not counting (D6, N52, N102) |
 | `isDefence(s)` | `profile.type = "defence"`: a stationary planetary defence (§7.6) |
 | `planetaryDefence(s)` | `isDefence(s)` or `profile.traits.planetaryDefence`: Ld 7, Reload Ordnance and Brace only (N94–N95) |
@@ -799,7 +858,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 | `commandCheckLd(s)` | `leadership(s) − (bmsInContact non-empty ? 1 : 0) + (any enemy ship has a live specialOrder ? 1 : 0)`, max 10; roll ≤ that, 11–12 always fail. For a squadron, `squadronLd(sq)` replaces `leadership(s)`, and the −1 applies if any member in formation has a Blast Marker in contact (p. 95) |
 | `gunneryColumn(target, aspect)` | defences → A; capital closing → B; capital moving away → C; capital abeam → D; escort closing → C; escort moving away → D; escort abeam → E; ordnance → E |
 | `score(player)` | `scenario.scoring = "cruiser_clash"`: Σ over enemy ships: `damage` + (destroyedForScoring ? 3 : crippled ? 1 : 0) (p. 128). `"victory_points"`: `victoryPoints(player)` |
-| `victoryPoints(player)` | Σ over enemy ships of `shipVP(s)`, plus Σ over enemy squadrons of `squadronVP(sq)`, plus `holdingTheField(player)` (pp. 122–123, N11–N12), plus in Blockade Run for the runners Σ over their own ships of `runVP(s)` (N88) |
+| `victoryPoints(player)` | Σ over enemy ships of `shipVP(s)`, plus Σ over enemy squadrons of `squadronVP(sq)`, plus `holdingTheField(player)` (pp. 122–123, N11–N12), plus in Blockade Run for the runners Σ over their own ships of `runVP(s)` (N88), plus 5 × `minesLost(enemy)` (N113) |
 | `runVP(s)` | Blockade Run, a runner that moved off the blockader's edge (`exitEdge` 180): `shipValue(s)`, or ⌈25%⌉ of it if `crippled`, escorts included, each on its own (N88); otherwise 0 |
 | `shipVP(s)` | escorts → 0 (they score by squadron, `squadronVP`); `destroyedForScoring(s)` → `points`; a stationary defence that isn't destroyed → 0 (N101); `disengaged` → ⌈25%⌉ if `crippled`, else ⌈10%⌉; `active` and `crippled` → ⌈25%⌉; otherwise 0. `points` is `shipValue(s)` (N25) |
 | `holdingTheField(player)` | if no enemy ship but stationary defences is `active` and at least one of the player's is (stationary defences not counting, N102): Σ ⌈50% × shipValue⌉ over every **hulk** on the table, friend or foe (N11); otherwise 0 |
@@ -817,7 +876,7 @@ Every one of these is a pure function of the state. They're defined here so the 
 `actor(state)` is derived, never stored:
 
 1. If `pending` is non-empty → top entry's `player`.
-2. If `stage = "setup"` → by `setupStep`: `roll_*` steps accept the transform from either player (it's one machine; the reducer rolls for both). `choose_formation` → p1 until p1 has picked, then p2 (N16). `choose_setup` → `engagement.setupChooser`. `choose_facing` and `choose_alert` → the defender (the player who isn't `scenario.attacker`). `deploy` → the next deployer (§5). `choose_first_turn` → `setup.firstTurnChooser`.
+2. If `stage = "setup"` → by `setupStep`: `roll_*` steps accept the transform from either player (it's one machine; the reducer rolls for both). `choose_formation` → p1 until p1 has picked, then p2 (N16). `choose_setup` → `engagement.setupChooser`. `choose_facing` and `choose_alert` → the defender (the player who isn't `scenario.attacker`). `place_defences` → `emplacements.owner`. `deploy` → the next deployer (§5). `choose_first_turn` → `setup.firstTurnChooser`.
 3. If `stage = "battle"`:
    - `step = "inactive_ordnance"` → the player who is **not** active.
    - `step = "damage_control"` → either player, for their own ships. Each ship needing repair repairs once (`turnState.ships[id].repaired`); the step closes by itself when all have.
@@ -845,12 +904,13 @@ Properties every valid state satisfies. These are good property-test fodder.
 11. `clock.stage = "ended"` ⇔ `result ≠ null`.
 12. Grapples are consistent. A ship with `grapple ≠ null` is `active`. Every ship its grapple names is `active` and carries an identical `grapple`. `defenderId ∉ attackerIds`, `attackerIds` is non-empty, and the attackers are all the defender's enemies. No ship is in two grapples.
 13. Attack craft are consistent: every wave has ≥ 1 squadron. A wave with `cap ≠ null` is a single fighter, its ship is the owner's and `active`, and its `position` is that ship's stem.
-14. At most one feature, a planet, whose id is unique like any other. `setup.engagement` is present ⇔ `scenario.id = "fleet_engagement"`, and `scenario.deploymentZones` is present ⇔ `scenario.id = "cruiser_clash"`. `maxRounds` is 8 in Cruiser Clash and The Raiders, 6 in Blockade Run, and null in The Bait, Surprise Attack and Fleet Engagement; when it's set, `playerTurn ≤ 2 × maxRounds`. `scenario.attacker` is present ⇔ `scenario.id ∈ {the_bait, raiders, surprise_attack, blockade_run}`. `setup.blockade` is present ⇔ `scenario.id = "blockade_run"`, where `maxRounds` is 6. `setup.raid` is present ⇔ `scenario.id = "raiders"`, where `maxRounds` is 8. `setup.surpriseAttack` is present ⇔ `scenario.id = "surprise_attack"`, where `maxRounds` is null and the table has its planet (N73).
+14. At most one planet, and every feature's id is unique like any other. `setup.engagement` is present ⇔ `scenario.id = "fleet_engagement"`, and `scenario.deploymentZones` is present ⇔ `scenario.id = "cruiser_clash"`. `maxRounds` is 8 in Cruiser Clash and The Raiders, 6 in Blockade Run, and null in The Bait, Surprise Attack and Fleet Engagement; when it's set, `playerTurn ≤ 2 × maxRounds`. `scenario.attacker` is present ⇔ `scenario.id ∈ {the_bait, raiders, surprise_attack, blockade_run}`. `setup.blockade` is present ⇔ `scenario.id = "blockade_run"`, where `maxRounds` is 6. `setup.raid` is present ⇔ `scenario.id = "raiders"`, where `maxRounds` is 8. `setup.surpriseAttack` is present ⇔ `scenario.id = "surprise_attack"`, where `maxRounds` is null and the table has its planet (N73).
 15. Squadrons are consistent: every escort is in exactly one squadron and every capital ship in at most one; a squadron's members share its `owner`, and its `type` (escort squadrons hold escorts; capital squadrons ships of one `profile.type`). Every member of an escort squadron has the same `leadership`.
 16. `turnState.squadronMove` is non-null only in `movement / move_ships`. Its members are the squadron's, the active player's, and at least one hasn't `moved`. While it's set, `activation` is null or for one of its members.
 17. Ships in `reserve` exist only in The Bait, where they're the pursued player's (not `scenario.attacker`), and The Raiders and Surprise Attack, where they're the attacker's (`scenario.attacker`). A squadron's members are all in `reserve` or none is.
 18. `standby` is only on the Surprise Attack defender's ships, and a squadron's members all have it or none has. `turnState.ships[id].alerted` is only on the defender's ships, in their own player turns.
 19. Planetary defences all belong to one player, and the table has a planet. Stationary defences are in no squadron and never in `reserve`; every planetary defence's `leadership` is 7.
+20. Minefields and bought orbital mines belong to `emplacements.owner`, at most 2 minefields, and none of them overlap. Minefield mines are that player's too. The bought mines in `ordnance` number at most `orbitalMines − unplaced.orbitalMines`. `emplacements.unplaced` is empty (no mines, no minefields, sizes rolled) outside `stage = "setup"`. `setupStep = "place_defences"` only when `emplacements` is present.
 
 ```ts
 type GameResult = {
@@ -1125,7 +1185,7 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N86 | **The thirds are rolled with Leadership**: after every ship's Leadership, one D6 per blockading unit in `ships` order (a squadron at its first member): 1–2 left, 3–4 centre, 5–6 right. | §5 |
 | N87 | **The edge a ship leaves by** is recorded on it as `exitEdge`, the inward heading of that edge, whatever the scenario: at a corner, the edge it faces most squarely out of (as `arrivalEdge`, reversed). A ship that disengages by test has none. | §7 |
 | N88 | **Running the blockade** (p. 133): the runners score the points value (`shipValue`) of each of their ships that moved off the blockader's edge, a quarter (⌈25%⌉) if it was crippled. It's on top of standard victory points, as written, so the blockader still scores those ships as disengaged (⌈10%⌉ or ⌈25%⌉). Escorts count one by one here. | §11 |
-| N90 | **Planetary defences, first slice**: the high orbit defences with profiles of their own, as ships (§7.6). Orbital mines, minefields and fire ships come next; the Ramilies star fort (quadrants) and low orbit defences (the low orbit table) later. Stationary defences don't form squadrons yet. | §7.6 |
+| N90 | **Planetary defences, first slice**: the high orbit defences with profiles of their own, as ships (§7.6). Orbital mines, minefields and fire ships came next (N106); the Ramilies star fort (quadrants) and low orbit defences (the low orbit table) later. Stationary defences don't form squadrons yet. | §7.6 |
 | N91 | **Who has defences, and how many** (p. 100, fleets book p. 498): the **planet holder**, only with a planet on the table and points forces: in a scenario with an attacker, the defender (The Bait has none: the bait is far from home); otherwise the player the host names (`planetHolder` in the config; the book rolls for it). They spend at most ⌊`limit`/3⌋ points on defences, counted in their fleet's limit. They're on no fleet list and count towards no ratio. | §7.6 |
 | N92 | **Defence profiles** are the fleets book's, pp. 506–515. A stationary defence's weapons fire all round (all four arcs); its armour is the same all round. The dock's, station's and Blackstone's launch bays carry the holder's fleet attack craft (as their carriers do). | §7.1, §7.6 |
 | N93 | **High orbit deployment** (fleets book p. 498): every planetary defence deploys with its stem in the planet's gravity well, off the template, at a heading the holder gives (it only matters for a ship that moves). Defences are outside the scenario's zones and divisions, its alert units, thirds and spacing; they deploy in the usual turn order as units of their own. | §5, §7.6 |
@@ -1141,6 +1201,23 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 | N103 | **Boarding and teleports**: stationary defences can be boarded (their boarding value is their hits left) and rammed (Defence is the largest size, and a rammed defence always takes its full starting hits, p. 55), but don't board or make teleport attacks themselves. | §7 |
 | N104 | **Hulks of stationary defences** don't drift (`hulks_drift` passes them by) and can't be moved by a `drift_hulk`. | §6 |
 | N105 | **Defences in the scenarios so far**: The Raiders', Surprise Attack's and Blockade Run's defenders may field them around a planet added to the game (Surprise Attack's own planet included); they're never on standby and never alert units. | §4 |
+| N106 | **Planetary defences, second slice**: orbital mines, minefields and fire ships (fleets book pp. 512–513, 516). Mines launched by refitted carriers (fleets book p. 23), the Ramilies and low orbit come later. | §7.6 |
+| N107 | **Buying them** (fleets book p. 498): orbital mines (5 pts, any number) and minefields (40 pts, 0–2) are bought by number in the config (`orbitalMines`, `minefields`), as they aren't ships; fire ships (10 pts, 0–6) are ships, escorts that squadron as escorts. All three are the planet holder's, count toward their fleet's limit and the third spent on defences (N91), and are on no fleet list. | §5, §7.6 |
+| N108 | **Placing mines and minefields** before the fleets deploy, in a `place_defences` step of their own that only a game with any has: the holder places every one, in any order. On entering the step, each minefield's size is rolled, D3 × 5 cm wide then D3 × 5 cm high; the holder may turn it a quarter (swap the two). A minefield lies wholly on the table, overlaps no other, and has its nearest point within 15 cm of the planet's template edge, inclusive: "an edge within 15 cm of a tabletop feature", the planet being the only one so far. It may lie in the gravity well or overlap the template. A mine's centre is in the gravity well, as the other high orbit defences (N93). | §4, §5 |
+| N109 | **Orbital mines are ordnance** (fleets book p. 512): a marker of radius `MINE_RADIUS` = 1 cm, as an attack craft marker (N8). It moves in every Ordnance Phase, in its owner's step; it's shot at as ordnance (target priority, column E, 6s to hit, a hit removes it); turrets fire at it as at torpedoes, sharing the one choice of torpedoes or attack craft a phase (p. 80; the fleets book pairs mines with torpedoes, p. 23). It counts toward no ordnance limit. | §10.2 |
+| N110 | **Mines home** (fleets book p. 512): each move is 10 cm straight toward the stem of `mineQuarry`, the nearest enemy `active` ship (hulks give off no energy signature), stopping when the marker touches any enemy ship's base. With no enemy ship on the table it stays put. A mine already touching an enemy ship when it's to move attacks it without moving. It passes planets, minefields, torpedoes and the enemy's bombers and assault boats by ("not affected by, and do not affect, any other Ordnance markers"), takes one Blast Marker test a move as any ordnance (p. 75), and meeting enemy fighters (moving or met) costs one fighter and the mine. The book's "ships inside the minefield are targeted first, in the order its owner picks" is left out: a mine goes for the nearest ship. | §10.2 |
+| N111 | **A mine's attack** (fleets book p. 512): CAP screens it as it screens torpedoes (a fighter and the mine go). Otherwise: the Blast Marker test for a target with BMs in contact (p. 75, once a move), a Brace offer, then the target's turrets, own and massed, as against torpedoes. If any turret die succeeds the mine rolls 4 dice, else 8, each hitting on the armour of the facing it's on (lower on a boundary, as torpedoes). Shields absorb its hits and place Blast Markers; Brace saves. The mine is removed, whatever the dice. | §10.2 |
+| N112 | **Ships moving onto mines**: a mine attacks only when **it** moves into contact ("if it moves into contact with the base of an enemy ship"). A ship moving under power passes a mine by, and the mine strikes in the next Ordnance Phase. | §10.2 |
+| N113 | **Mines and victory points** (fleets book pp. 512–513): each bought mine no longer in play at the end of the game scores its 5 points for the enemy, however it went (detonated, shot, fighters, a Blast Marker or a fire ship). Mines activated by a minefield score nothing. | §11 |
+| N114 | **Minefields block lines of fire** (fleets book p. 513; asteroid fields, p. 110): a line from stem to stem, to an ordnance marker or to a nova cannon's aim that touches a minefield's rectangle is blocked, whichever side the ends are. Ships can't shoot into, out of or across one. The asteroid field's short-range fire between two ships inside the same field waits for asteroid fields: here they can't shoot each other. A shot **at** a minefield is blocked only by other minefields and planets. | §11 |
+| N115 | **Ships in a minefield** (fleets book p. 513; asteroid fields, p. 110): "toward friendly ships, an asteroid field in all respects", and enemies may cross "using a Leadership check as when traversing an asteroid field", so every ship, friend or foe, takes the same test. The first time its base touches a minefield in a move (at the start included), it tests there: 2D6, or 3D6 on All Ahead Full, against its Leadership (a squadron member's against `squadronLd`), without a Command check's modifiers. An escort re-rolls a failure once; no fleet commander re-roll. On a failure it takes D6 hits there: shields absorb them **without** Blast Markers, Brace saves, and the move carries on if the ship survives. Each ship tests on its own, not once a squadron, and the 5 cm slowdown for shield hits is left out. | §9.1 |
+| N116 | **Drifting hulks** whose stem reaches a minefield are destroyed there (asteroid fields, p. 110), as at a planet (N70). | §6 |
+| N117 | **Torpedoes and attack craft** (fleets book p. 513): a salvo is destroyed where it touches a minefield. An attack craft wave whose footprint touches one during its move, or at its start, rolls one D6 that move (as the Blast Marker test, p. 85): on a 6 the whole wave is removed. Craft of both sides; mines ignore minefields. | §10.2 |
+| N118 | **Detection** (fleets book p. 513): on entering the owner's `active_ordnance` step, for each of their minefields in order, a D6 per enemy `active` ship whose stem is within 30 cm of the rectangle (inside included), in `ships` order: +1 on All Ahead Full, −1 on Burn Retros, −1 for an escort, −1 if any Blast Marker touches the minefield; 5+ (after modifiers) detects it. Each detection places a minefield mine with its centre on `edgePoint(rect, stem)`, the edge nearest the ship, where any owner would put it, so it isn't a choice. The new mines move in that same step, as torpedoes launched that turn do. | §6, §10.2 |
+| N119 | **Shooting at a minefield** (fleets book p. 513): a target "like an Ordnance marker", armour 6. Its point is `nearestPoint(rect, stem)`, for range, arc and the line of fire. It's ordnance for target priority: a weapon may fire at it without a test if it's (one of) the nearest ordnance targets, minefields included. Batteries roll on column E, lances need 6s, as against ordnance. Each hit places a Blast Marker touching the minefield's edge where it faces the shooter (`cause: "minefield"`). Nova cannons and squadron volleys don't fire at minefields. | §10.1 |
+| N120 | **Minefields shed Blast Markers** (fleets book p. 513): in every End Phase, after the stationary defences shed theirs (N100), each minefield removes D6 of the Blast Markers touching it, lowest id first. They don't count against the player's own removal. | §10.1 |
+| N121 | **Fire ships** (fleets book p. 516): Escort/1, 15 cm, 45°, shields 1, armour 5+, turrets 1, no weapons; a system defence ship (Ld 7, Reload and Brace only). In its owner's `move_ships` step, before its move or after it, it may **detonate**: 3D6 cm, measured stem to stem as an explosion (R9). Every other `active` ship within it, friend or foe, suffers D3 Fire! criticals: an escort or Defence/1 is destroyed by them (N34, N97); any other takes D3 `fire` criticals, with no extra damage, burning as usual. Hulks are unaffected. No Brace: no hits are rolled. Every ordnance marker whose position is within the 3D6 is removed, CAP fighters included. The fire ship is destroyed, leaving a Blast Marker at its stem, and scores as destroyed: the book says nothing else. | §7.6 |
+| N122 | **Mines and minefields aren't units**: they don't stop a side being eliminated, don't hold the field, and don't take deployment turns. | §11 |
 | N89 | **Blockade Run's length and battlezone**: 6 rounds (`maxRounds = 6`), or until a fleet is gone (D6). The battlezone (outer reaches or deep space) is the plain table until celestial phenomena are in (N54). | §4 |
 | N29 | **Grand cruisers' immunity to prow criticals** (Vengeance, Exorcist, Avenger, Retaliator, Executor) isn't needed yet: the only grand cruiser on the Gothic War lists, the Repulsive, doesn't have it. It arrives as a trait with the first class that does. | §7.1 |
 | N9 | Crippled and braced halve a carrier's launch bays **in total**, not bay by bay: a crippled Dictator launches 2 squadrons either way, but crippled **and** braced it launches 1 (4 → 2 → 1), where bay by bay would give 2 (each 2 → 1 → 1). | §11 |
@@ -1151,7 +1228,7 @@ Rulings from [`rules/README.md`](../rules/README.md#interpretations--known-issue
 
 The shapes above leave room for these without breaking changes. Each will add fields or union members, never repurpose existing ones.
 
-- **Terrain:** `table.features` holds a planet (§4); gas clouds, asteroid fields, moons, low orbit and `table.sunwardEdge` come later.
+- **Terrain:** `table.features` holds a planet and the holder's minefields (§4); gas clouds, asteroid fields, moons, low orbit and `table.sunwardEdge` come later.
 - **Other scenarios:** new `scenario.id`s with their own set-up blocks. Fleet Engagement, The Bait, The Raiders, Surprise Attack, Blockade Run, reserves and victory points are in (§4, §5, §7, §11); attack ratings and the random scenario tables (p. 120) come with the next scenarios.
 
 ---

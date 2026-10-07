@@ -7,7 +7,7 @@
 import { bmTouchesBase } from "../geometry/basic";
 import { emptyTurnState } from "../state/newGame";
 import { activePlayer, bmsInContact, getShip, hasCritical, isDefence, isHulk, leadership, novaCannonBarred, onStandby, onTable, otherPlayer, score, squadronLd, squadronOf, victoryPoints, weaponDisabled } from "../state/derived";
-import type { GameState, Ordnance, Phase, PlayerId, SetupStep, Step } from "../state/types";
+import type { GameState, JsonValue, MinefieldSize, Ordnance, OrbitalMine, Phase, PlayerId, Point, SetupStep, Step } from "../state/types";
 import type { Ctx } from "./context";
 import { anyTeleport, boardingsToFight } from "../rules/boarding";
 import { grappledStayPut, grapplesFight } from "./boarding";
@@ -18,6 +18,9 @@ import { distance } from "../geometry/basic";
 import { EPS } from "../geometry/constants";
 import { canLaunchCraft } from "../rules/craft";
 import { canArrive, eliminated, hasReserves } from "../rules/reserves";
+import { inDetectionRange, minefields } from "../rules/minefields";
+import { circleTouchesRect, edgePoint } from "../geometry/rect";
+import { BM_RADIUS } from "../geometry/constants";
 
 const SETUP_ORDER: readonly SetupStep[] = [
   "roll_leadership",
@@ -51,6 +54,14 @@ const ENGAGEMENT_SETUP_ORDER: readonly SetupStep[] = [
   "roll_first_turn",
   "choose_first_turn",
 ];
+
+/** The scenario's set-up, with `place_defences` straight before `deploy` when the holder bought mines or minefields (transform T143). */
+export function setupOrder(state: GameState): readonly SetupStep[] {
+  const order = SETUP_ORDERS[state.scenario.id];
+  if (state.setup.emplacements === undefined) return order;
+  const i = order.indexOf("deploy");
+  return [...order.slice(0, i), "place_defences", ...order.slice(i)];
+}
 
 const SETUP_ORDERS: Readonly<Record<GameState["scenario"]["id"], readonly SetupStep[]>> = {
   cruiser_clash: SETUP_ORDER,
@@ -105,6 +116,10 @@ export function stepComplete(state: GameState): boolean {
         return (setup.raid?.facing ?? null) !== null;
       case "choose_alert":
         return setup.surpriseAttack?.alertChosen === true;
+      case "place_defences": {
+        const left = setup.emplacements?.unplaced;
+        return left === undefined || (left.orbitalMines === 0 && left.minefields !== null && left.minefields.length === 0);
+      }
       case "roll_deploy_order":
         return setup.firstDeployer !== null;
       case "deploy":
@@ -184,7 +199,7 @@ export function advanceStep(ctx: Ctx): void {
     const { state } = ctx;
     const { clock } = state;
     if (clock.stage === "setup") {
-      const order = SETUP_ORDERS[state.scenario.id];
+      const order = setupOrder(state);
       const i = order.indexOf(clock.setupStep as SetupStep);
       const next = order[i + 1];
       if (next === undefined) {
@@ -192,6 +207,7 @@ export function advanceStep(ctx: Ctx): void {
       } else {
         clock.setupStep = next;
         ctx.log("step", { setupStep: next });
+        if (next === "place_defences") rollMinefieldSizes(ctx);
       }
       return;
     }
@@ -199,6 +215,7 @@ export function advanceStep(ctx: Ctx): void {
     const next = BATTLE_ORDER[i + 1];
     if (next === undefined) {
       defenceBlastMarkers(ctx);
+      minefieldBlastMarkers(ctx);
       endPlayerTurn(ctx);
     }
     else enterStep(ctx, next.phase, next.step);
@@ -224,6 +241,9 @@ function enterStep(ctx: Ctx, phase: Phase, step: Step): void {
       grapplesFight(ctx);
       break;
     case "active_ordnance":
+      state.turnState.ordnanceMoved = [];
+      detectShips(ctx);
+      break;
     case "inactive_ordnance":
       state.turnState.ordnanceMoved = [];
       break;
@@ -310,6 +330,64 @@ function defenceBlastMarkers(ctx: Ctx): void {
 
 const idNumber = (id: string): number => Number(id.slice(id.lastIndexOf("-") + 1));
 
+/** Each minefield's size, D3 × 5 by D3 × 5 cm, on entering place_defences (state N108, reducer R63). */
+function rollMinefieldSizes(ctx: Ctx): void {
+  const e = ctx.state.setup.emplacements;
+  if (e === undefined) return;
+  const rolls: number[] = [];
+  const sizes: MinefieldSize[] = [];
+  for (let k = 0; k < e.minefields; k++) {
+    const w = ctx.d6();
+    const h = ctx.d6();
+    rolls.push(w, h);
+    sizes.push({ width: Math.ceil(w / 2) * 5, height: Math.ceil(h / 2) * 5 });
+  }
+  e.unplaced.minefields = sizes;
+  if (sizes.length > 0) ctx.log("minefield_sizes", { rolls, sizes: sizes.map((x) => ({ ...x })) });
+}
+
+/** In every End Phase, after the stationary defences, each minefield sheds D6 of the Blast Markers touching it (state N120, reducer R72). */
+function minefieldBlastMarkers(ctx: Ctx): void {
+  const { state } = ctx;
+  for (const f of minefields(state)) {
+    const touching = state.blastMarkers.filter((bm) => circleTouchesRect(bm.position, BM_RADIUS, f.rect));
+    if (touching.length === 0) continue;
+    const roll = ctx.d6();
+    const removed = [...touching].sort((a, b) => idNumber(a.id) - idNumber(b.id)).slice(0, roll).map((bm) => bm.id);
+    state.blastMarkers = state.blastMarkers.filter((bm) => !removed.includes(bm.id));
+    ctx.log("minefield_blast_markers", { minefieldId: f.id, rolls: [roll], removed });
+  }
+}
+
+/**
+ * Minefield detection, entering the owner's active_ordnance (state N118, reducer R70): a D6 per enemy
+ * ship in reach, 5+ after modifiers, each detection a mine on the edge nearest the ship.
+ */
+function detectShips(ctx: Ctx): void {
+  const { state } = ctx;
+  const player = activePlayer(state);
+  for (const f of minefields(state)) {
+    if (f.owner !== player) continue;
+    const suppressed = state.blastMarkers.some((bm) => circleTouchesRect(bm.position, BM_RADIUS, f.rect));
+    const checks: Record<string, JsonValue>[] = [];
+    for (const ship of state.ships) {
+      if (ship.owner === player || ship.status !== "active" || !inDetectionRange(f, ship)) continue;
+      const roll = ctx.d6();
+      const order = ship.specialOrder?.kind;
+      const modifier = (order === "all_ahead_full" ? 1 : 0) - (order === "burn_retros" ? 1 : 0) - (ship.profile.type === "escort" ? 1 : 0) - (suppressed ? 1 : 0);
+      const detected = roll + modifier >= 5;
+      const check: Record<string, JsonValue> = { shipId: ship.id, roll, modifier, detected };
+      if (detected) {
+        const mine: OrbitalMine = { id: ctx.newId("ord"), kind: "orbital_mine", owner: player, position: edgePoint(f.rect, ship.position as Point), source: "minefield" };
+        state.ordnance.push(mine);
+        check.mineId = mine.id;
+      }
+      checks.push(check);
+    }
+    if (checks.length > 0) ctx.log("minefield_detection", { minefieldId: f.id, rolls: checks.map((c) => c.roll as number), checks });
+  }
+}
+
 /** Ships still on standby stay put this Movement Phase, as grappled ones do (transform T117). */
 function standbyStayPut(ctx: Ctx): void {
   const { state } = ctx;
@@ -393,7 +471,7 @@ export function endGame(ctx: Ctx, reason: "rounds_complete" | "fleet_eliminated"
     state.clock = { ...state.clock, stage: "ended", setupStep: null, phase: null, step: null };
     if (state.scenario.scoring === "victory_points") {
       const breakdown = { p1: victoryPoints(state, "p1"), p2: victoryPoints(state, "p2") };
-      const plain = (v: ReturnType<typeof victoryPoints>) => ({ ships: v.ships.map((x) => ({ ...x })), field: v.field });
+      const plain = (v: ReturnType<typeof victoryPoints>) => ({ ships: v.ships.map((x) => ({ ...x })), field: v.field, ...(v.mines > 0 ? { mines: v.mines } : {}) });
       ctx.log("game_end", { reason, scores, winner, scoring: "victory_points", breakdown: { p1: plain(breakdown.p1), p2: plain(breakdown.p2) } });
     } else {
       ctx.log("game_end", { reason, scores, winner });

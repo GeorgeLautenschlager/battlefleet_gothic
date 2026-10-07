@@ -54,6 +54,8 @@ export function StepControls({ state, onApply, onHighlight, plot = null, seat = 
       const open = state.activation?.shipId;
       const ships = mine.filter((s) => (open === undefined ? needsToMove(state, s) : s.id === open));
       const current = ships.find((s) => s.id === plot?.ship.id) ?? ships[0];
+      // Fire ships may go off before or after their move, not halfway (state N121, T153).
+      const torches = state.activation === null ? mine.filter((s) => s.status === "active" && s.profile.traits?.fireShip === true) : [];
       // CAP can be released only before any ship moves (p. 82).
       const releases = mine.flatMap((s) =>
         capOver(state, s.id).map((w) => ({ wave: w, ship: s, transform: { type: "release_cap" as const, player: active, ordnanceId: w.id } })),
@@ -65,6 +67,15 @@ export function StepControls({ state, onApply, onHighlight, plot = null, seat = 
               {releases.map((r) => (
                 <Act key={r.wave.id} state={state} transform={r.transform} onApply={onApply}>
                   Release {r.wave.squadrons[0]?.name ?? "fighter"} from CAP over {r.ship.name}
+                </Act>
+              ))}
+            </div>
+          )}
+          {torches.length > 0 && (
+            <div className="buttons detonate">
+              {torches.map((s) => (
+                <Act key={s.id} state={state} transform={{ type: "detonate", player: active, shipId: s.id }} onApply={onApply}>
+                  <span title="D3 fires aboard every ship within 3D6 cm; escorts and ordnance there are destroyed">Detonate {s.name}</span>
                 </Act>
               ))}
             </div>

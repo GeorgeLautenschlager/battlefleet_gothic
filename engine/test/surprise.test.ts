@@ -77,7 +77,7 @@ describe("a game of Surprise Attack (transform §5, T114)", () => {
     const s = newGame(cloneJson(SURPRISE));
     expect(s.table.features).toEqual([{ kind: "planet", id: "planet-10", position: { x: 90, y: 60 }, size: "medium", diameter: 25, well: 15 }]);
     expect(s.nextId).toBe(11);
-    expect(newGame({ ...cloneJson(SURPRISE), planet: "medium" }).table.features?.[0]?.size).toBe("medium");
+    expect(newGame({ ...cloneJson(SURPRISE), planet: "medium" }).table.features?.[0]).toMatchObject({ size: "medium" });
     expect(() => newGame({ ...cloneJson(SURPRISE), planet: "large" })).toThrow(/at 750 pts has a medium planet, not a large one/);
   });
 

@@ -21,6 +21,7 @@ import { runWorkItem } from "./work";
 import { board, teleport } from "./boarding";
 import { launchAttackCraft, moveAttackCraft, releaseCapOrder } from "./craft";
 import { arrive } from "./reserves";
+import { detonate, moveMine, placeDefence } from "./defences";
 
 export function reduce(state: GameState, transform: Transform): GameState {
   const ctx = new Ctx(cloneJson(state));
@@ -66,6 +67,10 @@ function handle(ctx: Ctx, t: Transform): void {
       return rollDeployOrder(ctx);
     case "deploy_ship":
       return deployShip(ctx, t);
+    case "place_defence":
+      return placeDefence(ctx, t);
+    case "detonate":
+      return detonate(ctx, t);
     case "roll_first_turn":
       return rollFirstTurn(ctx);
     case "choose_first_turn":
@@ -92,8 +97,14 @@ function handle(ctx: Ctx, t: Transform): void {
     case "launch_torpedoes":
       return launchTorpedoes(ctx, t);
     case "move_ordnance":
-      if (ctx.state.ordnance.find((o) => o.id === t.ordnanceId)?.kind === "attack_craft") return moveAttackCraft(ctx, t);
-      return moveOrdnance(ctx, t.ordnanceId);
+      switch (ctx.state.ordnance.find((o) => o.id === t.ordnanceId)?.kind) {
+        case "attack_craft":
+          return moveAttackCraft(ctx, t);
+        case "orbital_mine":
+          return moveMine(ctx, t.ordnanceId);
+        default:
+          return moveOrdnance(ctx, t.ordnanceId);
+      }
     case "launch_attack_craft":
       return launchAttackCraft(ctx, t);
     case "release_cap":

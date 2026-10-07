@@ -4,6 +4,7 @@
  * violation it finds, so tests and debugging tools can show them all at once.
  */
 import { EPS } from "../geometry/constants";
+import { rectsOverlap } from "../geometry/rect";
 import { activePlayer, isDefence, isHulk, onTable, otherPlayer, planetaryDefence } from "./derived";
 import { nonJsonPaths } from "./json";
 import type { GameState, Phase, Ship, Step } from "./types";
@@ -177,6 +178,8 @@ export function checkInvariants(state: GameState): Violation[] {
     if (state.activation !== null && !sm.members.includes(state.activation.shipId)) fail("I16", `activation for a ship outside the squadron's move`);
   }
 
+  if ((state.table.features ?? []).filter((f) => f.kind === "planet").length > 1) fail("I14", "more than one planet");
+
   // I14: the scenario's blocks match its id
   const { id } = state.scenario;
   const engagement = id === "fleet_engagement";
@@ -225,6 +228,24 @@ export function checkInvariants(state: GameState): Violation[] {
     if (ship.leadership !== 7) fail("I19", `${ship.id}: a planetary defence with Leadership ${ship.leadership}`);
     if (isDefence(ship) && (ship.status === "reserve" || (state.squadrons ?? []).some((sq) => sq.shipIds.includes(ship.id)))) fail("I19", `${ship.id}: a stationary defence in reserve or a squadron`);
   }
+
+  // I20: minefields and mines are the emplacements' owner's; at most 2 minefields, none overlapping; all placed once the battle starts
+  const e = state.setup.emplacements;
+  const fields = (state.table.features ?? []).filter((f) => f.kind === "minefield");
+  const mines = state.ordnance.filter((o) => o.kind === "orbital_mine");
+  if ((fields.length > 0 || mines.length > 0) && e === undefined) fail("I20", "mines or minefields without emplacements");
+  if (e !== undefined) {
+    if (fields.length > Math.min(2, e.minefields)) fail("I20", `${fields.length} minefields of ${e.minefields}`);
+    for (const f of fields) if (f.owner !== e.owner) fail("I20", `${f.id} isn't ${e.owner}'s`);
+    for (const m of mines) if (m.owner !== e.owner) fail("I20", `${m.id} isn't ${e.owner}'s`);
+    for (const [i, a] of fields.entries()) {
+      for (const b of fields.slice(i + 1)) if (rectsOverlap(a.rect, b.rect)) fail("I20", `${a.id} and ${b.id} overlap`);
+    }
+    if (mines.filter((m) => m.source === "bought").length > e.orbitalMines - e.unplaced.orbitalMines) fail("I20", "more bought mines in play than placed");
+    const placing = clock.stage === "setup";
+    if (!placing && (e.unplaced.orbitalMines > 0 || e.unplaced.minefields === null || e.unplaced.minefields.length > 0)) fail("I20", "mines or minefields unplaced in battle");
+  }
+  if (clock.setupStep === "place_defences" && e === undefined) fail("I20", "place_defences without emplacements");
 
   // I10: turnState belongs to this player turn
   if (state.turnState.playerTurn !== clock.playerTurn) {

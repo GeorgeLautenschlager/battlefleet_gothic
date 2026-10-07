@@ -1,12 +1,12 @@
 /** Shooting checks (validator spec §4.3): fire, fire_nova_cannon and launch_torpedoes. */
 import { approxGe, approxLe, distance, quadrantsOf, quadrantsOfPoint } from "../geometry/basic";
-import { easiestAspect, isNearest, lineOfFireBlocked, novaLineBlocked, novaRange, shootableOrdnance, squadronTarget, tookFire, type Target } from "../geometry/targeting";
+import { easiestAspect, isNearest, lineOfFireBlocked, novaLineBlocked, novaRange, shootableOrdnance, squadronTarget, targetBlocked, targetPosition, tookFire, type Target } from "../geometry/targeting";
+import { minefields } from "../rules/minefields";
 import { formation, inFormation, novaCannonBarred, onStandby, onTable, squadronOf, weaponDisabled } from "../state/derived";
 import type { GameState, Point, Ship, Weapon } from "../state/types";
 import type { Fire, FireNovaCannon, LaunchTorpedoes } from "../transforms/types";
 import { isResult, ownActiveShip, rerollCheck } from "./movement";
 import { cm, OK, reject, type ValidationResult } from "./reasons";
-import { planetBlocks } from "../rules/planets";
 
 /** Shared checks 1–6a: own active ship whose disengage test didn't fail, not grappled, not boarding and not on standby. */
 export function shooter(state: GameState, shipId: string, player: string): Ship | ValidationResult {
@@ -68,6 +68,11 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
       return reject("INVALID_TARGET", `${s.name} isn't an enemy ship on the table`, { targetId: s.id });
     }
     target = { kind: "ship", ship: s };
+  } else if (t.target.kind === "minefield") {
+    const f = minefields(state).find((x) => x.id === t.target.id);
+    if (f === undefined) return reject("UNKNOWN_TARGET", `No minefield ${t.target.id}`, { targetId: t.target.id });
+    if (f.owner === ship.owner) return reject("INVALID_TARGET", "That minefield is yours", { targetId: f.id });
+    target = { kind: "minefield", field: f };
   } else {
     const o = state.ordnance.find((x) => x.id === t.target.id);
     if (o === undefined) return reject("UNKNOWN_TARGET", `No ordnance ${t.target.id}`, { targetId: t.target.id });
@@ -78,7 +83,7 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
     target = { kind: "ordnance", salvo: o };
   }
   const from = ship.position as Point;
-  const at = target.kind === "ship" ? (target.ship.position as Point) : target.salvo.position;
+  const at = targetPosition(target, from);
   const failed = state.turnState.ships[ship.id]?.priorityTest === "failed";
 
   // A squadron target (V15): checks 13–20 and 24–25 against its members in formation.
@@ -129,12 +134,14 @@ export function checkFire(state: GameState, t: Fire): ValidationResult {
       }
       // 19: line of fire
       if (lineOfFireBlocked(state, ship, target.ship)) {
-        return reject("LINE_OF_FIRE_BLOCKED", "A hulk or a planet blocks the line of fire", { targetId: target.ship.id });
+        return reject("LINE_OF_FIRE_BLOCKED", "A hulk, a planet or a minefield blocks the line of fire", { targetId: target.ship.id });
       }
     } else {
-      if (t.aspect !== undefined) return reject("INVALID_ASPECT_CHOICE", "Ordnance has no aspect", { options: [] });
-      // 19: line of fire: hulks don't block shots at ordnance, planets do (transform T111)
-      if (planetBlocks(state, from, at)) return reject("LINE_OF_FIRE_BLOCKED", "A planet blocks the line of fire", { targetId: target.salvo.id });
+      if (t.aspect !== undefined) return reject("INVALID_ASPECT_CHOICE", `${target.kind === "minefield" ? "A minefield" : "Ordnance"} has no aspect`, { options: [] });
+      // 19: line of fire: hulks don't block shots at ordnance, planets and minefields do (transform T111, state N114, V40)
+      if (targetBlocked(state, ship, target)) {
+        return reject("LINE_OF_FIRE_BLOCKED", "A planet or a minefield blocks the line of fire", { targetId: target.kind === "minefield" ? target.field.id : target.salvo.id });
+      }
     }
 
     // 20: target priority
@@ -219,7 +226,7 @@ function reaches(state: GameState, ship: Ship, w: Weapon, target: Target, member
       ? reject("OUT_OF_ARC", `No ship of the squadron is in ${w.name}'s arc, with a clear line of fire`, { weaponId: w.id, arcs: w.arcs })
       : reject("OUT_OF_RANGE", `No ship of the squadron is within ${w.name}'s ${cm(w.range ?? 0)}`, { weaponId: w.id, range: w.range ?? 0 });
   }
-  const at = target.kind === "ship" ? (target.ship.position as Point) : target.salvo.position;
+  const at = targetPosition(target, from);
   const d = distance(from, at);
   if (w.range === null || !approxLe(d, w.range)) {
     return reject("OUT_OF_RANGE", `${w.name} reaches ${cm(w.range ?? 0)}; the target is ${cm(d)} away`, { weaponId: w.id, distance: d, range: w.range ?? 0 });
@@ -228,11 +235,8 @@ function reaches(state: GameState, ship: Ship, w: Weapon, target: Target, member
   if (!quadrants.some((q) => w.arcs.includes(q))) {
     return reject("OUT_OF_ARC", `The target is outside ${w.name}'s arc`, { weaponId: w.id, quadrants, arcs: w.arcs });
   }
-  if (target.kind === "ship" && lineOfFireBlocked(state, ship, target.ship)) {
-    return reject("LINE_OF_FIRE_BLOCKED", "A hulk or a planet blocks the line of fire", { targetId: target.ship.id });
-  }
-  if (target.kind === "ordnance" && planetBlocks(state, ship.position as Point, target.salvo.position)) {
-    return reject("LINE_OF_FIRE_BLOCKED", "A planet blocks the line of fire", { targetId: target.salvo.id });
+  if (targetBlocked(state, ship, target)) {
+    return reject("LINE_OF_FIRE_BLOCKED", "A hulk, a planet or a minefield blocks the line of fire");
   }
   return OK;
 }

@@ -2,7 +2,8 @@
 import { asinDeg } from "../math/dmath";
 import { BM_RADIUS, EPS } from "../geometry/constants";
 import { baseRadius, distance, headingVector, tableBearing } from "../geometry/basic";
-import type { BlastMarker, Point, Ship } from "../state/types";
+import type { BlastMarker, Minefield, Point, Ship } from "../state/types";
+import { edgePoint, outwardNormal } from "../geometry/rect";
 import type { Ctx } from "./context";
 
 /** Two BMs overlap if their centres are closer than 2·BM_RADIUS − EPS. */
@@ -76,6 +77,23 @@ export function placeAtStem(ctx: Ctx, ship: Ship, cause: BlastMarker["cause"] = 
 export function placeTrailing(ctx: Ctx, hulk: Ship): string {
   const stem = hulk.position as Point;
   return placeInSlots(ctx, ringSlots(stem, hulk, (hulk.heading ?? 0) + 180), "hulk");
+}
+
+/** Hits on a minefield: BMs touching its edge where it faces the shooter, fanned along that side (§5.4). */
+export function placeMinefieldBlastMarkers(ctx: Ctx, field: Minefield, n: number, from: Point): string[] {
+  const p0 = edgePoint(field.rect, from);
+  const out = outwardNormal(field.rect, p0, from);
+  const along = { x: out.y, y: -out.x }; // the normal turned 90° clockwise
+  const slots: Point[] = [];
+  for (let k = 0; k <= 20; k++) {
+    for (const sign of k === 0 ? [0] : [1, -1]) {
+      const s = sign * k * 2 * BM_RADIUS;
+      slots.push({ x: p0.x + out.x * BM_RADIUS + along.x * s, y: p0.y + out.y * BM_RADIUS + along.y * s });
+    }
+  }
+  const ids: string[] = [];
+  for (let i = 0; i < n; i++) ids.push(placeInSlots(ctx, slots, "minefield"));
+  return ids;
 }
 
 /** A single BM exactly where it's put: a nova cannon shell that touched nothing (§5.3). */

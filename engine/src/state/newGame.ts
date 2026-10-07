@@ -4,12 +4,12 @@
  */
 import { boardingModifier, CATALOGUE, fleetCraft, profileWithOptions } from "./catalogue";
 import { buildCommander, commanderPoints, fleetListProblem, type CommanderConfig } from "../rules/fleetLists";
-import { EngineError } from "./derived";
+import { EngineError, MINE_POINTS } from "./derived";
 import { cloneJson } from "./json";
 import { createRng } from "./rng";
 import { PLANET_SIZES } from "../rules/planets";
 import { planetForLimit } from "../rules/surprise";
-import type { FactionId, Forces, GameState, PlanetSize, PlayerId, Scenario, ScenarioId, Scoring, Ship, ShipProfile, ShipSquadron, ShipTurnState, TurnState } from "./types";
+import type { Emplacements, FactionId, Forces, GameState, PlanetSize, PlayerId, Scenario, ScenarioId, Scoring, Ship, ShipProfile, ShipSquadron, ShipTurnState, TurnState } from "./types";
 
 export type GameConfig = {
   seed: number;
@@ -24,6 +24,10 @@ export type GameConfig = {
   planet?: PlanetSize;
   /** Who fields planetary defences in a game without an attacker (state N91, transform T133). */
   planetHolder?: PlayerId;
+  /** The planet holder's orbital mines, 5 pts each (state N107, transform T149). Default 0. */
+  orbitalMines?: number;
+  /** The planet holder's minefields, 40 pts each, 0–2 (T149). Default 0. */
+  minefields?: number;
   /** Default: Cruiser Clash forces (state §4). */
   forces?: Forces;
   /** Default: Cruiser Clash scoring. */
@@ -144,6 +148,9 @@ function validateConfig(config: GameConfig): void {
     counts[ship.owner] += 1;
   }
   defenceProblems(config, forces);
+  // Mines and minefields are the holder's, inside their limit (state N107).
+  const holder = planetHolderOf(config);
+  if (holder !== null) points[holder] += emplacementPoints(config);
   squadronProblems(config, forces.kind === "points");
   // Rarity limits (T35): e.g. two Murder lance variants per 750 points of the side's fleet, or part.
   for (const player of ["p1", "p2"] as const) {
@@ -228,14 +235,22 @@ function defenceProblems(config: GameConfig, forces: Forces): void {
     if (config.planetHolder !== "p1" && config.planetHolder !== "p2") throw new EngineError("the planet holder is p1 or p2");
     if (config.attacker !== undefined || config.scenario === "the_bait") throw new EngineError("in a scenario with an attacker, the defender holds the planet");
   }
+  for (const [key, max] of [["orbitalMines", Infinity], ["minefields", MAX_MINEFIELDS]] as const) {
+    const n = config[key];
+    if (n !== undefined && (!Number.isInteger(n) || n < 0 || n > max)) {
+      throw new EngineError(key === "minefields" ? `minefields are a whole number, 0–${MAX_MINEFIELDS}, not ${n}` : `orbitalMines is a whole number, not ${n}`);
+    }
+  }
   const defences = config.ships.map((s, i) => ({ s, i })).filter((x) => isDefenceClass(x.s.classId));
-  if (defences.length === 0) return;
+  if (defences.length === 0 && emplacementPoints(config) === 0) return;
   if (forces.kind !== "points") throw new EngineError("planetary defences come with points battles");
   if (planetOf(config) === undefined) throw new EngineError("planetary defences need a planet on the table");
   if (config.scenario === "the_bait") throw new EngineError("The Bait has no planetary defences");
   const holder = planetHolderOf(config);
   if (holder === null) throw new EngineError("name the planet holder: who fields the planetary defences");
-  let spent = 0;
+  let spent = emplacementPoints(config);
+  const fireShips = defences.filter((x) => CATALOGUE[x.s.classId]?.profile.traits?.fireShip === true).length;
+  if (fireShips > MAX_FIRE_SHIPS) throw new EngineError(`at most ${MAX_FIRE_SHIPS} fire ships, not ${fireShips}`);
   for (const { s, i } of defences) {
     if (s.owner !== holder) throw new EngineError(`ships[${i}]: only the planet holder (${holder}) fields planetary defences`);
     if (s.reserve === true || s.commander !== undefined || (s.options ?? []).length > 0) throw new EngineError(`ships[${i}]: planetary defences take no options, commander or reserve`);
@@ -252,6 +267,14 @@ function defenceProblems(config: GameConfig, forces: Forces): void {
     if (kinds.size > 1) throw new EngineError(`squadron "${sq.name}": system defence ships squadron only with each other`);
   }
 }
+
+/** The most minefields and fire ships a holder may buy (fleets book p. 498). */
+const MAX_MINEFIELDS = 2;
+const MAX_FIRE_SHIPS = 6;
+const MINEFIELD_POINTS = 40;
+
+/** What the holder's orbital mines and minefields cost (state N107). */
+export const emplacementPoints = (config: GameConfig): number => MINE_POINTS * (config.orbitalMines ?? 0) + MINEFIELD_POINTS * (config.minefields ?? 0);
 
 /** A ship's points as fielded: its class, options and any commander. */
 function fieldedPoints(ship: GameConfig["ships"][number], i: number): number {
@@ -374,6 +397,15 @@ function planetOf(config: GameConfig): PlanetSize | undefined {
 const movesOn = (config: GameConfig, owner: PlayerId): boolean =>
   (config.scenario === "raiders" || config.scenario === "surprise_attack") && owner === config.attacker;
 
+/** The holder's mines and minefields, all still to place (state §5); nothing when they bought none. */
+function emplacementsOf(config: GameConfig): { emplacements?: Emplacements } {
+  const holder = planetHolderOf(config);
+  const orbitalMines = config.orbitalMines ?? 0;
+  const minefields = config.minefields ?? 0;
+  if (holder === null || orbitalMines + minefields === 0) return {};
+  return { emplacements: { owner: holder, orbitalMines, minefields, unplaced: { orbitalMines, minefields: null } } };
+}
+
 /** Create a game at setup / roll_leadership (transform spec §5). */
 export function newGame(config: GameConfig): GameState {
   validateConfig(config);
@@ -460,6 +492,7 @@ export function newGame(config: GameConfig): GameState {
       ...(config.scenario === "raiders" ? { raid: { facing: null, surpriseTurns: null } } : {}),
       ...(config.scenario === "surprise_attack" ? { surpriseAttack: { alertUnits: null, alertChosen: false, entryEdge: null } } : {}),
       ...(config.scenario === "blockade_run" ? { blockade: { thirds: null } } : {}),
+      ...emplacementsOf(config),
     },
     clock: { stage: "setup", setupStep: "roll_leadership", playerTurn: 0, phase: null, step: null },
     ships,

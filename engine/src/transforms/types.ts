@@ -12,6 +12,8 @@ export type RollZones = Base<"roll_zones">;
 export type RollDeployOrder = Base<"roll_deploy_order">;
 /** `heading`: Surprise Attack's defender only, where the division sets none (T116). */
 export type DeployShip = Base<"deploy_ship"> & { shipId: string; position: Point; heading?: number };
+/** Place an orbital mine or the next minefield, by its centre; `turned` swaps a minefield's sides (T144–T146). */
+export type PlaceDefence = Base<"place_defence"> & { kind: "orbital_mine" | "minefield"; position: Point; turned?: boolean };
 export type RollFirstTurn = Base<"roll_first_turn">;
 export type ChooseFirstTurn = Base<"choose_first_turn"> & { goFirst: boolean };
 // Fleet Engagement's set-up (§4.1)
@@ -35,9 +37,11 @@ export type Move = Base<"move"> & { shipId: string; path: PathStep[]; disengage:
 export type ReleaseCap = Base<"release_cap"> & { ordnanceId: string };
 /** Bring one unit of reserves on along an entry edge (T94): a ship in no squadron, or a whole squadron. */
 export type Arrive = Base<"arrive"> & { placements: { shipId: string; position: Point; heading: number }[] };
+/** A fire ship goes off, before its move or after it (T153). */
+export type Detonate = Base<"detonate"> & { shipId: string };
 
 // Shooting (§4.3)
-export type FireTarget = { kind: "ship" | "ordnance"; id: string };
+export type FireTarget = { kind: "ship" | "ordnance" | "minefield"; id: string };
 export type Fire = Base<"fire"> & {
   shipId: string;
   weaponId: string;
@@ -84,6 +88,7 @@ export type Transform =
   | RollZones
   | RollDeployOrder
   | DeployShip
+  | PlaceDefence
   | RollFirstTurn
   | ChooseFirstTurn
   | ChooseFormation
@@ -96,6 +101,7 @@ export type Transform =
   | Move
   | ReleaseCap
   | Arrive
+  | Detonate
   | Fire
   | FireNovaCannon
   | LaunchTorpedoes

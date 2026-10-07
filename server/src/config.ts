@@ -1,8 +1,12 @@
 /** Online Cruiser Clash (p. 128): each seat brings its own fleet; the room builds the config when both have. */
 import { isDefenceClass, newGame, type FactionId, type Forces, type GameConfig, type PlanetSize, type PlayerId, type ScenarioId } from "@bfg/engine";
-import { MAX_NAME_LENGTH, MAX_POINTS_SHIPS, MAX_SHIPS, shipEntry, type RoomOptions, type ShipEntry } from "./protocol";
+import { MAX_NAME_LENGTH, MAX_POINTS_SHIPS, MAX_SHIPS, shipEntry, type Emplacements, type RoomOptions, type ShipEntry } from "./protocol";
 
-export type SeatFleet = { name: string; faction: FactionId; ships: ShipEntry[] };
+export type SeatFleet = { name: string; faction: FactionId; ships: ShipEntry[]; emplacements?: Emplacements };
+
+/** Who holds the planet (state N91): the defender in a scenario with an attacker, else the host's pick. */
+export const holderOf = (options: RoomOptions): PlayerId | undefined =>
+  hasAttacker(options.scenario) ? (options.attacker === "p1" ? "p2" : "p1") : options.planetHolder;
 
 /** The scenarios with an attacker and a defender, whose roles the host names (T93, T100, T114, T123). */
 export const hasAttacker = (scenario: ScenarioId | undefined): boolean =>
@@ -15,6 +19,9 @@ export function cruiserClash(
   options: RoomOptions,
 ): GameConfig {
   const ships = (owner: PlayerId) => seats[owner].ships.map((s) => ({ owner, ...shipEntry(s) }));
+  // The holder's mines and minefields (state N107); nobody else may bring any (fleetProblem).
+  const holder = holderOf(options);
+  const mines = holder !== undefined ? seats[holder].emplacements : undefined;
   return {
     seed,
     createdAt,
@@ -32,6 +39,8 @@ export function cruiserClash(
       p2: { name: seats.p2.name, faction: seats.p2.faction },
     },
     ships: [...ships("p1"), ...ships("p2")],
+    ...(mines !== undefined && mines.orbitalMines > 0 ? { orbitalMines: mines.orbitalMines } : {}),
+    ...(mines !== undefined && mines.minefields > 0 ? { minefields: mines.minefields } : {}),
   };
 }
 
@@ -67,6 +76,8 @@ export function fleetProblem(
   planet?: PlanetSize,
   /** Without an attacker: whether this seat holds the planet, and so may field planetary defences (state N91). */
   holder = false,
+  /** The seat's orbital mines and minefields (state N107): the holder's only. */
+  emplacements?: Emplacements,
 ): string | null {
   if (forces.kind === "points") {
     // A points battle: each side brings its own number of ships, within the limit (T36).
@@ -83,6 +94,10 @@ export function fleetProblem(
   const roles = hasAttacker(scenario);
   // A mirror leaves the planetary defences out: only the planet holder fields them (state N91).
   const opponent = roles ? [{ owner: "p2" as const, ...loneCruiser(faction, fleetLists) }] : side("p2").filter((s) => !isDefenceClass(s.classId));
+  const mines = emplacements?.orbitalMines ?? 0;
+  const fields = emplacements?.minefields ?? 0;
+  const holds = roles ? defender : holder;
+  if (mines + fields > 0 && (!holds || planet === undefined && scenario !== "surprise_attack")) return "Only the planet holder fields orbital mines and minefields";
   try {
     newGame({
       seed: 1,
@@ -95,6 +110,8 @@ export function fleetProblem(
       ...(!roles && planet !== undefined ? { planetHolder: holder ? ("p1" as const) : ("p2" as const) } : {}),
       players: { p1: { name: "a", faction: faction as FactionId }, p2: { name: "b", faction: faction as FactionId } },
       ships: [...side("p1"), ...opponent],
+      ...(mines > 0 ? { orbitalMines: mines } : {}),
+      ...(fields > 0 ? { minefields: fields } : {}),
     });
   } catch (e) {
     return (e as Error).message;

@@ -7,7 +7,7 @@ function sourceName(state: GameState, p: PendingDecision): string {
   const { source } = p;
   if (source.kind === "ordnance") {
     const o = state.ordnance.find((x) => x.id === source.id);
-    const launcher = state.ships.find((s) => s.id === o?.launchedBy);
+    const launcher = o?.kind === "orbital_mine" ? undefined : state.ships.find((s) => s.id === o?.launchedBy);
     return o === undefined ? "ordnance" : `${ordnanceLabel(o)}${launcher ? ` from ${launcher.name}` : ""}`;
   }
   const ship = state.ships.find((s) => s.id === source.id);
